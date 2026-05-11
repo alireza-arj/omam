@@ -1,0 +1,74 @@
+import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from "react-native-svg";
+
+type IllustrationProps = {
+  width?: number;
+  height?: number;
+};
+
+export function ClockWaveIllustration({ width = 92, height = 58 }: IllustrationProps) {
+  return (
+    <Svg width={width} height={height} viewBox="0 0 92 58" fill="none">
+      <Defs>
+        <LinearGradient id="clockWaveStroke" x1="8" y1="10" x2="85" y2="50" gradientUnits="userSpaceOnUse">
+          <Stop stopColor="#1B1720" stopOpacity="0.82" />
+          <Stop offset="1" stopColor="#1B1720" stopOpacity="0.22" />
+        </LinearGradient>
+      </Defs>
+      <Path
+        d="M6 41C14.2 26.9 19.3 28.2 26.8 36.1C33.2 42.8 39.5 43.7 46.8 31.8C53.9 20.4 61.5 18.6 71.5 29.9C76.4 35.4 81.8 37.8 86 28.4"
+        stroke="url(#clockWaveStroke)"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
+      <Circle cx="24" cy="20" r="11" stroke="#201C25" strokeWidth="2" opacity="0.65" />
+      <Path d="M24 13V20L29 23" stroke="#201C25" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx="66" cy="40" r="3.2" fill="#201C25" opacity="0.66" />
+      <Circle cx="79" cy="17" r="2.2" fill="#201C25" opacity="0.45" />
+    </Svg>
+  );
+}
+
+export function SessionPathIllustration({ width = 92, height = 58 }: IllustrationProps) {
+  return (
+    <Svg width={width} height={height} viewBox="0 0 92 58" fill="none">
+      <Defs>
+        <LinearGradient id="sessionPathStroke" x1="8" y1="6" x2="82" y2="52" gradientUnits="userSpaceOnUse">
+          <Stop stopColor="#1A170D" stopOpacity="0.86" />
+          <Stop offset="1" stopColor="#1A170D" stopOpacity="0.24" />
+        </LinearGradient>
+      </Defs>
+      <Path d="M10 46C21 21 38 11 55 22C66 28.8 75.5 31.8 84 15" stroke="url(#sessionPathStroke)" strokeWidth="2.5" />
+      <Circle cx="10" cy="46" r="3.2" fill="#1A170D" opacity="0.76" />
+      <Circle cx="55" cy="22" r="3.2" fill="#1A170D" opacity="0.76" />
+      <Circle cx="84" cy="15" r="3.2" fill="#1A170D" opacity="0.76" />
+      <Path d="M38 30L47 35L38 40V30Z" fill="#1A170D" opacity="0.72" />
+      <Rect x="62" y="34" width="18" height="14" rx="7" stroke="#1A170D" strokeWidth="1.6" opacity="0.46" />
+    </Svg>
+  );
+}
+
+export function IncomeSparkIllustration({ width = 96, height = 62 }: IllustrationProps) {
+  return (
+    <Svg width={width} height={height} viewBox="0 0 96 62" fill="none">
+      <Defs>
+        <LinearGradient id="incomeBars" x1="14" y1="50" x2="56" y2="8" gradientUnits="userSpaceOnUse">
+          <Stop stopColor="#1C1620" stopOpacity="0.26" />
+          <Stop offset="1" stopColor="#1C1620" stopOpacity="0.72" />
+        </LinearGradient>
+      </Defs>
+      <Rect x="10" y="34" width="9" height="16" rx="3" fill="url(#incomeBars)" />
+      <Rect x="24" y="26" width="9" height="24" rx="3" fill="url(#incomeBars)" />
+      <Rect x="38" y="18" width="9" height="32" rx="3" fill="url(#incomeBars)" />
+      <Rect x="52" y="11" width="9" height="39" rx="3" fill="url(#incomeBars)" />
+      <Path
+        d="M10 40C19 34 27 36 35 28C41.4 21.6 48.7 17.5 60 15C69 13 75.8 8.6 84.7 12.7"
+        stroke="#1C1620"
+        strokeOpacity="0.74"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+      <Circle cx="80" cy="17" r="8.5" stroke="#1C1620" strokeWidth="1.8" opacity="0.52" />
+      <Path d="M76.8 17.2H83.1M80 13.9V20.2" stroke="#1C1620" strokeWidth="1.6" strokeLinecap="round" opacity="0.7" />
+    </Svg>
+  );
+}
