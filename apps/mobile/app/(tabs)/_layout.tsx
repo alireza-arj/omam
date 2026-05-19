@@ -171,7 +171,7 @@ function TabsNavigation() {
           <View style={StyleSheet.absoluteFill}>
             <BlurView intensity={42} tint="light" style={StyleSheet.absoluteFill} />
             <LinearGradient
-              colors={["rgba(248, 251, 247, 0.95)", "rgba(234, 244, 237, 0.9)", "rgba(248, 241, 225, 0.9)"]}
+              colors={["rgba(248, 251, 247, 0.95)", "rgba(248, 241, 225, 0.9)"]}
               start={{ x: 0.05, y: 0.1 }}
               end={{ x: 0.95, y: 0.9 }}
               style={StyleSheet.absoluteFill}

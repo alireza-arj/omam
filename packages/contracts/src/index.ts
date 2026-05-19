@@ -4,9 +4,7 @@ export const currencySchema = z.enum(["IRR", "USD"]);
 
 export const authUserSchema = z.object({
   id: z.string(),
-  username: z.string(),
-  nickname: z.string().nullable(),
-  avatarUrl: z.string().nullable(),
+  email: z.string().email(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -14,17 +12,11 @@ export const authUserSchema = z.object({
 export const authResponseSchema = z.object({
   token: z.string().min(1),
   user: authUserSchema,
-  needsProfileSetup: z.boolean(),
 });
 
 export const loginInputSchema = z.object({
-  username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9_]+$/),
+  email: z.string().trim().email(),
   password: z.string().min(6).max(72),
-});
-
-export const completeProfileInputSchema = z.object({
-  nickname: z.string().trim().min(2).max(32),
-  avatarUrl: z.string().trim().max(600_000).nullable().optional(),
 });
 
 export const sessionSchema = z.object({
@@ -75,17 +67,3 @@ export const updateSessionInputSchema = z.object({
   endAt: z.string().datetime().nullable(),
   note: z.string().trim().max(240).nullable(),
 });
-
-export type AuthUserDto = z.infer<typeof authUserSchema>;
-export type AuthResponseDto = z.infer<typeof authResponseSchema>;
-export type LoginInput = z.infer<typeof loginInputSchema>;
-export type CompleteProfileInput = z.infer<typeof completeProfileInputSchema>;
-export type SessionDto = z.infer<typeof sessionSchema>;
-export type SettingsDto = z.infer<typeof settingsSchema>;
-export type SummaryDto = z.infer<typeof summarySchema>;
-export type SessionsResponseDto = z.infer<typeof sessionsResponseSchema>;
-export type SummaryResponseDto = z.infer<typeof summaryResponseSchema>;
-export type UpdateSettingsInput = z.infer<typeof updateSettingsInputSchema>;
-export type ClockInInput = z.infer<typeof clockInInputSchema>;
-export type ClockOutInput = z.infer<typeof clockOutInputSchema>;
-export type UpdateSessionInput = z.infer<typeof updateSessionInputSchema>;
