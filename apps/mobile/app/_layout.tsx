@@ -1,7 +1,9 @@
 import "../global.css";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
+import { ActivityIndicator, View } from "react-native";
 import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
+import { SQLiteProvider } from "expo-sqlite";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -15,6 +17,7 @@ import {
 } from "@expo-google-fonts/vazirmatn";
 import { LanguageProvider, useLanguage } from "../src/providers/language-provider";
 import { AuthProvider } from "../src/providers/auth-provider";
+import { DATABASE_NAME, initializeDatabase } from "../src/lib/database";
 import type { AppLanguage } from "../src/i18n/translations";
 
 let didCaptureTypographyBase = false;
@@ -53,6 +56,14 @@ function configureDefaultTypography(language: AppLanguage) {
   configuredTypographyLanguage = language;
 }
 
+function LoadingFallback() {
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#eaf4ed" }}>
+      <ActivityIndicator size="large" color="#1e6f4d" />
+    </View>
+  );
+}
+
 function RootNavigation() {
   const { isReady, isRTL, language } = useLanguage();
   const [fontsLoaded] = useFonts({
@@ -74,24 +85,28 @@ function RootNavigation() {
   }
 
   return (
-    <AuthProvider>
-      <GestureHandlerRootView style={{ flex: 1, direction: isRTL ? "rtl" : "ltr" }}>
-        <SafeAreaProvider>
-          <StatusBar style="dark" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: "fade",
-              animationTypeForReplace: "push",
-              animationDuration: 140,
-            }}
-          >
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-          </Stack>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    </AuthProvider>
+    <Suspense fallback={<LoadingFallback />}>
+      <SQLiteProvider databaseName={DATABASE_NAME} onInit={initializeDatabase}>
+        <AuthProvider>
+          <GestureHandlerRootView style={{ flex: 1, direction: isRTL ? "rtl" : "ltr" }}>
+            <SafeAreaProvider>
+              <StatusBar style="dark" />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: "fade",
+                  animationTypeForReplace: "push",
+                  animationDuration: 140,
+                }}
+              >
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(tabs)" />
+              </Stack>
+            </SafeAreaProvider>
+          </GestureHandlerRootView>
+        </AuthProvider>
+      </SQLiteProvider>
+    </Suspense>
   );
 }
 

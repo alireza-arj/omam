@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
+import { useSQLiteContext } from "expo-sqlite";
 import type { SessionDto, SettingsDto, SummaryDto, UpdateSettingsInputDto } from "@omam/contracts";
-import { api } from "../lib/api";
+import { getSessions, getMonthlySummary, clockIn as dbClockIn, clockOut as dbClockOut } from "../lib/db/sessions";
+import { getSettings, upsertSettings } from "../lib/db/settings";
 import { currentMonthKey } from "../lib/format";
 import { useAuth } from "./auth-provider";
 
@@ -45,7 +47,8 @@ function monthRange(month: string) {
 }
 
 export function AttendanceProvider({ children }: PropsWithChildren) {
-  const { isAuthenticated } = useAuth();
+  const db = useSQLiteContext();
+  const { user, isAuthenticated } = useAuth();
   const [sessions, setSessions] = useState<SessionDto[]>([]);
   const [settings, setSettings] = useState<SettingsDto>(defaultSettings);
   const [summary, setSummary] = useState<SummaryDto>(defaultSummary);
@@ -54,7 +57,7 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
   const month = useMemo(() => currentMonthKey(), []);
 
   const refresh = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user) {
       setSessions([]);
       setSettings(defaultSettings);
       setSummary(defaultSummary);
@@ -66,19 +69,17 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
 
     try {
       const range = monthRange(month);
-      const [settingsResponse, sessionsResponse, summaryResponse] = await Promise.all([
-        api.getSettings(),
-        api.getSessions(range.from, range.to),
-        api.getSummary(month),
-      ]);
+      const userSettings = getSettings(db, user.id);
+      const userSessions = getSessions(db, user.id, range.from, range.to);
+      const userSummary = getMonthlySummary(db, user.id, month);
 
-      setSettings(settingsResponse);
-      setSessions(sessionsResponse.sessions);
-      setSummary(summaryResponse.summary);
+      setSettings(userSettings);
+      setSessions(userSessions);
+      setSummary(userSummary);
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, month]);
+  }, [db, isAuthenticated, month, user]);
 
   useEffect(() => {
     refresh().catch(() => {
@@ -87,49 +88,45 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
   }, [refresh]);
 
   const clockIn = useCallback(async () => {
+    if (!user) return;
+
     setIsMutating(true);
 
     try {
-      await api.clockIn({
-        startAt: new Date().toISOString(),
-      });
+      dbClockIn(db, user.id, new Date().toISOString());
       await refresh();
     } catch (error) {
       throw error instanceof Error ? error : new Error("ATTENDANCE_CLOCKIN_FAILED");
     } finally {
       setIsMutating(false);
     }
-  }, [refresh]);
+  }, [db, refresh, user]);
 
   const clockOut = useCallback(async () => {
-    if (!summary.activeSession) {
-      return;
-    }
+    if (!summary.activeSession || !user) return;
 
     setIsMutating(true);
 
     try {
-      await api.clockOut(summary.activeSession.id, {
-        endAt: new Date().toISOString(),
-      });
+      dbClockOut(db, summary.activeSession.id, user.id, new Date().toISOString());
       await refresh();
     } catch (error) {
       throw error instanceof Error ? error : new Error("ATTENDANCE_CLOCKOUT_FAILED");
     } finally {
       setIsMutating(false);
     }
-  }, [refresh, summary.activeSession]);
+  }, [db, refresh, summary.activeSession, user]);
 
   const saveSettings = useCallback(
     async (payload: UpdateSettingsInputDto) => {
+      if (!user) throw new Error("Not authenticated.");
+
       setIsMutating(true);
 
       try {
-        const nextSettings = await api.updateSettings(payload);
-
+        const nextSettings = upsertSettings(db, user.id, payload);
         setSettings(nextSettings);
         await refresh();
-
         return nextSettings;
       } catch (error) {
         throw error instanceof Error ? error : new Error("ATTENDANCE_SAVE_FAILED");
@@ -137,7 +134,7 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
         setIsMutating(false);
       }
     },
-    [refresh],
+    [db, refresh, user],
   );
 
   const value = useMemo<AttendanceContextValue>(

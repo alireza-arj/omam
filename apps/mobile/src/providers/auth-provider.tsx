@@ -1,18 +1,25 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { AuthResponseDto, AuthUserDto, CompleteProfileInputDto } from "@omam/contracts";
-import { api, setApiAuthToken } from "../lib/api";
+import { useSQLiteContext } from "expo-sqlite";
+import type { AuthUserDto, CompleteProfileInputDto } from "@omam/contracts";
+import {
+  getUserByUsername,
+  getUserCount,
+  createUser,
+  hashPassword,
+  verifyPassword,
+  updateUserProfile,
+} from "../lib/db/auth";
 
-const AUTH_TOKEN_STORAGE_KEY = "@omam:authToken";
+const AUTH_STORAGE_KEY = "@omam:loggedIn";
 
 type AuthContextValue = {
-  token: string | null;
   user: AuthUserDto | null;
   isReady: boolean;
   isMutating: boolean;
   isAuthenticated: boolean;
   needsProfileSetup: boolean;
-  signIn: (username: string, password: string) => Promise<AuthResponseDto>;
+  signIn: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   completeProfile: (payload: CompleteProfileInputDto) => Promise<AuthUserDto>;
 };
@@ -20,7 +27,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [token, setToken] = useState<string | null>(null);
+  const db = useSQLiteContext();
   const [user, setUser] = useState<AuthUserDto | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
@@ -30,119 +37,141 @@ export function AuthProvider({ children }: PropsWithChildren) {
     let active = true;
 
     async function boot() {
-      const stored = await AsyncStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+      const stored = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
 
-      if (!active) {
-        return;
-      }
+      if (!active) return;
 
       if (!stored) {
         setIsReady(true);
         return;
       }
 
-      setToken(stored);
-      setApiAuthToken(stored);
-
       try {
-        const res = await api.me();
+        const parsed = JSON.parse(stored) as { userId: string };
+        const found = db.getFirstSync<AuthUserDto>(
+          "SELECT id, username, nickname, avatarUrl, createdAt, updatedAt FROM User WHERE id = ?",
+          [parsed.userId],
+        );
 
-        if (!active) {
-          return;
+        if (!active) return;
+
+        if (found) {
+          setUser(found);
+          setNeedsProfileSetup(!found.nickname?.trim());
+        } else {
+          await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
         }
-
-        setUser(res.user);
-        setNeedsProfileSetup(res.needsProfileSetup);
       } catch {
-        await AsyncStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-
-        if (!active) {
-          return;
-        }
-
-        setToken(null);
-        setApiAuthToken(null);
-        setUser(null);
-        setNeedsProfileSetup(false);
+        await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
       } finally {
-        if (active) {
-          setIsReady(true);
-        }
+        if (active) setIsReady(true);
       }
     }
 
     boot().catch(() => {
-      if (active) {
-        setIsReady(true);
-      }
+      if (active) setIsReady(true);
     });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [db]);
 
-  const signIn = useCallback(async (username: string, password: string) => {
-    setIsMutating(true);
+  const signIn = useCallback(
+    async (username: string, password: string) => {
+      setIsMutating(true);
 
-    try {
-      const res = await api.login({ username, password });
+      try {
+        const userCount = getUserCount(db);
+        let found = getUserByUsername(db, username);
 
-      await AsyncStorage.setItem(AUTH_TOKEN_STORAGE_KEY, res.token);
-      setToken(res.token);
-      setApiAuthToken(res.token);
-      setUser(res.user);
-      setNeedsProfileSetup(res.needsProfileSetup);
+        if (!found && userCount === 0) {
+          const passwordHash = await hashPassword(password);
+          found = createUser(db, username, passwordHash) as unknown as typeof found;
+        }
 
-      return res;
-    } finally {
-      setIsMutating(false);
-    }
-  }, []);
+        if (!found) {
+          throw new Error("Invalid username or password.");
+        }
+
+        const valid = await verifyPassword(password, found.passwordHash);
+        if (!valid) {
+          throw new Error("Invalid username or password.");
+        }
+
+        const authUser: AuthUserDto = {
+          id: found.id,
+          username: found.username,
+          nickname: found.nickname,
+          avatarUrl: found.avatarUrl,
+          createdAt: found.createdAt,
+          updatedAt: found.updatedAt,
+        };
+
+        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ userId: authUser.id }));
+        setUser(authUser);
+        setNeedsProfileSetup(!authUser.nickname?.trim());
+      } finally {
+        setIsMutating(false);
+      }
+    },
+    [db],
+  );
 
   const signOut = useCallback(async () => {
     setIsMutating(true);
 
     try {
-      await api.logout().catch(() => undefined);
-      await AsyncStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-      setToken(null);
+      await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
       setUser(null);
       setNeedsProfileSetup(false);
-      setApiAuthToken(null);
     } finally {
       setIsMutating(false);
     }
   }, []);
 
-  const completeProfile = useCallback(async (payload: CompleteProfileInputDto) => {
-    setIsMutating(true);
+  const completeProfile = useCallback(
+    async (payload: CompleteProfileInputDto) => {
+      setIsMutating(true);
 
-    try {
-      const res = await api.completeProfile(payload);
+      try {
+        if (!user) {
+          throw new Error("Not authenticated.");
+        }
 
-      setUser(res.user);
-      setNeedsProfileSetup(res.needsProfileSetup);
+        const nextAvatar = payload.avatarUrl?.trim() || null;
+        const isDataAvatar = nextAvatar ? nextAvatar.startsWith("data:image/") : false;
+        const isHttpAvatar = nextAvatar ? /^https?:\/\//i.test(nextAvatar) : false;
 
-      return res.user;
-    } finally {
-      setIsMutating(false);
-    }
-  }, []);
+        if (nextAvatar && !isDataAvatar && !isHttpAvatar) {
+          throw new Error("Avatar must be a valid image data URL or HTTP URL.");
+        }
+
+        const updated = updateUserProfile(db, user.id, payload.nickname.trim(), nextAvatar);
+
+        setUser(updated);
+        setNeedsProfileSetup(!updated.nickname?.trim());
+
+        return updated;
+      } finally {
+        setIsMutating(false);
+      }
+    },
+    [db, user],
+  );
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      token,
       user,
       isReady,
       isMutating,
-      isAuthenticated: Boolean(token && user),
+      isAuthenticated: Boolean(user),
       needsProfileSetup,
       signIn,
       signOut,
       completeProfile,
     }),
-    [completeProfile, isMutating, isReady, needsProfileSetup, signIn, signOut, token, user],
+    [isMutating, isReady, needsProfileSetup, signIn, signOut, user, completeProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

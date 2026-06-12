@@ -82,7 +82,7 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#eef3ec]" edges={["top"]}>
-      <View className="flex-1 items-center justify-between px-5 pb-[112px] pt-5">
+      <View className="flex-1 items-center justify-center px-5 pb-[112px] pt-5">
         <View className="items-center">
           <Text className="text-sm text-[#5f7268]">{displayDate}</Text>
           <Text
@@ -109,7 +109,6 @@ export default function DashboardScreen() {
           savingLabel={t("common.saving")}
         />
 
-        <Text className="text-sm text-[#5f7268]">{t("dashboard.clockTapHint")}</Text>
       </View>
     </SafeAreaView>
   );
