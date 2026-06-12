@@ -21,7 +21,7 @@ export const languageMeta: Record<
 
 const translations = {
   fa: {
-    "tabs.today": "امروز",
+    "tabs.home": "خانه",
     "tabs.history": "تاریخچه",
     "tabs.report": "گزارش",
     "tabs.profile": "پروفایل",
@@ -77,7 +77,7 @@ const translations = {
     "dashboard.earned": "درآمد",
     "dashboard.trackFailedTitle": "ثبت زمان انجام نشد",
     "dashboard.trackFailedFallback": "خطای ناشناخته در ثبت زمان رخ داد.",
-    "dashboard.clockTapHint": "برای شروع و پایان، روی ساعت لمس کن.",
+    "dashboard.clockTapHint": "برای شروع و پایان، دکمه را لمس کن.",
     "history.logs": "گزارش‌ها",
     "history.title": "تاریخچه",
     "history.sessions": "جلسه‌ها",
@@ -122,7 +122,7 @@ const translations = {
     "stat.goalHours": "هدف {hours} ساعت",
   },
   en: {
-    "tabs.today": "Today",
+    "tabs.home": "Home",
     "tabs.history": "History",
     "tabs.report": "Report",
     "tabs.profile": "Profile",
@@ -178,7 +178,7 @@ const translations = {
     "dashboard.earned": "Earned",
     "dashboard.trackFailedTitle": "Time tracking failed",
     "dashboard.trackFailedFallback": "An unknown error occurred while tracking time.",
-    "dashboard.clockTapHint": "Tap the clock to start or stop tracking.",
+    "dashboard.clockTapHint": "Tap the button to start or stop tracking.",
     "history.logs": "Logs",
     "history.title": "History",
     "history.sessions": "Sessions",
@@ -226,7 +226,7 @@ const translations = {
 
 type TranslationDictionary = typeof translations.fa;
 export type TranslationKey = keyof TranslationDictionary;
-type TranslationParams = Record<string, string | number>;
+export type TranslationParams = Record<string, string | number>;
 
 export function resolveLanguage(input: string | null | undefined): AppLanguage | null {
   if (input === "fa" || input === "en") {

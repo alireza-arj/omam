@@ -1,4 +1,5 @@
 import "./load-env";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { PrismaClient } from "@prisma/client";
 
 declare global {
@@ -6,8 +7,15 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
+const databaseUrl = process.env.DATABASE_URL ?? "file:./dev.db";
+
 const createPrismaClient = () => {
+  const adapter = new PrismaLibSql({
+    url: databaseUrl,
+  });
+
   return new PrismaClient({
+    adapter,
     log: ["warn", "error"],
   });
 };

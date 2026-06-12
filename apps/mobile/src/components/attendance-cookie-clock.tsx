@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Animated, Easing, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Easing, Pressable, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Play, Square } from "lucide-react-native";
 import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Path, Stop } from "react-native-svg";
 
 type Props = {
@@ -72,7 +73,9 @@ export function AttendanceCookieClock({
   savingLabel,
   size = CLOCK_SIZE,
 }: Props) {
-  const pressScale = useRef(new Animated.Value(1)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+  const buttonTranslateY = useRef(new Animated.Value(0)).current;
+  const iconScale = useRef(new Animated.Value(1)).current;
   const glowTranslate = useRef(new Animated.Value(-220)).current;
 
   const activeAngles = useMemo(() => angleFromDate(currentDate), [currentDate]);
@@ -113,13 +116,30 @@ export function AttendanceCookieClock({
     return () => glowAnimation.stop();
   }, [glowTranslate]);
 
-  function animateScale(toValue: number, duration: number) {
-    Animated.timing(pressScale, {
-      toValue,
-      duration,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
+  function animateButton(pressed: boolean) {
+    Animated.parallel([
+      Animated.spring(buttonScale, {
+        toValue: pressed ? 0.96 : 1,
+        damping: 14,
+        stiffness: 280,
+        mass: 0.8,
+        useNativeDriver: true,
+      }),
+      Animated.spring(buttonTranslateY, {
+        toValue: pressed ? 2 : 0,
+        damping: 14,
+        stiffness: 280,
+        mass: 0.8,
+        useNativeDriver: true,
+      }),
+      Animated.spring(iconScale, {
+        toValue: pressed ? 0.88 : 1,
+        damping: 12,
+        stiffness: 320,
+        mass: 0.7,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }
 
   function handlePress() {
@@ -130,20 +150,19 @@ export function AttendanceCookieClock({
     onPress();
   }
 
+  const buttonLabel = isMutating ? savingLabel : isRunning ? runningLabel : idleLabel;
+  const ButtonIcon = isRunning ? Square : Play;
+  const buttonGradient: readonly [string, string, string] = isMutating
+    ? ["#20302c", "#263b35", "#16231f"]
+    : ["#0f332b", "#15513f", "#08231d"];
+
   return (
-    <Pressable
-      onPress={handlePress}
-      onPressIn={() => animateScale(0.97, 120)}
-      onPressOut={() => animateScale(1, 160)}
-      disabled={isMutating}
-      className="items-center"
-    >
+    <View className="items-center">
       <AnimatedView
         style={{
           width: size,
           height: size,
           borderRadius: 999,
-          transform: [{ scale: pressScale }],
         }}
         className="items-center justify-center"
       >
@@ -247,50 +266,104 @@ export function AttendanceCookieClock({
         </View>
       </AnimatedView>
 
-      <View
-        style={{
-          shadowColor: "#1b4336",
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.26,
-          shadowRadius: 10,
-          elevation: 8,
-        }}
-        className="relative mt-5 overflow-hidden rounded-full border-2 border-[#73d0b2] px-6 py-2"
+      <Pressable
+        onPress={handlePress}
+        onPressIn={() => animateButton(true)}
+        onPressOut={() => animateButton(false)}
+        disabled={isMutating}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: isMutating, busy: isMutating }}
+        accessibilityLabel={buttonLabel}
+        className="mt-5"
       >
-        <LinearGradient
-          colors={["#1f5f4e", "#2f9b84", "#1f7563"]}
-          start={{ x: 0.05, y: 0.1 }}
-          end={{ x: 0.95, y: 0.9 }}
+        <AnimatedView
           style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            right: 0,
-            bottom: 0,
-          }}
-        />
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            top: -20,
-            bottom: -20,
-            width: 96,
-            transform: [{ translateX: glowTranslate }, { rotate: "-16deg" }],
-            opacity: 0.42,
+            alignItems: "center",
+            borderColor: "#101816",
+            borderRadius: 999,
+            borderWidth: 3,
+            flexDirection: "row",
+            minHeight: 58,
+            minWidth: 236,
+            overflow: "hidden",
+            opacity: isMutating ? 0.86 : 1,
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            shadowColor: "#0b241e",
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.28,
+            shadowRadius: 16,
+            elevation: 8,
+            transform: [{ scale: buttonScale }, { translateY: buttonTranslateY }],
           }}
         >
           <LinearGradient
-            colors={["rgba(255,255,255,0)", "rgba(214,255,244,0.9)", "rgba(255,255,255,0)"]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
+            colors={buttonGradient}
+            start={{ x: 0.05, y: 0.1 }}
+            end={{ x: 0.95, y: 0.9 }}
             style={{
-              flex: 1,
+              position: "absolute",
+              left: 0,
+              top: 0,
+              right: 0,
+              bottom: 0,
             }}
           />
-        </Animated.View>
-        <Text className="text-lg text-white">{isMutating ? savingLabel : isRunning ? runningLabel : idleLabel}</Text>
-      </View>
-    </Pressable>
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              top: -18,
+              bottom: -18,
+              width: 86,
+              transform: [{ translateX: glowTranslate }, { rotate: "-17deg" }],
+              opacity: 0.18,
+            }}
+          >
+            <LinearGradient
+              colors={["rgba(255,255,255,0)", "rgba(34,99,77,0.9)", "rgba(255,255,255,0)"]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
+
+          <AnimatedView
+            style={{
+              alignItems: "center",
+              backgroundColor: "#f6faf7",
+              borderColor: "#dbe7e2",
+              borderRadius: 999,
+              borderWidth: 1,
+              height: 44,
+              justifyContent: "center",
+              transform: [{ scale: iconScale }],
+              width: 44,
+            }}
+          >
+            {isMutating ? (
+              <ActivityIndicator color="#12372d" />
+            ) : (
+              <ButtonIcon size={19} color="#12372d" fill={isRunning ? "#12372d" : "none"} />
+            )}
+          </AnimatedView>
+
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            style={{
+              color: "#f7fbf8",
+              flex: 1,
+              fontSize: 17,
+              fontWeight: "600",
+              marginHorizontal: 16,
+              textAlign: "center",
+            }}
+          >
+            {buttonLabel}
+          </Text>
+        </AnimatedView>
+      </Pressable>
+    </View>
   );
 }

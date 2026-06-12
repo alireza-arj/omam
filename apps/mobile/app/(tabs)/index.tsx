@@ -104,8 +104,8 @@ export default function DashboardScreen() {
           elapsedSeconds={activeSeconds}
           currentDate={now}
           onPress={handleAction}
-          idleLabel="click to start"
-          runningLabel="click to end"
+          idleLabel={t("dashboard.startTimer")}
+          runningLabel={t("dashboard.stopTimer")}
           savingLabel={t("common.saving")}
         />
 

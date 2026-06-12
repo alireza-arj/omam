@@ -4,7 +4,9 @@ export const currencySchema = z.enum(["IRR", "USD"]);
 
 export const authUserSchema = z.object({
   id: z.string(),
-  email: z.string().email(),
+  username: z.string(),
+  nickname: z.string().nullable(),
+  avatarUrl: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -12,10 +14,11 @@ export const authUserSchema = z.object({
 export const authResponseSchema = z.object({
   token: z.string().min(1),
   user: authUserSchema,
+  needsProfileSetup: z.boolean(),
 });
 
 export const loginInputSchema = z.object({
-  email: z.string().trim().email(),
+  username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9_]+$/),
   password: z.string().min(6).max(72),
 });
 
@@ -53,6 +56,11 @@ export const summaryResponseSchema = z.object({
 
 export const updateSettingsInputSchema = settingsSchema;
 
+export const completeProfileInputSchema = z.object({
+  nickname: z.string().trim().min(1).max(80),
+  avatarUrl: z.string().trim().max(600000).nullable().optional(),
+});
+
 export const clockInInputSchema = z.object({
   startAt: z.string().datetime(),
   note: z.string().trim().min(1).max(240).nullable().optional(),
@@ -67,3 +75,18 @@ export const updateSessionInputSchema = z.object({
   endAt: z.string().datetime().nullable(),
   note: z.string().trim().max(240).nullable(),
 });
+
+export type Currency = z.infer<typeof currencySchema>;
+export type AuthUserDto = z.infer<typeof authUserSchema>;
+export type AuthResponseDto = z.infer<typeof authResponseSchema>;
+export type LoginInputDto = z.infer<typeof loginInputSchema>;
+export type SessionDto = z.infer<typeof sessionSchema>;
+export type SettingsDto = z.infer<typeof settingsSchema>;
+export type SummaryDto = z.infer<typeof summarySchema>;
+export type SessionsResponseDto = z.infer<typeof sessionsResponseSchema>;
+export type SummaryResponseDto = z.infer<typeof summaryResponseSchema>;
+export type UpdateSettingsInputDto = z.infer<typeof updateSettingsInputSchema>;
+export type CompleteProfileInputDto = z.infer<typeof completeProfileInputSchema>;
+export type ClockInInputDto = z.infer<typeof clockInInputSchema>;
+export type ClockOutInputDto = z.infer<typeof clockOutInputSchema>;
+export type UpdateSessionInputDto = z.infer<typeof updateSessionInputSchema>;

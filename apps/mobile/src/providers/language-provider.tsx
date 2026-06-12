@@ -1,12 +1,30 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fallbackLanguage, getDefaultLanguage, languageMeta, resolveLanguage, translate } from "../i18n/translations";
+import {
+  fallbackLanguage,
+  getDefaultLanguage,
+  languageMeta,
+  resolveLanguage,
+  translate,
+  type AppLanguage,
+  type TranslationKey,
+  type TranslationParams,
+} from "../i18n/translations";
 
 const LANGUAGE_STORAGE_KEY = "@omam:language";
 
-const LanguageContext = createContext(null);
+type LanguageContextValue = {
+  language: AppLanguage;
+  locale: string;
+  isRTL: boolean;
+  isReady: boolean;
+  setLanguage: (next: AppLanguage) => Promise<void>;
+  t: (key: TranslationKey, params?: TranslationParams) => string;
+};
 
-export function LanguageProvider({ children }) {
+const LanguageContext = createContext<LanguageContextValue | null>(null);
+
+export function LanguageProvider({ children }: PropsWithChildren) {
   const [language, setLanguageState] = useState(fallbackLanguage);
   const [isReady, setIsReady] = useState(false);
 
@@ -35,7 +53,7 @@ export function LanguageProvider({ children }) {
     };
   }, []);
 
-  const setLanguage = useCallback(async (next) => {
+  const setLanguage = useCallback(async (next: AppLanguage) => {
     if (next === language) {
       return;
     }
@@ -43,7 +61,7 @@ export function LanguageProvider({ children }) {
     setLanguageState(next);
   }, [language]);
 
-  const value = useMemo(() => ({
+  const value = useMemo<LanguageContextValue>(() => ({
     language,
     locale: languageMeta[language].locale,
     isRTL: languageMeta[language].isRTL,

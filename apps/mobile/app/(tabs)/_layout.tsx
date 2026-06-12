@@ -1,128 +1,135 @@
 import { Redirect, Tabs } from "expo-router";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { BarChart3, Clock3, House, UserRound } from "lucide-react-native";
-import { useEffect, useRef, type ReactNode } from "react";
-import { Animated, Easing, StyleSheet, View, useWindowDimensions } from "react-native";
+import { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
+import { BarChart3, House, UserRound } from "lucide-react-native";
+import { useEffect, useRef } from "react";
+import { Animated, Easing, Pressable, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AttendanceProvider } from "../../src/providers/attendance-provider";
+import { palette } from "../../src/constants/theme";
 import { useAuth } from "../../src/providers/auth-provider";
 import { useLanguage } from "../../src/providers/language-provider";
 
-const gradientMapping: Record<string, readonly [string, string]> = {
-  blue: ["hsl(223, 90%, 50%)", "hsl(208, 90%, 50%)"],
-  purple: ["hsl(283, 90%, 50%)", "hsl(268, 90%, 50%)"],
-  red: ["hsl(3, 90%, 50%)", "hsl(348, 90%, 50%)"],
-  indigo: ["hsl(253, 90%, 50%)", "hsl(238, 90%, 50%)"],
-  orange: ["hsl(43, 90%, 50%)", "hsl(28, 90%, 50%)"],
-  green: ["hsl(123, 90%, 40%)", "hsl(108, 90%, 40%)"],
-};
+const activePillColors = ["#e9fff4", "#c5f3da", "#8ee0b8"] as const;
+const inactivePillColors = ["rgba(255,255,255,0.96)", "rgba(244,248,246,0.96)", "rgba(235,241,238,0.96)"] as const;
 
-function GlassTabIcon({
-  focused,
-  color,
-  children,
-}: {
-  focused: boolean;
-  color: keyof typeof gradientMapping;
-  children: ReactNode;
-}) {
+const styles = StyleSheet.create({
+  tabSlot: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  tabPill: {
+    height: 58,
+    borderRadius: 999,
+    overflow: "hidden",
+    justifyContent: "center",
+    shadowColor: palette.ink,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  tabPillBorder: {
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  tabPillBorderActive: {
+    borderColor: "rgba(79, 178, 128, 0.28)",
+  },
+  tabPillBorderInactive: {
+    borderColor: "rgba(16, 32, 59, 0.06)",
+  },
+  tabPressable: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  tabContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
+
+function LiquidTabButton(props: BottomTabBarButtonProps) {
+  const { children, accessibilityState, accessibilityLabel, testID, onPress, onLongPress, style } = props;
+  const focused = Boolean(accessibilityState?.selected);
   const focusProgress = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.timing(focusProgress, {
       toValue: focused ? 1 : 0,
-      duration: 240,
+      duration: 280,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   }, [focusProgress, focused]);
 
-  const shadowRotate = focusProgress.interpolate({
+  const pillWidth = focusProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: ["15deg", "25deg"],
+    outputRange: [60, 158],
   });
-  const shadowTranslateX = focusProgress.interpolate({
+  const pillScale = focusProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -8],
+    outputRange: [1, 1.03],
   });
-  const shadowTranslateY = focusProgress.interpolate({
+  const activeLayerOpacity = focusProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -8],
+    outputRange: [0, 1],
   });
-  const glassScale = focusProgress.interpolate({
+  const contentOpacity = focusProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.92, 1],
+    outputRange: [0.76, 1],
   });
-  const glassTranslateY = focusProgress.interpolate({
+  const shadowOpacity = focusProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: [2, 0],
+    outputRange: [0.06, 0.18],
   });
-  const iconTranslateY = focusProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -1],
-  });
-
-  const [fromColor, toColor] = gradientMapping[color];
 
   return (
-    <View
-      style={{
-        width: 48,
-        height: 48,
-        alignItems: "center",
-        justifyContent: "center",
-        transform: [{ perspective: 240 }],
-      }}
-    >
+    <View style={[style, styles.tabSlot]}>
       <Animated.View
-        style={{
-          position: "absolute",
-          width: 44,
-          height: 44,
-          borderRadius: 14,
-          shadowColor: "#222a35",
-          shadowOffset: { width: 8, height: -8 },
-          shadowOpacity: 0.2,
-          shadowRadius: 10,
-          elevation: 8,
-          transform: [{ rotate: shadowRotate }, { translateX: shadowTranslateX }, { translateY: shadowTranslateY }],
-        }}
+        style={[
+          styles.tabPill,
+          {
+            width: pillWidth,
+            shadowOpacity,
+            transform: [{ scale: pillScale }],
+          },
+        ]}
       >
-        <LinearGradient
-          colors={[fromColor, toColor]}
-          start={{ x: 0.2, y: 0.1 }}
-          end={{ x: 0.8, y: 1 }}
-          style={{ flex: 1, borderRadius: 14 }}
-        />
-      </Animated.View>
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <LinearGradient colors={inactivePillColors} start={{ x: 0.05, y: 0.1 }} end={{ x: 0.95, y: 0.95 }} style={StyleSheet.absoluteFill} />
+        </View>
 
-      <Animated.View
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 14,
-          overflow: "hidden",
-          borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.36)",
-          transform: [{ scale: glassScale }, { translateY: glassTranslateY }],
-        }}
-      >
-        <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} />
-        <LinearGradient
-          colors={["rgba(255,255,255,0.22)", "rgba(255,255,255,0.08)"]}
-          start={{ x: 0.08, y: 0.05 }}
-          end={{ x: 0.92, y: 0.95 }}
-          style={{ flex: 1 }}
-        />
-      </Animated.View>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: activeLayerOpacity }]}>
+          <LinearGradient colors={activePillColors} start={{ x: 0.04, y: 0.08 }} end={{ x: 0.96, y: 0.94 }} style={StyleSheet.absoluteFill} />
+        </Animated.View>
 
-      <Animated.View
-        style={{
-          position: "absolute",
-          transform: [{ translateY: iconTranslateY }],
-        }}
-      >
-        {children}
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFillObject,
+            styles.tabPillBorder,
+            focused ? styles.tabPillBorderActive : styles.tabPillBorderInactive,
+          ]}
+        />
+
+        <Pressable
+          testID={testID}
+          accessibilityLabel={accessibilityLabel}
+          accessibilityRole="tab"
+          accessibilityState={accessibilityState}
+          onPress={onPress}
+          onLongPress={onLongPress}
+          style={styles.tabPressable}
+        >
+          <Animated.View style={[styles.tabContent, { opacity: contentOpacity }]}>{children}</Animated.View>
+        </Pressable>
       </Animated.View>
     </View>
   );
@@ -130,9 +137,7 @@ function GlassTabIcon({
 
 function TabsNavigation() {
   const { language, t } = useLanguage();
-  const { width: screenWidth } = useWindowDimensions();
-  const tabBarWidth = Math.min(screenWidth * 0.84, 360);
-  const tabBarHorizontalInset = Math.max((screenWidth - tabBarWidth) / 2, 12);
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -140,75 +145,94 @@ function TabsNavigation() {
         headerShown: false,
         tabBarHideOnKeyboard: true,
         animation: "fade",
-        transitionSpec: {
-          animation: "timing",
-          config: {
-            duration: 140,
-            easing: Easing.out(Easing.cubic),
-          },
-        },
+        tabBarLabelPosition: "beside-icon",
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: palette.ink,
+        tabBarInactiveTintColor: "rgba(16,32,59,0.44)",
         tabBarStyle: {
           position: "absolute",
-          left: tabBarHorizontalInset,
-          right: tabBarHorizontalInset,
-          bottom: 20,
-          height: 66,
-          paddingTop: 8,
-          paddingBottom: 8,
-          borderRadius: 999,
-          backgroundColor: "transparent",
+          left: 14,
+          right: 14,
+          bottom: Math.max(12, insets.bottom + 8),
+          height: 92,
+          paddingHorizontal: 10,
+          paddingVertical: 12,
+          borderRadius: 32,
+          backgroundColor: "rgba(255,255,255,0.9)",
           borderTopWidth: 0,
           borderWidth: 1,
-          borderColor: "rgba(198,213,204,0.92)",
-          shadowColor: "#17372b",
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.16,
-          shadowRadius: 16,
-          elevation: 10,
+          borderColor: "rgba(16, 32, 59, 0.08)",
+          shadowColor: palette.ink,
+          shadowOffset: { width: 0, height: 14 },
+          shadowOpacity: 0.14,
+          shadowRadius: 24,
+          elevation: 16,
           overflow: "hidden",
         },
         tabBarBackground: () => (
-          <View style={StyleSheet.absoluteFill}>
-            <BlurView intensity={42} tint="light" style={StyleSheet.absoluteFill} />
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <BlurView intensity={20} tint="light" experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
             <LinearGradient
-              colors={["rgba(248, 251, 247, 0.95)", "rgba(248, 241, 225, 0.9)"]}
-              start={{ x: 0.05, y: 0.1 }}
-              end={{ x: 0.95, y: 0.9 }}
+              colors={["rgba(255,255,255,0.92)", "rgba(246,250,248,0.9)", "rgba(237,247,241,0.88)"]}
+              start={{ x: 0.1, y: 0.05 }}
+              end={{ x: 0.92, y: 0.95 }}
               style={StyleSheet.absoluteFill}
+            />
+            <View
+              style={{
+                position: "absolute",
+                left: -26,
+                top: -18,
+                width: 108,
+                height: 108,
+                borderRadius: 999,
+                backgroundColor: "rgba(105,243,198,0.18)",
+              }}
+            />
+            <View
+              style={{
+                position: "absolute",
+                right: -22,
+                bottom: -18,
+                width: 130,
+                height: 130,
+                borderRadius: 999,
+                backgroundColor: "rgba(255,198,113,0.12)",
+              }}
             />
           </View>
         ),
-        tabBarActiveTintColor: "#1c8f87",
-        tabBarInactiveTintColor: "rgba(42,52,50,0.58)",
+        tabBarButton: (props) => <LiquidTabButton {...props} />,
+        tabBarActiveBackgroundColor: "transparent",
+        tabBarInactiveBackgroundColor: "transparent",
         tabBarLabelStyle: {
-          fontSize: 10,
-          ...(language === "fa" ? { fontFamily: "Vazirmatn_500Medium" } : {}),
+          fontSize: 13,
+          lineHeight: 16,
+          ...(language === "fa" ? { fontFamily: "Vazirmatn_600SemiBold" } : { fontWeight: "600" }),
+        },
+        tabBarIconStyle: {
+          marginEnd: 2,
         },
         tabBarItemStyle: {
-          borderRadius: 18,
-          marginHorizontal: 2,
+          flex: 1,
         },
       }}
     >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: t("tabs.home"),
+          tabBarIcon: ({ color, size, focused }) => (
+            <House color={focused ? palette.ink : color} size={size - 2} strokeWidth={focused ? 2.5 : 2.1} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="report"
         options={{
           title: t("tabs.report"),
           tabBarIcon: ({ color, size, focused }) => (
-            <GlassTabIcon focused={focused} color="blue">
-              <BarChart3 color={focused ? "#f5fffb" : color} size={size - 2} />
-            </GlassTabIcon>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: t("tabs.today"),
-          tabBarIcon: ({ color, size, focused }) => (
-            <GlassTabIcon focused={focused} color="green">
-              <House color={focused ? "#f5fffb" : color} size={size - 2} />
-            </GlassTabIcon>
+            <BarChart3 color={focused ? palette.ink : color} size={size - 2} strokeWidth={focused ? 2.5 : 2.1} />
           ),
         }}
       />
@@ -217,29 +241,7 @@ function TabsNavigation() {
         options={{
           title: t("tabs.profile"),
           tabBarIcon: ({ color, size, focused }) => (
-            <GlassTabIcon focused={focused} color="purple">
-              <UserRound color={focused ? "#f5fffb" : color} size={size - 2} />
-            </GlassTabIcon>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          href: null,
-          title: t("tabs.history"),
-          tabBarIcon: ({ color, size }) => (
-            <View
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 999,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Clock3 color={color} size={size - 2} />
-            </View>
+            <UserRound color={focused ? palette.ink : color} size={size - 2} strokeWidth={focused ? 2.5 : 2.1} />
           ),
         }}
       />

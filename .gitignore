@@ -1,4 +1,5 @@
 node_modules
+package-lock.json
 .DS_Store
 .expo
 .turbo
@@ -9,5 +10,7 @@ coverage
 *.log
 apps/api/prisma/dev.db
 apps/api/prisma/dev.db-journal
+apps/api/dev.db
+apps/api/dev.db-journal
 apps/mobile/.expo
 apps/mobile/dist

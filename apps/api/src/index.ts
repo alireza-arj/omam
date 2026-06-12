@@ -6,6 +6,10 @@ import { authRoutes } from "./routes/auth";
 import { settingsRoutes } from "./routes/settings";
 import { sessionRoutes } from "./routes/sessions";
 
+declare const Bun: {
+  serve(options: { port: number; hostname: string; fetch: (request: Request) => Response | Promise<Response> }): { port: number };
+};
+
 const port = Number(process.env.PORT ?? 3001);
 const hostname = process.env.HOST?.trim() || "0.0.0.0";
 
@@ -35,13 +39,15 @@ const app = new Elysia()
   }))
   .use(authRoutes)
   .use(settingsRoutes)
-  .use(sessionRoutes)
-  .listen({
-    port,
-    hostname,
-  });
+  .use(sessionRoutes);
 
-const resolvedPort = app.server?.port ?? port;
+const server = Bun.serve({
+  port,
+  hostname,
+  fetch: app.fetch,
+});
+
+const resolvedPort = server.port;
 const lanIp = resolveLanIp();
 
 console.log(`API is running on http://${hostname}:${resolvedPort}`);
