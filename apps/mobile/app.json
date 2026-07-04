@@ -2,9 +2,11 @@
   "expo": {
     "name": "Omam",
     "slug": "omam",
+    "version": "1.0.0",
     "scheme": "omam",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/brand/app-icon.png",
     "plugins": [
       "expo-router",
       [
@@ -12,7 +14,9 @@
         {
           "photosPermission": "Allow Omam to access your photos so you can choose an avatar."
         }
-      ]
+      ],
+      "expo-sqlite",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
@@ -24,16 +28,27 @@
       }
     },
     "android": {
+      "package": "com.omam.app",
+      "versionCode": 1,
       "permissions": [
-        "READ_MEDIA_IMAGES",
-        "READ_EXTERNAL_STORAGE"
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/app-icon.png",
         "backgroundColor": "#08111f"
       }
     },
     "web": {
       "bundler": "metro"
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "07eaab54-f04d-4d17-9238-af7e95faab68"
+      }
+    },
+    "owner": "codeali"
   }
 }

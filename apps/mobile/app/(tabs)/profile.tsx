@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Image, Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Camera, CheckCircle2, Clock3, Globe2, LogOut, Target, UserRound, Wallet } from "lucide-react-native";
+import { Camera, CheckCircle2, Clock3, LogOut, Target, UserRound, Wallet } from "lucide-react-native";
 import { useAttendance } from "../../src/providers/attendance-provider";
 import { useAuth } from "../../src/providers/auth-provider";
-import { useLanguage } from "../../src/providers/language-provider";
 
 type SegmentedToggleProps<T extends string> = {
+  compact?: boolean;
   leftLabel: string;
   rightLabel: string;
   leftValue: T;
@@ -17,6 +17,7 @@ type SegmentedToggleProps<T extends string> = {
 };
 
 function SegmentedToggle<T extends string>({
+  compact = false,
   leftLabel,
   rightLabel,
   leftValue,
@@ -28,19 +29,19 @@ function SegmentedToggle<T extends string>({
   const isRightActive = value === rightValue;
 
   return (
-    <View className="h-11 w-[170px] flex-row rounded-full border border-[#d6ccb8] bg-[#f9f4e8] p-1">
+    <View className={`${compact ? "h-10 w-[144px]" : "h-11 w-[170px]"} flex-row rounded-full border border-[#d6ccb8] bg-[#f9f4e8] p-1`}>
       <Pressable
         onPress={() => onChange(leftValue)}
         className={`flex-1 items-center justify-center rounded-full ${isLeftActive ? "bg-[#89cfb1]" : "bg-transparent"}`}
       >
-        <Text className={`text-base ${isLeftActive ? "text-[#1c4b3c]" : "text-[#5f5c53]"}`}>{leftLabel}</Text>
+        <Text className={`${compact ? "text-sm" : "text-base"} ${isLeftActive ? "text-[#1c4b3c]" : "text-[#5f5c53]"}`}>{leftLabel}</Text>
       </Pressable>
 
       <Pressable
         onPress={() => onChange(rightValue)}
         className={`flex-1 items-center justify-center rounded-full ${isRightActive ? "bg-[#89cfb1]" : "bg-transparent"}`}
       >
-        <Text className={`text-base ${isRightActive ? "text-[#1c4b3c]" : "text-[#5f5c53]"}`}>{rightLabel}</Text>
+        <Text className={`${compact ? "text-sm" : "text-base"} ${isRightActive ? "text-[#1c4b3c]" : "text-[#5f5c53]"}`}>{rightLabel}</Text>
       </Pressable>
     </View>
   );
@@ -53,7 +54,9 @@ function SectionDivider() {
 export default function ProfileScreen() {
   const { settings, saveSettings, isMutating: isAttendanceMutating } = useAttendance();
   const { user, completeProfile, signOut, isMutating: isAuthMutating } = useAuth();
-  const { language, setLanguage, t } = useLanguage();
+  const { height } = useWindowDimensions();
+  const isShortScreen = height < 760;
+  const controlWidthClassName = isShortScreen ? "w-[136px]" : "w-[156px]";
 
   const [nickname, setNickname] = useState(user?.nickname ?? "");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
@@ -80,7 +83,7 @@ export default function ProfileScreen() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      Alert.alert(t("auth.profilePermissionTitle"), t("auth.profilePermissionHint"));
+      Alert.alert("Permission required", "Enable gallery access to pick an avatar.");
       return;
     }
 
@@ -99,7 +102,7 @@ export default function ProfileScreen() {
     const asset = result.assets[0];
 
     if (!asset?.base64) {
-      Alert.alert(t("auth.profileImageErrorTitle"), t("auth.profileImageErrorHint"));
+      Alert.alert("Image selection failed", "Please choose a different image.");
       return;
     }
 
@@ -114,8 +117,8 @@ export default function ProfileScreen() {
         avatarUrl,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("auth.errorFallback");
-      Alert.alert(t("auth.errorTitle"), message);
+      const message = error instanceof Error ? error.message : "An unknown error occurred while signing in.";
+      Alert.alert("Sign in failed", message);
     }
   }
 
@@ -131,10 +134,10 @@ export default function ProfileScreen() {
       const message =
         error instanceof Error
           ? error.message === "ATTENDANCE_SAVE_FAILED"
-            ? t("report.saveFailedFallback")
+            ? "An unknown error occurred while saving settings."
             : error.message
-          : t("report.saveFailedFallback");
-      Alert.alert(t("report.saveFailedTitle"), message);
+          : "An unknown error occurred while saving settings.";
+      Alert.alert("Saving settings failed", message);
     }
   }
 
@@ -144,93 +147,71 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#eef3ec]" edges={["top"]}>
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          paddingHorizontal: 20,
-          paddingBottom: 122,
-          paddingTop: 10,
-          gap: 12,
+      <View
+        className="flex-1 px-5 pb-[112px] pt-2"
+        style={{
+          gap: isShortScreen ? 8 : 10,
         }}
-        showsVerticalScrollIndicator={false}
       >
-        <View className="rounded-[26px] border border-[#d0dccf] bg-[#f8fbf7] p-4">
-          <View className="mb-4 flex-row items-center gap-3">
-            <View className="h-11 w-11 items-center justify-center rounded-2xl bg-[#deece2]">
+        <View className={`rounded-[24px] border border-[#d0dccf] bg-[#f8fbf7] ${isShortScreen ? "p-3" : "p-4"}`}>
+          <View className={`${isShortScreen ? "mb-1.5" : "mb-3"} flex-row items-center gap-3`}>
+            <View className={`${isShortScreen ? "h-10 w-10" : "h-11 w-11"} items-center justify-center rounded-2xl bg-[#deece2]`}>
               <UserRound size={20} color="#2f6e5b" />
             </View>
             <View>
-              <Text className="text-xl text-[#16352d]">{t("auth.account")}</Text>
+              <Text className="text-xl text-[#16352d]">Account</Text>
               <Text className="text-sm text-[#5f7268]">{user?.username}</Text>
             </View>
           </View>
 
-          <View className="mb-4 items-center">
-            <View className="h-[94px] w-[94px] items-center justify-center overflow-hidden rounded-full border border-[#cfe0d4] bg-[#e3efe7]">
+          <View className={`${isShortScreen ? "mb-2" : "mb-3"} flex-row items-center gap-3`}>
+            <View className={`${isShortScreen ? "h-[58px] w-[58px]" : "h-[68px] w-[68px]"} items-center justify-center overflow-hidden rounded-full border border-[#cfe0d4] bg-[#e3efe7]`}>
               {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} className="h-[94px] w-[94px]" resizeMode="cover" />
+                <Image source={{ uri: avatarUrl }} className={isShortScreen ? "h-[58px] w-[58px]" : "h-[68px] w-[68px]"} resizeMode="cover" />
               ) : (
-                <Text className="text-3xl">👤</Text>
+                <UserRound size={isShortScreen ? 26 : 30} color="#7d978b" />
               )}
             </View>
-            <Pressable onPress={pickAvatar} className="mt-3 flex-row items-center gap-2 rounded-full border border-[#c9d9cf] bg-white px-4 py-2.5">
-              <Camera size={14} color="#245748" />
-              <Text className="text-sm text-[#245748]">{t("auth.profileUploadAvatar")}</Text>
-            </Pressable>
-          </View>
-
-          <View className="gap-2">
-            <Text className="text-sm text-[#5b6d70]">{t("auth.nickname")}</Text>
-            <TextInput
-              autoCapitalize="words"
-              value={nickname}
-              onChangeText={setNickname}
-              placeholder={t("auth.nicknamePlaceholder")}
-              placeholderTextColor="#8b9598"
-              className="rounded-xl border border-[#d7e4db] bg-white px-4 py-3 text-base text-[#163034]"
-            />
+            <View className="flex-1 gap-2">
+              <Pressable onPress={pickAvatar} className={`flex-row items-center justify-center gap-2 rounded-full border border-[#c9d9cf] bg-white px-4 ${isShortScreen ? "py-2" : "py-2.5"}`}>
+                <Camera size={14} color="#245748" />
+                <Text className="text-sm text-[#245748]">Upload photo</Text>
+              </Pressable>
+              <TextInput
+                autoCapitalize="words"
+                value={nickname}
+                onChangeText={setNickname}
+                placeholder="e.g. Hassan"
+                placeholderTextColor="#8b9598"
+                className={`rounded-xl border border-[#d7e4db] bg-white px-4 ${isShortScreen ? "py-2" : "py-2.5"} text-base text-[#163034]`}
+              />
+            </View>
           </View>
 
           <Pressable
             onPress={handleSaveProfile}
             disabled={isProfileDisabled}
-            className={`mt-4 rounded-full px-5 py-3.5 ${isProfileDisabled ? "bg-[#9fbab0]" : "bg-[#1e6f4d]"}`}
+            className={`rounded-full px-5 ${isShortScreen ? "py-3" : "py-3.5"} ${isProfileDisabled ? "bg-[#9fbab0]" : "bg-[#1e6f4d]"}`}
           >
             <Text className="text-center text-base text-[#f7fbf7]">
-              {isAuthMutating ? t("common.saving") : t("auth.profileSave")}
+              {isAuthMutating ? "Saving..." : "Save profile"}
             </Text>
           </Pressable>
         </View>
 
-        <View className="rounded-[26px] border border-[#d9cfbb] bg-[#fbf6ea] p-4">
-          <View className="mb-2 flex-row items-center gap-2">
+        <View className={`rounded-[24px] border border-[#d9cfbb] bg-[#fbf6ea] ${isShortScreen ? "p-3" : "p-4"}`}>
+          <View className="mb-1 flex-row items-center gap-2">
             <Target size={20} color="#2f6e5b" />
-            <Text className="text-lg text-[#24453c]">{t("report.calculationSettings")}</Text>
+            <Text className="text-lg text-[#24453c]">Calculation settings</Text>
           </View>
 
-          <View className="flex-row items-center justify-between py-2">
-            <View className="flex-row items-center gap-2">
-              <Globe2 size={20} color="#2f6e5b" />
-              <Text className="text-base text-[#24453c]">{t("report.languageTitle")}</Text>
-            </View>
-            <SegmentedToggle
-              leftLabel="FA"
-              rightLabel="EN"
-              leftValue="fa"
-              rightValue="en"
-              value={language}
-              onChange={setLanguage}
-            />
-          </View>
-
-          <SectionDivider />
-
-          <View className="flex-row items-center justify-between py-3">
-            <View className="flex-row items-center gap-2">
+          <View className={`flex-row items-center justify-between ${isShortScreen ? "py-2" : "py-3"}`}>
+            <View className="min-w-0 flex-1 flex-row items-center gap-2">
               <Wallet size={20} color="#2f6e5b" />
-              <Text className="text-base text-[#24453c]">{t("report.currencyTitle")}</Text>
+              <Text className="flex-1 text-base text-[#24453c]" numberOfLines={1}>Currency</Text>
             </View>
             <SegmentedToggle
+              compact={isShortScreen}
               leftLabel="IRR"
               rightLabel="USD"
               leftValue="IRR"
@@ -242,71 +223,69 @@ export default function ProfileScreen() {
 
           <SectionDivider />
 
-          <View className="flex-row items-center justify-between py-3">
-            <View className="flex-row items-center gap-2">
+          <View className={`flex-row items-center justify-between ${isShortScreen ? "py-2" : "py-3"}`}>
+            <View className="min-w-0 flex-1 flex-row items-center gap-2">
               <Clock3 size={19} color="#2f6e5b" />
-              <Text className="text-base text-[#24453c]">{t("report.hourlyRate")}</Text>
+              <Text className="flex-1 text-base text-[#24453c]" numberOfLines={1}>Hourly rate</Text>
             </View>
 
-            <View className="w-[156px] flex-row items-center rounded-xl border border-[#d9cfbb] bg-[#fffaf0] px-3 py-2">
+            <View className={`${controlWidthClassName} flex-row items-center rounded-xl border border-[#d9cfbb] bg-[#fffaf0] px-3 ${isShortScreen ? "py-1.5" : "py-2"}`}>
               <TextInput
                 keyboardType="numeric"
                 value={hourlyRate}
                 onChangeText={setHourlyRate}
-                className="flex-1 text-[17px] text-[#1d3f35]"
-                placeholder={t("report.hourlyRatePlaceholder")}
+                className={`${isShortScreen ? "text-base" : "text-[17px]"} flex-1 text-[#1d3f35]`}
+                placeholder="e.g. 250000"
                 placeholderTextColor="#98a99e"
               />
-              <Text className="text-sm text-[#7c7567]">{currency === "IRR" ? t("format.toman") : "USD"}</Text>
+              <Text className="text-sm text-[#7c7567]">{currency === "IRR" ? "Toman" : "USD"}</Text>
             </View>
           </View>
 
           <SectionDivider />
 
-          <View className="flex-row items-center justify-between py-3">
-            <View className="flex-row items-center gap-2">
+          <View className={`flex-row items-center justify-between ${isShortScreen ? "py-2" : "py-3"}`}>
+            <View className="min-w-0 flex-1 flex-row items-center gap-2">
               <Target size={19} color="#d69090" />
-              <Text className="text-base text-[#24453c]">{t("report.monthlyGoalHours")}</Text>
+              <Text className="flex-1 text-base text-[#24453c]" numberOfLines={1}>Monthly goal hours</Text>
             </View>
 
-            <View className="w-[156px] flex-row items-center rounded-xl border border-[#d9cfbb] bg-[#fffaf0] px-3 py-2">
+            <View className={`${controlWidthClassName} flex-row items-center rounded-xl border border-[#d9cfbb] bg-[#fffaf0] px-3 ${isShortScreen ? "py-1.5" : "py-2"}`}>
               <TextInput
                 keyboardType="numeric"
                 value={monthlyGoalHours}
                 onChangeText={setMonthlyGoalHours}
-                className="flex-1 text-[17px] text-[#1d3f35]"
-                placeholder={t("report.monthlyGoalHoursPlaceholder")}
+                className={`${isShortScreen ? "text-base" : "text-[17px]"} flex-1 text-[#1d3f35]`}
+                placeholder="e.g. 160"
                 placeholderTextColor="#98a99e"
               />
-              <Text className="text-sm text-[#7c7567]">{t("format.hour")}</Text>
+              <Text className="text-sm text-[#7c7567]">hr</Text>
             </View>
           </View>
 
           <Pressable
             onPress={handleSaveSettings}
             disabled={isAttendanceMutating}
-            className="mt-2 flex-row items-center justify-center rounded-full border border-[#89cfb1] bg-[#93ddbe] px-5 py-3.5"
+            className={`mt-2 flex-row items-center justify-center rounded-full border border-[#89cfb1] bg-[#93ddbe] px-5 ${isShortScreen ? "py-3" : "py-3.5"}`}
           >
             <CheckCircle2 size={19} color="#245748" />
             <Text className="mx-2 text-base text-[#10392d]">
-              {isAttendanceMutating ? t("common.saving") : t("report.saveSettings")}
+              {isAttendanceMutating ? "Saving..." : "Save settings"}
             </Text>
           </Pressable>
         </View>
 
-        <View className="rounded-2xl border border-[#e0c9c1] bg-[#fff3f0] p-4">
-          <Pressable onPress={handleLogout} disabled={isAuthMutating} className="rounded-xl bg-[#f2d5ce] px-5 py-3.5">
+        <View className={`rounded-2xl border border-[#e0c9c1] bg-[#fff3f0] ${isShortScreen ? "p-3" : "p-4"}`}>
+          <Pressable onPress={handleLogout} disabled={isAuthMutating} className={`rounded-xl bg-[#f2d5ce] px-5 ${isShortScreen ? "py-3" : "py-3.5"}`}>
             <View className="flex-row items-center justify-center gap-2">
               <LogOut size={16} color="#6e3328" />
               <Text className="text-center text-base text-[#6e3328]">
-                {isAuthMutating ? t("auth.loggingOut") : t("auth.logout")}
+                {isAuthMutating ? "Signing out..." : "Sign out"}
               </Text>
             </View>
           </Pressable>
         </View>
-
-        <View className="h-12" />
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }

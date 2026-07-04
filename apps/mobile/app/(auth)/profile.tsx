@@ -4,11 +4,9 @@ import { Redirect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../src/providers/auth-provider";
-import { useLanguage } from "../../src/providers/language-provider";
 
 export default function ProfileSetupScreen() {
   const { isReady, isAuthenticated, needsProfileSetup, completeProfile, isMutating, user } = useAuth();
-  const { t } = useLanguage();
   const [nickname, setNickname] = useState(user?.nickname ?? "");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
 
@@ -32,7 +30,7 @@ export default function ProfileSetupScreen() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      Alert.alert(t("auth.profilePermissionTitle"), t("auth.profilePermissionHint"));
+      Alert.alert("Permission required", "Enable gallery access to pick an avatar.");
       return;
     }
 
@@ -51,7 +49,7 @@ export default function ProfileSetupScreen() {
     const asset = result.assets[0];
 
     if (!asset?.base64) {
-      Alert.alert(t("auth.profileImageErrorTitle"), t("auth.profileImageErrorHint"));
+      Alert.alert("Image selection failed", "Please choose a different image.");
       return;
     }
 
@@ -66,8 +64,8 @@ export default function ProfileSetupScreen() {
         avatarUrl,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("auth.errorFallback");
-      Alert.alert(t("auth.errorTitle"), message);
+      const message = error instanceof Error ? error.message : "An unknown error occurred while signing in.";
+      Alert.alert("Sign in failed", message);
     }
   }
 
@@ -78,9 +76,9 @@ export default function ProfileSetupScreen() {
         <View className="absolute right-[-90px] top-[150px] h-[190px] w-[190px] rounded-full bg-[#c9ad64]/14" />
 
         <View className="w-full max-w-[460px] rounded-[34px] border border-[#d5e5da] bg-[#f8fdf9] px-5 py-6">
-          <Text className="text-sm text-[#5e6e72]">{t("auth.profileTitle")}</Text>
-          <Text className="mt-2 text-[32px] leading-[38px] text-[#0f2225]">{t("auth.profileSubtitle")}</Text>
-          <Text className="mt-2 text-sm leading-6 text-[#5b6d70]">{t("auth.profileHint")}</Text>
+          <Text className="text-sm text-[#5e6e72]">Profile</Text>
+          <Text className="mt-2 text-[32px] leading-[38px] text-[#0f2225]">Complete your account</Text>
+          <Text className="mt-2 text-sm leading-6 text-[#5b6d70]">Before entering the app, set your nickname and avatar.</Text>
 
           <View className="mt-5 items-center">
             <View className="h-[92px] w-[92px] items-center justify-center overflow-hidden rounded-full border border-[#cfe0d4] bg-[#e3efe7]">
@@ -92,17 +90,17 @@ export default function ProfileSetupScreen() {
             </View>
 
             <Pressable onPress={pickAvatar} className="mt-3 rounded-full border border-[#c9d9cf] bg-white px-4 py-2.5">
-              <Text className="text-sm text-[#245748]">{t("auth.profileUploadAvatar")}</Text>
+              <Text className="text-sm text-[#245748]">Upload photo</Text>
             </Pressable>
           </View>
 
           <View className="mt-5 gap-2">
-            <Text className="text-sm text-[#5b6d70]">{t("auth.nickname")}</Text>
+            <Text className="text-sm text-[#5b6d70]">Nickname</Text>
             <TextInput
               autoCapitalize="words"
               value={nickname}
               onChangeText={setNickname}
-              placeholder={t("auth.nicknamePlaceholder")}
+              placeholder="e.g. Hassan"
               placeholderTextColor="#8b9598"
               className="rounded-xl border border-[#d7e4db] bg-white px-4 py-3 text-base text-[#163034]"
             />
@@ -114,7 +112,7 @@ export default function ProfileSetupScreen() {
             className={`mt-5 rounded-full px-5 py-4 ${isDisabled ? "bg-[#9fbab0]" : "bg-[#1e6f4d]"}`}
           >
             <Text className="text-center text-base text-[#f7fbf7]">
-              {isMutating ? t("common.saving") : t("auth.profileSave")}
+              {isMutating ? "Saving..." : "Save profile"}
             </Text>
           </Pressable>
         </View>

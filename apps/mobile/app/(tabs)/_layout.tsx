@@ -1,279 +1,155 @@
-import { Redirect, Tabs } from "expo-router";
-import { useEffect, useMemo } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
-import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolation } from "react-native-reanimated";
+import { Redirect } from "expo-router";
+import { Tabs } from "expo-router";
+import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
 import { AttendanceProvider } from "../../src/providers/attendance-provider";
-import { House, BarChart3, UserRound } from "lucide-react-native";
-import { palette } from "../../src/constants/theme";
 import { useAuth } from "../../src/providers/auth-provider";
-import { useLanguage } from "../../src/providers/language-provider";
 
-const SPRING_CONFIG = { damping: 18, stiffness: 220, mass: 0.9 };
+const selectedIconColor = "#12372D";
+const defaultIconColor = "rgba(16,32,59,0.46)";
 
-const styles = StyleSheet.create({
-  glassBar: {
-    position: "absolute",
-    left: 20,
-    right: 20,
-    height: 72,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: "rgba(16,32,59,0.07)",
-    overflow: "hidden",
-    shadowColor: palette.ink,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 22,
-    elevation: 14,
+const androidTabs = {
+  index: {
+    label: "Today",
+    icon: require("../../assets/tabs/tab-home.png"),
   },
-  blurFill: {
-    ...StyleSheet.absoluteFillObject,
+  report: {
+    label: "Report",
+    icon: require("../../assets/tabs/tab-report.png"),
   },
-  gradientFill: {
-    ...StyleSheet.absoluteFillObject,
+  profile: {
+    label: "Profile",
+    icon: require("../../assets/tabs/tab-profile.png"),
   },
-  orbGreen: {
-    position: "absolute",
-    left: -28,
-    top: -20,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "rgba(105,243,198,0.22)",
-  },
-  orbAmber: {
-    position: "absolute",
-    right: -24,
-    bottom: -20,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: "rgba(255,198,113,0.14)",
-  },
-  orbMint: {
-    position: "absolute",
-    left: "40%",
-    top: -30,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(105,243,198,0.10)",
-  },
-  tabSlot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    height: "100%",
-    gap: 2,
-  },
-  pill: {
-    position: "absolute",
-    width: 58,
-    height: 52,
-    borderRadius: 999,
-    overflow: "hidden",
-  },
-  pillGradientActive: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 999,
-  },
-  pillBorder: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(79,178,128,0.30)",
-  },
-  pillHighlight: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "50%",
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.35)",
-  },
-  tabPressable: {
-    flex: 1,
-    width: "100%",
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
-  },
-  iconWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  label: {
-    fontSize: 10,
-    fontWeight: "600",
-    letterSpacing: 0.2,
-  },
-});
+} as const;
 
-function GlassBackground() {
+type AndroidTabName = keyof typeof androidTabs;
+
+function TabsNavigation() {
+  if (Platform.OS !== "ios") {
+    return <AndroidTabsNavigation />;
+  }
+
   return (
-    <View style={styles.glassBar} pointerEvents="none">
-      <BlurView intensity={80} tint="light" style={styles.blurFill} />
-      <LinearGradient
-        colors={["rgba(255,255,255,0.88)", "rgba(244,250,247,0.82)", "rgba(232,246,237,0.78)"]}
-        start={{ x: 0.08, y: 0.04 }}
-        end={{ x: 0.94, y: 0.96 }}
-        style={styles.gradientFill}
-      />
-      <View style={styles.orbGreen} />
-      <View style={styles.orbAmber} />
-      <View style={styles.orbMint} />
+    <NativeTabs
+      backgroundColor="rgba(255,255,255,0.72)"
+      blurEffect="systemUltraThinMaterialLight"
+      disableTransparentOnScrollEdge
+      iconColor={{
+        default: "rgba(16,32,59,0.46)",
+        selected: selectedIconColor,
+      }}
+      labelVisibilityMode="unlabeled"
+      rippleColor="rgba(105,243,198,0.18)"
+      indicatorColor="rgba(105,243,198,0.28)"
+      shadowColor="rgba(16,32,59,0.14)"
+      tintColor={selectedIconColor}
+    >
+      <NativeTabs.Trigger name="index">
+        <Icon
+          sf={{ default: "house", selected: "house.fill" }}
+          androidSrc={require("../../assets/tabs/tab-home.png")}
+          selectedColor={selectedIconColor}
+        />
+        <Label hidden />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="report">
+        <Icon
+          sf={{ default: "chart.bar", selected: "chart.bar.fill" }}
+          androidSrc={require("../../assets/tabs/tab-report.png")}
+          selectedColor={selectedIconColor}
+        />
+        <Label hidden />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="profile">
+        <Icon
+          sf={{ default: "person", selected: "person.fill" }}
+          androidSrc={require("../../assets/tabs/tab-profile.png")}
+          selectedColor={selectedIconColor}
+        />
+        <Label hidden />
+      </NativeTabs.Trigger>
+    </NativeTabs>
+  );
+}
+
+function AndroidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const bottomOffset = Math.max(insets.bottom, 14);
+  const barWidth = Math.min(width - 40, 344);
+
+  return (
+    <View pointerEvents="box-none" style={[styles.androidBarRoot, { bottom: bottomOffset }]}>
+      <View style={[styles.androidBar, { width: barWidth }]}>
+        {state.routes.map((route, index) => {
+          const tabName = route.name as AndroidTabName;
+          const tab = androidTabs[tabName];
+
+          if (!tab) {
+            return null;
+          }
+
+          const descriptor = descriptors[route.key];
+          const isFocused = state.index === index;
+          const color = isFocused ? selectedIconColor : defaultIconColor;
+
+          function handlePress() {
+            const event = navigation.emit({
+              type: "tabPress",
+              target: route.key,
+              canPreventDefault: true,
+            });
+
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate(route.name, route.params);
+            }
+          }
+
+          function handleLongPress() {
+            navigation.emit({
+              type: "tabLongPress",
+              target: route.key,
+            });
+          }
+
+          return (
+            <Pressable
+              key={route.key}
+              accessibilityLabel={descriptor.options.tabBarAccessibilityLabel ?? tab.label}
+              accessibilityRole="tab"
+              accessibilityState={isFocused ? { selected: true } : undefined}
+              onLongPress={handleLongPress}
+              onPress={handlePress}
+              style={({ pressed }) => [
+                styles.androidTab,
+                isFocused && styles.androidTabSelected,
+                pressed && styles.androidTabPressed,
+              ]}
+            >
+              <Image source={tab.icon} style={[styles.androidIcon, { tintColor: color }]} resizeMode="contain" />
+              {isFocused ? <Text style={styles.androidTabLabel}>{tab.label}</Text> : null}
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
-function LiquidTabButton({ selected, icon: Icon, label, onPress }: {
-  selected: boolean;
-  icon: React.ComponentType<{ size?: number; color?: string }>;
-  label: string;
-  onPress: () => void;
-}) {
-  const progress = useSharedValue(selected ? 1 : 0);
-
-  useEffect(() => {
-    progress.value = withSpring(selected ? 1 : 0, SPRING_CONFIG);
-  }, [selected]);
-
-  const pillStyle = useAnimatedStyle(() => {
-    const width = interpolate(progress.value, [0, 1], [48, 72], Extrapolation.CLAMP);
-    const height = interpolate(progress.value, [0, 1], [48, 52], Extrapolation.CLAMP);
-    const scale = interpolate(progress.value, [0, 1], [0.90, 1.03], Extrapolation.CLAMP);
-
-    return {
-      width,
-      height,
-      transform: [{ scale }],
-      opacity: interpolate(progress.value, [0, 0.3, 1], [0, 1, 1], Extrapolation.CLAMP),
-    };
-  });
-
-  const iconStyle = useAnimatedStyle(() => {
-    return {
-      opacity: interpolate(progress.value, [0, 0.4, 1], [0.5, 0.8, 1], Extrapolation.CLAMP),
-      transform: [{ scale: interpolate(progress.value, [0, 1], [0.85, 1], Extrapolation.CLAMP) }],
-    };
-  });
-
-  const labelStyle = useAnimatedStyle(() => {
-    return {
-      opacity: interpolate(progress.value, [0, 0.4, 1], [0, 0.6, 1], Extrapolation.CLAMP),
-      transform: [{ translateY: interpolate(progress.value, [0, 1], [2, 0], Extrapolation.CLAMP) }],
-    };
-  });
-
-  const iconColor = selected ? palette.mint : "rgba(16,32,59,0.38)";
-  const labelColor = `rgba(16,32,59,${interpolate(progress.value, [0, 1], [0.38, 1], Extrapolation.CLAMP).toFixed(2)})`;
-
-  return (
-    <Pressable onPress={onPress} style={styles.tabSlot}>
-      <Reanimated.View style={[styles.pill, pillStyle]}>
-        <LinearGradient
-          colors={["#e9fff4", "#c5f3da", "#a8e8c4"]}
-          start={{ x: 0.04, y: 0.06 }}
-          end={{ x: 0.96, y: 0.94 }}
-          style={styles.pillGradientActive}
-        />
-        <View style={styles.pillBorder} />
-        <View style={styles.pillHighlight} />
-      </Reanimated.View>
-
-      <Reanimated.View style={[styles.iconWrap, iconStyle]}>
-        <Icon size={20} color={iconColor} />
-      </Reanimated.View>
-      <Reanimated.Text style={[styles.label, { color: labelColor }, labelStyle]}>
-        {label}
-      </Reanimated.Text>
-    </Pressable>
-  );
-}
-
-function TabsNavigation() {
-  const { language, t } = useLanguage();
-  const insets = useSafeAreaInsets();
-  const tabLabels = useMemo(() => [t("tabs.home"), t("tabs.report"), t("tabs.profile")], [t]);
-
+function AndroidTabsNavigation() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarHideOnKeyboard: true,
-        animation: "none",
-        tabBarShowLabel: false,
-        tabBarStyle: {
-          position: "absolute",
-          left: 20,
-          right: 20,
-          bottom: Math.max(12, insets.bottom + 8),
-          height: 72,
-          backgroundColor: "transparent",
-          borderTopWidth: 0,
-          borderWidth: 0,
-          elevation: 0,
-          shadowOpacity: 0,
-        },
-        tabBarBackground: () => <GlassBackground />,
-        tabBarActiveBackgroundColor: "transparent",
-        tabBarInactiveBackgroundColor: "transparent",
-        tabBarLabelStyle: {
-          display: "none",
-        },
-        tabBarIconStyle: {
-          display: "none",
-        },
       }}
+      tabBar={(props) => <AndroidTabBar {...props} />}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: tabLabels[0],
-          tabBarButton: (props) => (
-            <LiquidTabButton
-              selected={props.accessibilityState?.selected ?? false}
-              icon={House}
-              label={tabLabels[0]}
-              onPress={() => props.onPress?.(null as any)}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="report"
-        options={{
-          title: tabLabels[1],
-          tabBarButton: (props) => (
-            <LiquidTabButton
-              selected={props.accessibilityState?.selected ?? false}
-              icon={BarChart3}
-              label={tabLabels[1]}
-              onPress={() => props.onPress?.(null as any)}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: tabLabels[2],
-          tabBarButton: (props) => (
-            <LiquidTabButton
-              selected={props.accessibilityState?.selected ?? false}
-              icon={UserRound}
-              label={tabLabels[2]}
-              onPress={() => props.onPress?.(null as any)}
-            />
-          ),
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: androidTabs.index.label }} />
+      <Tabs.Screen name="report" options={{ title: androidTabs.report.label }} />
+      <Tabs.Screen name="profile" options={{ title: androidTabs.profile.label }} />
     </Tabs>
   );
 }
@@ -299,3 +175,57 @@ export default function TabsLayout() {
     </AttendanceProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  androidBarRoot: {
+    alignItems: "center",
+    left: 0,
+    position: "absolute",
+    right: 0,
+  },
+  androidBar: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.88)",
+    borderColor: "rgba(18,55,45,0.10)",
+    borderRadius: 36,
+    borderWidth: StyleSheet.hairlineWidth,
+    elevation: 12,
+    flexDirection: "row",
+    gap: 6,
+    height: 72,
+    justifyContent: "space-between",
+    paddingHorizontal: 10,
+    shadowColor: "rgba(16,32,59,0.20)",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 1,
+    shadowRadius: 26,
+  },
+  androidIcon: {
+    height: 25,
+    width: 25,
+  },
+  androidTab: {
+    alignItems: "center",
+    borderRadius: 28,
+    flexDirection: "row",
+    gap: 7,
+    height: 54,
+    justifyContent: "center",
+    minWidth: 66,
+    paddingHorizontal: 15,
+  },
+  androidTabLabel: {
+    color: selectedIconColor,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  androidTabPressed: {
+    backgroundColor: "rgba(105,243,198,0.12)",
+    transform: [{ scale: 0.97 }],
+  },
+  androidTabSelected: {
+    backgroundColor: "rgba(105,243,198,0.34)",
+    minWidth: 132,
+  },
+});

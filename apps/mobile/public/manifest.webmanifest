@@ -1,0 +1,19 @@
+{
+  "name": "Omam",
+  "short_name": "Omam",
+  "description": "Offline-first attendance and work session tracking.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eaf4ed",
+  "theme_color": "#eaf4ed",
+  "icons": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

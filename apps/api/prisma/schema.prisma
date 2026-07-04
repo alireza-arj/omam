@@ -11,6 +11,11 @@ enum Currency {
   USD
 }
 
+enum WorkSessionCategory {
+  ONSITE
+  REMOTE
+}
+
 model User {
   id           String       @id @default(cuid())
   username     String       @unique
@@ -57,6 +62,7 @@ model WorkSession {
   startAt         DateTime
   endAt           DateTime?
   durationMinutes Int      @default(0)
+  category        WorkSessionCategory @default(ONSITE)
   note            String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

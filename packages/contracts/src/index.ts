@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const currencySchema = z.enum(["IRR", "USD"]);
+export const workSessionCategorySchema = z.enum(["ONSITE", "REMOTE"]);
 
 export const authUserSchema = z.object({
   id: z.string(),
@@ -27,6 +28,7 @@ export const sessionSchema = z.object({
   startAt: z.string(),
   endAt: z.string().nullable(),
   durationMinutes: z.number().nonnegative(),
+  category: workSessionCategorySchema,
   note: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -43,6 +45,10 @@ export const summarySchema = z.object({
   totalIncome: z.number().nonnegative(),
   activeSession: sessionSchema.nullable(),
   workedDays: z.number().nonnegative(),
+  categoryMinutes: z.object({
+    onsite: z.number().nonnegative(),
+    remote: z.number().nonnegative(),
+  }),
 });
 
 export const sessionsResponseSchema = z.object({
@@ -63,6 +69,7 @@ export const completeProfileInputSchema = z.object({
 
 export const clockInInputSchema = z.object({
   startAt: z.string().datetime(),
+  category: workSessionCategorySchema.default("ONSITE"),
   note: z.string().trim().min(1).max(240).nullable().optional(),
 });
 
@@ -73,10 +80,12 @@ export const clockOutInputSchema = z.object({
 export const updateSessionInputSchema = z.object({
   startAt: z.string().datetime(),
   endAt: z.string().datetime().nullable(),
+  category: workSessionCategorySchema.default("ONSITE"),
   note: z.string().trim().max(240).nullable(),
 });
 
 export type Currency = z.infer<typeof currencySchema>;
+export type WorkSessionCategory = z.infer<typeof workSessionCategorySchema>;
 export type AuthUserDto = z.infer<typeof authUserSchema>;
 export type AuthResponseDto = z.infer<typeof authResponseSchema>;
 export type LoginInputDto = z.infer<typeof loginInputSchema>;

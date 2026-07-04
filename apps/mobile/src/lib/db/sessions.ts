@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import type { SessionDto } from "@omam/contracts";
+import type { SessionDto, WorkSessionCategory } from "@omam/contracts";
 
 function generateId(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -24,6 +24,7 @@ type SessionRow = {
   startAt: string;
   endAt: string | null;
   durationMinutes: number;
+  category: WorkSessionCategory;
   note: string | null;
   createdAt: string;
   updatedAt: string;
@@ -35,13 +36,14 @@ function toSessionDto(row: SessionRow): SessionDto {
     startAt: row.startAt,
     endAt: row.endAt,
     durationMinutes: row.durationMinutes,
+    category: row.category,
     note: row.note,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 }
 
-export function getSessions(db: SQLiteDatabase, userId: string, from?: string, to?: string) {
+export async function getSessions(db: SQLiteDatabase, userId: string, from?: string, to?: string) {
   let query = "SELECT * FROM WorkSession WHERE userId = ?";
   const params: (string | number)[] = [userId];
 
@@ -56,19 +58,26 @@ export function getSessions(db: SQLiteDatabase, userId: string, from?: string, t
 
   query += " ORDER BY startAt DESC";
 
-  return db.getAllSync<SessionRow>(query, params).map(toSessionDto);
+  const rows = await db.getAllAsync<SessionRow>(query, params);
+  return rows.map(toSessionDto);
 }
 
-export function getActiveSession(db: SQLiteDatabase, userId: string) {
-  const row = db.getFirstSync<SessionRow>(
+export async function getActiveSession(db: SQLiteDatabase, userId: string) {
+  const row = await db.getFirstAsync<SessionRow>(
     "SELECT * FROM WorkSession WHERE userId = ? AND endAt IS NULL ORDER BY startAt DESC",
     [userId],
   );
   return row ? toSessionDto(row) : null;
 }
 
-export function clockIn(db: SQLiteDatabase, userId: string, startAt: string, note?: string | null) {
-  const active = getActiveSession(db, userId);
+export async function clockIn(
+  db: SQLiteDatabase,
+  userId: string,
+  startAt: string,
+  category: WorkSessionCategory,
+  note?: string | null,
+) {
+  const active = await getActiveSession(db, userId);
   if (active) {
     throw new Error("There is already an active session.");
   }
@@ -76,18 +85,17 @@ export function clockIn(db: SQLiteDatabase, userId: string, startAt: string, not
   const id = generateId();
   const ts = now();
 
-  db.runSync(
-    "INSERT INTO WorkSession (id, userId, startAt, durationMinutes, note, createdAt, updatedAt) VALUES (?, ?, ?, 0, ?, ?, ?)",
-    [id, userId, startAt, note ?? null, ts, ts],
+  await db.runAsync(
+    "INSERT INTO WorkSession (id, userId, startAt, durationMinutes, category, note, createdAt, updatedAt) VALUES (?, ?, ?, 0, ?, ?, ?, ?)",
+    [id, userId, startAt, category, note ?? null, ts, ts],
   );
 
-  return toSessionDto(
-    db.getFirstSync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [id])!,
-  );
+  const row = await db.getFirstAsync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [id]);
+  return toSessionDto(row!);
 }
 
-export function clockOut(db: SQLiteDatabase, sessionId: string, userId: string, endAt: string) {
-  const session = db.getFirstSync<SessionRow>(
+export async function clockOut(db: SQLiteDatabase, sessionId: string, userId: string, endAt: string) {
+  const session = await db.getFirstAsync<SessionRow>(
     "SELECT * FROM WorkSession WHERE id = ? AND userId = ?",
     [sessionId, userId],
   );
@@ -108,25 +116,25 @@ export function clockOut(db: SQLiteDatabase, sessionId: string, userId: string, 
   const durationMinutes = calculateSessionMinutes(session.startAt, endAt);
   const ts = now();
 
-  db.runSync(
+  await db.runAsync(
     "UPDATE WorkSession SET endAt = ?, durationMinutes = ?, updatedAt = ? WHERE id = ?",
     [endAt, durationMinutes, ts, sessionId],
   );
 
-  return toSessionDto(
-    db.getFirstSync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [sessionId])!,
-  );
+  const row = await db.getFirstAsync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [sessionId]);
+  return toSessionDto(row!);
 }
 
-export function updateSession(
+export async function updateSession(
   db: SQLiteDatabase,
   sessionId: string,
   userId: string,
   startAt: string,
   endAt: string | null,
+  category: WorkSessionCategory,
   note: string | null,
 ) {
-  const session = db.getFirstSync<SessionRow>(
+  const session = await db.getFirstAsync<SessionRow>(
     "SELECT * FROM WorkSession WHERE id = ? AND userId = ?",
     [sessionId, userId],
   );
@@ -143,51 +151,64 @@ export function updateSession(
   const durationMinutes = endDate ? calculateSessionMinutes(startAt, endAt!) : 0;
   const ts = now();
 
-  db.runSync(
-    "UPDATE WorkSession SET startAt = ?, endAt = ?, durationMinutes = ?, note = ?, updatedAt = ? WHERE id = ?",
-    [startAt, endAt, durationMinutes, note, ts, sessionId],
+  await db.runAsync(
+    "UPDATE WorkSession SET startAt = ?, endAt = ?, durationMinutes = ?, category = ?, note = ?, updatedAt = ? WHERE id = ?",
+    [startAt, endAt, durationMinutes, category, note, ts, sessionId],
   );
 
-  return toSessionDto(
-    db.getFirstSync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [sessionId])!,
-  );
+  const row = await db.getFirstAsync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [sessionId]);
+  return toSessionDto(row!);
 }
 
-export function getMonthlySummary(
+export async function getMonthlySummary(
   db: SQLiteDatabase,
   userId: string,
   month: string,
-): {
+): Promise<{
   totalMinutes: number;
   totalIncome: number;
   activeSession: SessionDto | null;
   workedDays: number;
-} {
+  categoryMinutes: {
+    onsite: number;
+    remote: number;
+  };
+}> {
   const [yearStr, monthStr] = month.split("-");
   const year = Number(yearStr);
   const monthIndex = Number(monthStr) - 1;
   const from = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0, 0)).toISOString();
   const to = new Date(Date.UTC(year, monthIndex + 1, 0, 23, 59, 59, 999)).toISOString();
 
-  const sessions = db.getAllSync<SessionRow>(
+  const sessions = await db.getAllAsync<SessionRow>(
     "SELECT * FROM WorkSession WHERE userId = ? AND startAt >= ? AND startAt <= ?",
     [userId, from, to],
   );
 
-  const settings = db.getFirstSync<{ hourlyRate: number }>(
+  const settings = await db.getFirstAsync<{ hourlyRate: number }>(
     "SELECT hourlyRate FROM AppSettings WHERE userId = ?",
     [userId],
   );
 
-  const activeSession = getActiveSession(db, userId);
+  const activeSession = await getActiveSession(db, userId);
 
   let totalMinutes = 0;
+  const categoryMinutes = {
+    onsite: 0,
+    remote: 0,
+  };
   const workedDaysSet = new Set<string>();
 
   for (const session of sessions) {
     if (session.endAt) {
-      totalMinutes +=
-        session.durationMinutes || calculateSessionMinutes(session.startAt, session.endAt);
+      const minutes = session.durationMinutes || calculateSessionMinutes(session.startAt, session.endAt);
+      totalMinutes += minutes;
+
+      if (session.category === "REMOTE") {
+        categoryMinutes.remote += minutes;
+      } else {
+        categoryMinutes.onsite += minutes;
+      }
     }
     workedDaysSet.add(session.startAt.slice(0, 10));
   }
@@ -199,5 +220,6 @@ export function getMonthlySummary(
     totalIncome: Number(((totalMinutes / 60) * hourlyRate).toFixed(2)),
     activeSession,
     workedDays: workedDaysSet.size,
+    categoryMinutes,
   };
 }

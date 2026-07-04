@@ -29,6 +29,7 @@ export const DB_SCHEMA = `
     startAt TEXT NOT NULL,
     endAt TEXT,
     durationMinutes INTEGER DEFAULT 0,
+    category TEXT NOT NULL DEFAULT 'ONSITE',
     note TEXT,
     createdAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL
@@ -37,6 +38,13 @@ export const DB_SCHEMA = `
 
 export async function initializeDatabase(db: SQLiteDatabase) {
   await db.execAsync(DB_SCHEMA);
+
+  const columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(WorkSession)");
+  const hasCategory = columns.some((column) => column.name === "category");
+
+  if (!hasCategory) {
+    await db.execAsync("ALTER TABLE WorkSession ADD COLUMN category TEXT NOT NULL DEFAULT 'ONSITE'");
+  }
 }
 
 export { DATABASE_NAME };

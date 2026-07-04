@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react";
-import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { Redirect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LogIn, LockKeyhole, UserRound } from "lucide-react-native";
 import { OmamLogo } from "../../src/components/omam-logo";
 import { useAuth } from "../../src/providers/auth-provider";
-import { useLanguage } from "../../src/providers/language-provider";
 
 function isUsernameValid(input: string) {
   return /^[a-zA-Z0-9_]{3,32}$/.test(input.trim());
@@ -13,13 +12,13 @@ function isUsernameValid(input: string) {
 
 export default function LoginScreen() {
   const { isAuthenticated, isReady, isMutating, signIn, needsProfileSetup } = useAuth();
-  const { t } = useLanguage();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const isDisabled = useMemo(() => {
-    return isMutating || !isUsernameValid(username) || password.length < 6;
-  }, [isMutating, password.length, username]);
+  const isInvalid = useMemo(() => {
+    return !isUsernameValid(username) || password.length < 6;
+  }, [password.length, username]);
 
   if (!isReady) {
     return null;
@@ -34,12 +33,38 @@ export default function LoginScreen() {
   }
 
   async function handleLogin() {
+    setErrorMessage(null);
+
+    if (!isUsernameValid(username)) {
+      setErrorMessage("Username must be 3-32 letters, numbers, or underscores.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMessage("Password must be at least 6 characters.");
+      return;
+    }
+
     try {
       await signIn(username.trim(), password);
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("auth.errorFallback");
-      Alert.alert(t("auth.errorTitle"), message);
+      const message = error instanceof Error ? error.message : "An unknown error occurred while signing in.";
+      setErrorMessage(message);
+
+      if (Platform.OS !== "web") {
+        Alert.alert("Sign in failed", message);
+      }
     }
+  }
+
+  function updateUsername(value: string) {
+    setUsername(value);
+    if (errorMessage) setErrorMessage(null);
+  }
+
+  function updatePassword(value: string) {
+    setPassword(value);
+    if (errorMessage) setErrorMessage(null);
   }
 
   return (
@@ -64,11 +89,11 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          <Text className="mt-2 text-center text-[34px] leading-[40px] text-[#0f2225]">{t("auth.startSubtitle")}</Text>
-          <Text className="mt-2 text-center text-sm leading-6 text-[#5b6d70]">{t("auth.startHint")}</Text>
+          <Text className="mt-2 text-center text-[34px] leading-[40px] text-[#0f2225]">Sign in to Omam</Text>
+          <Text className="mt-2 text-center text-sm leading-6 text-[#5b6d70]">Enter your username and password to continue.</Text>
 
           <View className="mt-5 gap-2">
-            <Text className="text-sm text-[#5b6d70]">{t("auth.username")}</Text>
+            <Text className="text-sm text-[#5b6d70]">Username</Text>
             <View className="min-h-[52px] flex-row items-center rounded-xl border border-[#d7e4db] bg-white px-4">
               <UserRound size={18} color="#245748" />
               <TextInput
@@ -76,47 +101,55 @@ export default function LoginScreen() {
                 autoCorrect={false}
                 autoComplete="username"
                 value={username}
-                onChangeText={setUsername}
-                placeholder={t("auth.usernamePlaceholder")}
+                onChangeText={updateUsername}
+                placeholder="e.g. hassan_dev"
                 placeholderTextColor="#8b9598"
                 className="mx-3 flex-1 py-3 text-base text-[#163034]"
-                accessibilityLabel={t("auth.username")}
+                accessibilityLabel="Username"
               />
             </View>
           </View>
 
           <View className="mt-3 gap-2">
-            <Text className="text-sm text-[#5b6d70]">{t("auth.password")}</Text>
+            <Text className="text-sm text-[#5b6d70]">Password</Text>
             <View className="min-h-[52px] flex-row items-center rounded-xl border border-[#d7e4db] bg-white px-4">
               <LockKeyhole size={18} color="#245748" />
               <TextInput
                 secureTextEntry
                 autoComplete="password"
                 value={password}
-                onChangeText={setPassword}
-                placeholder={t("auth.passwordPlaceholder")}
+                onChangeText={updatePassword}
+                placeholder="At least 6 characters"
                 placeholderTextColor="#8b9598"
                 className="mx-3 flex-1 py-3 text-base text-[#163034]"
-                accessibilityLabel={t("auth.password")}
-                onSubmitEditing={isDisabled ? undefined : handleLogin}
+                accessibilityLabel="Password"
+                onSubmitEditing={handleLogin}
               />
             </View>
           </View>
 
+          {errorMessage ? (
+            <Text accessibilityRole="alert" className="mt-4 rounded-xl bg-[#fff2f0] px-4 py-3 text-sm leading-5 text-[#a23b2a]">
+              {errorMessage}
+            </Text>
+          ) : null}
+
           <Pressable
             onPress={handleLogin}
-            disabled={isDisabled}
+            disabled={isMutating}
             accessibilityRole="button"
-            accessibilityState={{ disabled: isDisabled, busy: isMutating }}
-            className={`mt-5 min-h-[52px] flex-row items-center justify-center rounded-full px-5 ${isDisabled ? "bg-[#9fbab0]" : "bg-[#1e6f4d]"}`}
+            accessibilityState={{ disabled: isMutating, busy: isMutating }}
+            className={`mt-5 min-h-[52px] flex-row items-center justify-center rounded-full px-5 ${isInvalid ? "bg-[#9fbab0]" : "bg-[#1e6f4d]"}`}
           >
             <LogIn size={19} color="#f7fbf7" />
             <Text className="mx-2 text-center text-base text-[#f7fbf7]">
-              {isMutating ? t("auth.loggingIn") : t("auth.login")}
+              {isMutating ? "Signing in..." : "Sign in"}
             </Text>
           </Pressable>
 
-          <Text className="mt-4 text-center text-xs leading-5 text-[#7d8c88]">{t("auth.firstUserHint")}</Text>
+          <Text className="mt-4 text-center text-xs leading-5 text-[#7d8c88]">
+            If there is no user yet, the first sign-in automatically creates the initial account.
+          </Text>
         </View>
       </View>
     </SafeAreaView>

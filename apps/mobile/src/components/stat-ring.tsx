@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { Text, View } from "react-native";
 import { Canvas, Circle, Path, Skia } from "@shopify/react-native-skia";
 import { formatShortMinutes } from "../lib/format";
-import { useLanguage } from "../providers/language-provider";
 
 type Props = {
   progress: number;
@@ -11,7 +10,6 @@ type Props = {
 };
 
 export function StatRing({ progress, totalMinutes, goalHours }: Props) {
-  const { language, t } = useLanguage();
   const size = 168;
   const stroke = 14;
   const radius = (size - stroke) / 2;
@@ -53,9 +51,9 @@ export function StatRing({ progress, totalMinutes, goalHours }: Props) {
           />
         </Canvas>
         <View className="absolute inset-0 items-center justify-center gap-1">
-          <Text className="text-xs uppercase tracking-[2px] text-mint/70">{t("stat.monthProgress")}</Text>
-          <Text className="text-2xl font-semibold text-mist">{formatShortMinutes(totalMinutes, language)}</Text>
-          <Text className="text-sm text-muted">{t("stat.goalHours", { hours: goalHours })}</Text>
+          <Text className="text-xs uppercase tracking-[2px] text-mint/70">Month progress</Text>
+          <Text className="text-2xl font-semibold text-mist">{formatShortMinutes(totalMinutes)}</Text>
+          <Text className="text-sm text-muted">Goal {goalHours} h</Text>
         </View>
       </View>
     </View>

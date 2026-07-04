@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
 import { useSQLiteContext } from "expo-sqlite";
-import type { SessionDto, SettingsDto, SummaryDto, UpdateSettingsInputDto } from "@omam/contracts";
+import type { SessionDto, SettingsDto, SummaryDto, UpdateSettingsInputDto, WorkSessionCategory } from "@omam/contracts";
 import { getSessions, getMonthlySummary, clockIn as dbClockIn, clockOut as dbClockOut } from "../lib/db/sessions";
 import { getSettings, upsertSettings } from "../lib/db/settings";
 import { currentMonthKey } from "../lib/format";
@@ -17,6 +17,10 @@ const defaultSummary: SummaryDto = {
   totalIncome: 0,
   activeSession: null,
   workedDays: 0,
+  categoryMinutes: {
+    onsite: 0,
+    remote: 0,
+  },
 };
 
 type AttendanceContextValue = {
@@ -26,7 +30,7 @@ type AttendanceContextValue = {
   isLoading: boolean;
   isMutating: boolean;
   refresh: () => Promise<void>;
-  clockIn: () => Promise<void>;
+  clockIn: (category: WorkSessionCategory) => Promise<void>;
   clockOut: () => Promise<void>;
   saveSettings: (payload: UpdateSettingsInputDto) => Promise<SettingsDto>;
 };
@@ -69,9 +73,11 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
 
     try {
       const range = monthRange(month);
-      const userSettings = getSettings(db, user.id);
-      const userSessions = getSessions(db, user.id, range.from, range.to);
-      const userSummary = getMonthlySummary(db, user.id, month);
+      const [userSettings, userSessions, userSummary] = await Promise.all([
+        getSettings(db, user.id),
+        getSessions(db, user.id, range.from, range.to),
+        getMonthlySummary(db, user.id, month),
+      ]);
 
       setSettings(userSettings);
       setSessions(userSessions);
@@ -87,13 +93,13 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
     });
   }, [refresh]);
 
-  const clockIn = useCallback(async () => {
+  const clockIn = useCallback(async (category: WorkSessionCategory) => {
     if (!user) return;
 
     setIsMutating(true);
 
     try {
-      dbClockIn(db, user.id, new Date().toISOString());
+      await dbClockIn(db, user.id, new Date().toISOString(), category);
       await refresh();
     } catch (error) {
       throw error instanceof Error ? error : new Error("ATTENDANCE_CLOCKIN_FAILED");
@@ -108,7 +114,7 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
     setIsMutating(true);
 
     try {
-      dbClockOut(db, summary.activeSession.id, user.id, new Date().toISOString());
+      await dbClockOut(db, summary.activeSession.id, user.id, new Date().toISOString());
       await refresh();
     } catch (error) {
       throw error instanceof Error ? error : new Error("ATTENDANCE_CLOCKOUT_FAILED");
@@ -124,7 +130,7 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
       setIsMutating(true);
 
       try {
-        const nextSettings = upsertSettings(db, user.id, payload);
+        const nextSettings = await upsertSettings(db, user.id, payload);
         setSettings(nextSettings);
         await refresh();
         return nextSettings;

@@ -6,5 +6,7 @@ const config = getDefaultConfig(__dirname);
 config.resolver.assetExts.push("wasm");
 
 module.exports = withNativeWind(config, {
-  input: "./global.css",
+  input: "./apps/mobile/global.css",
+  configPath: "./apps/mobile/tailwind.config.js",
+  typescriptEnvPath: "./apps/mobile/nativewind-env.d.ts",
 });

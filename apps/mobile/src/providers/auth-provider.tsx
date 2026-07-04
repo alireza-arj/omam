@@ -48,7 +48,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       try {
         const parsed = JSON.parse(stored) as { userId: string };
-        const found = db.getFirstSync<AuthUserDto>(
+        const found = await db.getFirstAsync<AuthUserDto>(
           "SELECT id, username, nickname, avatarUrl, createdAt, updatedAt FROM User WHERE id = ?",
           [parsed.userId],
         );
@@ -82,12 +82,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setIsMutating(true);
 
       try {
-        const userCount = getUserCount(db);
-        let found = getUserByUsername(db, username);
+        const userCount = await getUserCount(db);
+        let found = await getUserByUsername(db, username);
 
         if (!found && userCount === 0) {
           const passwordHash = await hashPassword(password);
-          found = createUser(db, username, passwordHash) as unknown as typeof found;
+          found = await createUser(db, username, passwordHash) as unknown as typeof found;
         }
 
         if (!found) {
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           throw new Error("Avatar must be a valid image data URL or HTTP URL.");
         }
 
-        const updated = updateUserProfile(db, user.id, payload.nickname.trim(), nextAvatar);
+        const updated = await updateUserProfile(db, user.id, payload.nickname.trim(), nextAvatar);
 
         setUser(updated);
         setNeedsProfileSetup(!updated.nickname?.trim());

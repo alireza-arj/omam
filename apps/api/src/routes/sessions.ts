@@ -3,6 +3,7 @@ import {
   clockInInputSchema,
   clockOutInputSchema,
   updateSessionInputSchema,
+  type WorkSessionCategory,
 } from "@omam/contracts";
 import { prisma } from "../lib/prisma";
 import {
@@ -18,6 +19,7 @@ function serializeSession(session: {
   startAt: Date;
   endAt: Date | null;
   durationMinutes: number;
+  category: WorkSessionCategory;
   note: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -125,6 +127,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
           userId,
           startAt: new Date(payload.startAt),
           durationMinutes: 0,
+          category: payload.category,
           note: payload.note ?? null,
         },
       });
@@ -134,6 +137,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
     {
       body: t.Object({
         startAt: t.String(),
+        category: t.Optional(t.Union([t.Literal("ONSITE"), t.Literal("REMOTE")])),
         note: t.Optional(t.Nullable(t.String())),
       }),
     },
@@ -248,6 +252,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
                 endAt,
               })
             : 0,
+          category: payload.category,
           note: payload.note,
         },
       });
@@ -261,6 +266,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
       body: t.Object({
         startAt: t.String(),
         endAt: t.Nullable(t.String()),
+        category: t.Optional(t.Union([t.Literal("ONSITE"), t.Literal("REMOTE")])),
         note: t.Nullable(t.String()),
       }),
     },
@@ -306,19 +312,30 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
         }),
       ]);
 
+      const categoryMinutes = {
+        onsite: 0,
+        remote: 0,
+      };
+
       const totalMinutes = sessions.reduce((sum, session) => {
         if (!session.endAt) {
           return sum;
         }
 
-        return (
-          sum +
-          (session.durationMinutes ||
-            calculateSessionMinutes({
-              startAt: session.startAt,
-              endAt: session.endAt,
-            }))
-        );
+        const minutes =
+          session.durationMinutes ||
+          calculateSessionMinutes({
+            startAt: session.startAt,
+            endAt: session.endAt,
+          });
+
+        if (session.category === "REMOTE") {
+          categoryMinutes.remote += minutes;
+        } else {
+          categoryMinutes.onsite += minutes;
+        }
+
+        return sum + minutes;
       }, 0);
       const workedDays = new Set(
         sessions.map((session) => session.startAt.toISOString().slice(0, 10)),
@@ -332,6 +349,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
           totalIncome: Number(((totalMinutes / 60) * hourlyRate).toFixed(2)),
           activeSession: activeSession ? serializeSession(activeSession) : null,
           workedDays,
+          categoryMinutes,
         },
       };
     },

@@ -28,8 +28,8 @@ function toSettingsDto(row: SettingsRow): SettingsDto {
   };
 }
 
-export function getSettings(db: SQLiteDatabase, userId: string): SettingsDto {
-  const row = db.getFirstSync<SettingsRow>(
+export async function getSettings(db: SQLiteDatabase, userId: string): Promise<SettingsDto> {
+  const row = await db.getFirstAsync<SettingsRow>(
     "SELECT hourlyRate, currency, monthlyGoalHours FROM AppSettings WHERE userId = ?",
     [userId],
   );
@@ -41,12 +41,12 @@ export function getSettings(db: SQLiteDatabase, userId: string): SettingsDto {
   return toSettingsDto(row);
 }
 
-export function upsertSettings(
+export async function upsertSettings(
   db: SQLiteDatabase,
   userId: string,
   payload: UpdateSettingsInputDto,
-): SettingsDto {
-  const existing = db.getFirstSync<{ id: string }>(
+): Promise<SettingsDto> {
+  const existing = await db.getFirstAsync<{ id: string }>(
     "SELECT id FROM AppSettings WHERE userId = ?",
     [userId],
   );
@@ -54,13 +54,13 @@ export function upsertSettings(
   const ts = now();
 
   if (existing) {
-    db.runSync(
+    await db.runAsync(
       "UPDATE AppSettings SET hourlyRate = ?, currency = ?, monthlyGoalHours = ?, updatedAt = ? WHERE userId = ?",
       [payload.hourlyRate, payload.currency, payload.monthlyGoalHours, ts, userId],
     );
   } else {
     const id = generateId();
-    db.runSync(
+    await db.runAsync(
       "INSERT INTO AppSettings (id, userId, hourlyRate, currency, monthlyGoalHours, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
       [id, userId, payload.hourlyRate, payload.currency, payload.monthlyGoalHours, ts, ts],
     );

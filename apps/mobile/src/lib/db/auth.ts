@@ -2,6 +2,10 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import * as Crypto from "expo-crypto";
 import type { AuthUserDto } from "@omam/contracts";
 
+type AuthUserRow = AuthUserDto & {
+  passwordHash: string;
+};
+
 function generateId(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   let id = "";
@@ -32,71 +36,63 @@ function now() {
   return new Date().toISOString();
 }
 
-export function getUserByUsername(db: SQLiteDatabase, username: string) {
+export async function getUserByUsername(db: SQLiteDatabase, username: string) {
   const normalized = normalizeUsername(username);
-  return db.getFirstSync<{
-    id: string;
-    username: string;
-    passwordHash: string;
-    nickname: string | null;
-    avatarUrl: string | null;
-    createdAt: string;
-    updatedAt: string;
-  }>("SELECT * FROM User WHERE username = ?", [normalized]);
+  return db.getFirstAsync<AuthUserRow>("SELECT * FROM User WHERE username = ?", [normalized]);
 }
 
-export function getUserCount(db: SQLiteDatabase) {
-  const result = db.getFirstSync<{ count: number }>("SELECT COUNT(*) as count FROM User");
+export async function getUserCount(db: SQLiteDatabase) {
+  const result = await db.getFirstAsync<{ count: number }>("SELECT COUNT(*) as count FROM User");
   return result?.count ?? 0;
 }
 
-export function createUser(db: SQLiteDatabase, username: string, passwordHash: string) {
+export async function createUser(db: SQLiteDatabase, username: string, passwordHash: string) {
   const id = generateId();
   const ts = now();
   const normalized = normalizeUsername(username);
 
-  db.runSync(
+  await db.runAsync(
     "INSERT INTO User (id, username, passwordHash, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
     [id, normalized, passwordHash, ts, ts],
   );
 
-  ensureDefaultSettings(db, id);
+  await ensureDefaultSettings(db, id);
 
-  return getUserById(db, id)!;
+  return (await getUserByUsername(db, normalized))!;
 }
 
-export function getUserById(db: SQLiteDatabase, id: string) {
-  return db.getFirstSync<AuthUserDto>(
+export async function getUserById(db: SQLiteDatabase, id: string) {
+  return db.getFirstAsync<AuthUserDto>(
     "SELECT id, username, nickname, avatarUrl, createdAt, updatedAt FROM User WHERE id = ?",
     [id],
   );
 }
 
-export function updateUserProfile(
+export async function updateUserProfile(
   db: SQLiteDatabase,
   userId: string,
   nickname: string,
   avatarUrl: string | null,
 ) {
   const ts = now();
-  db.runSync("UPDATE User SET nickname = ?, avatarUrl = ?, updatedAt = ? WHERE id = ?", [
+  await db.runAsync("UPDATE User SET nickname = ?, avatarUrl = ?, updatedAt = ? WHERE id = ?", [
     nickname,
     avatarUrl,
     ts,
     userId,
   ]);
-  return getUserById(db, userId)!;
+  return (await getUserById(db, userId))!;
 }
 
-function ensureDefaultSettings(db: SQLiteDatabase, userId: string) {
-  const existing = db.getFirstSync<{ id: string }>("SELECT id FROM AppSettings WHERE userId = ?", [
+async function ensureDefaultSettings(db: SQLiteDatabase, userId: string) {
+  const existing = await db.getFirstAsync<{ id: string }>("SELECT id FROM AppSettings WHERE userId = ?", [
     userId,
   ]);
   if (existing) return;
 
   const id = generateId();
   const ts = now();
-  db.runSync(
+  await db.runAsync(
     "INSERT INTO AppSettings (id, userId, hourlyRate, currency, monthlyGoalHours, createdAt, updatedAt) VALUES (?, ?, 0, 'IRR', 160, ?, ?)",
     [id, userId, ts, ts],
   );
