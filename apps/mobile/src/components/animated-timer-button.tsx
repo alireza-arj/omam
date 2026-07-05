@@ -18,7 +18,6 @@ import Reanimated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withSequence,
   withSpring,
   withTiming,
@@ -45,9 +44,7 @@ type Props = {
   idleText?: string;
   runningText?: string;
   loadingText?: string;
-  successText?: string;
   durationMs?: number;
-  successDurationMs?: number;
   colors?: Partial<TimerButtonColors>;
   style?: StyleProp<ViewStyle>;
 };
@@ -71,6 +68,13 @@ const TRAILS = [
   { offset: 0.17, width: 13, opacity: 0.2 },
 ];
 
+function getFlightBounds(buttonWidth: number) {
+  return {
+    exitX: buttonWidth / 2 + 42,
+    startX: -buttonWidth / 2 + 48,
+  };
+}
+
 function FlightTrail({
   progress,
   buttonWidth,
@@ -87,9 +91,9 @@ function FlightTrail({
   color: string;
 }) {
   const trailStyle = useAnimatedStyle(() => {
-    const travel = Math.max(1, buttonWidth - 46);
-    const x = interpolate(progress.value, [0, 1], [-travel / 2, travel / 2]);
-    const visible = progress.value > offset && progress.value < 0.96 ? 1 : 0;
+    const { startX, exitX } = getFlightBounds(buttonWidth);
+    const x = interpolate(progress.value, [0, 1], [startX, exitX]);
+    const visible = progress.value > offset && progress.value < 0.99 ? 1 : 0;
 
     return {
       opacity: visible * opacity,
@@ -121,9 +125,7 @@ export function AnimatedTimerButton({
   idleText = "Start Timer",
   runningText = "Stop Timer",
   loadingText = "Saving",
-  successText = "SAME DAY SAME SHIT!",
   durationMs = 1700,
-  successDurationMs = 1000,
   colors: colorOverrides,
   style,
 }: Props) {
@@ -131,15 +133,13 @@ export function AnimatedTimerButton({
     () => ({ ...DEFAULT_COLORS, ...colorOverrides }),
     [colorOverrides],
   );
-  const [phase, setPhase] = useState<"idle" | "flight" | "success">("idle");
+  const [phase, setPhase] = useState<"idle" | "flight">("idle");
   const [buttonWidth, setButtonWidth] = useState(0);
 
   const press = useSharedValue(0);
   const labelOpacity = useSharedValue(1);
   const flight = useSharedValue(0);
   const flightOpacity = useSharedValue(0);
-  const successOpacity = useSharedValue(0);
-  const successPop = useSharedValue(0);
   const glow = useSharedValue(0);
 
   const isBusy = phase !== "idle" || disabled || isLoading;
@@ -165,22 +165,11 @@ export function AnimatedTimerButton({
       1,
       { duration: durationMs, easing: Easing.bezier(0.16, 1, 0.3, 1) },
       () => {
-        flightOpacity.value = withTiming(0, { duration: 160 });
+        flightOpacity.value = withTiming(0, { duration: 120 });
         flight.value = 0;
-        runOnJS(setPhase)("success");
-        successPop.value = withSequence(
-          withTiming(1, { duration: 120 }),
-          withSpring(0, { damping: 9, stiffness: 230, mass: 0.7 }),
-        );
-        successOpacity.value = withTiming(1, { duration: 220 }, () => {
-          successOpacity.value = withDelay(
-            successDurationMs,
-            withTiming(0, { duration: 220 }, () => {
-              labelOpacity.value = withTiming(1, { duration: 220 });
-              glow.value = withTiming(0, { duration: 320 });
-              runOnJS(resetToIdle)();
-            }),
-          );
+        labelOpacity.value = withTiming(1, { duration: 220 });
+        glow.value = withTiming(0, { duration: 300 }, () => {
+          runOnJS(resetToIdle)();
         });
       },
     );
@@ -192,9 +181,6 @@ export function AnimatedTimerButton({
     labelOpacity,
     press,
     resetToIdle,
-    successDurationMs,
-    successOpacity,
-    successPop,
   ]);
 
   const handlePress = useCallback(() => {
@@ -210,9 +196,8 @@ export function AnimatedTimerButton({
   }, []);
 
   const containerStyle = useAnimatedStyle(() => {
-    const active = Math.max(flightOpacity.value, successOpacity.value);
     const backgroundColor = interpolateColor(
-      active,
+      flightOpacity.value,
       [0, 1],
       [isRunning ? colors.runningDeep : colors.idleDeep, colors.idle],
     );
@@ -220,7 +205,7 @@ export function AnimatedTimerButton({
     return {
       backgroundColor,
       transform: [
-        { scale: 1 - press.value * 0.035 + successPop.value * 0.035 },
+        { scale: 1 - press.value * 0.035 },
         { translateY: press.value * 2 },
       ],
     };
@@ -241,41 +226,16 @@ export function AnimatedTimerButton({
   }));
 
   const emojiStyle = useAnimatedStyle(() => {
-    const travel = Math.max(1, buttonWidth - 46);
-    const x = interpolate(flight.value, [0, 1], [-travel / 2, travel / 2]);
-    const rotation = interpolate(flight.value, [0, 0.4, 0.75, 1], [-18, 12, -9, 6]);
-    const lift = interpolate(flight.value, [0, 0.5, 1], [2, -2, 1]);
+    const { startX, exitX } = getFlightBounds(buttonWidth);
+    const x = interpolate(flight.value, [0, 1], [startX, exitX]);
+    const rotation = interpolate(flight.value, [0, 0.4, 0.75, 1], [-18, 12, -9, 10]);
+    const lift = interpolate(flight.value, [0, 0.5, 1], [2, -3, 0]);
 
     return {
       opacity: flightOpacity.value,
       transform: [{ translateX: x }, { translateY: lift }, { rotate: `${rotation}deg` }],
     };
   });
-
-  const successStyle = useAnimatedStyle(() => ({
-    opacity: successOpacity.value,
-    transform: [{ scale: 0.96 + successOpacity.value * 0.04 }],
-  }));
-
-  const sparkleOneStyle = useAnimatedStyle(() => ({
-    opacity: successOpacity.value,
-    transform: [
-      { translateX: -92 + successPop.value * -5 },
-      { translateY: -9 + successPop.value * -4 },
-      { scale: 0.75 + successOpacity.value * 0.35 },
-      { rotate: `${successPop.value * 24}deg` },
-    ],
-  }));
-
-  const sparkleTwoStyle = useAnimatedStyle(() => ({
-    opacity: successOpacity.value * 0.82,
-    transform: [
-      { translateX: 92 + successPop.value * 5 },
-      { translateY: 10 + successPop.value * 3 },
-      { scale: 0.7 + successOpacity.value * 0.3 },
-      { rotate: `${successPop.value * -18}deg` },
-    ],
-  }));
 
   const accessibleState = useMemo(
     () => ({ busy: isBusy, disabled: isBusy }),
@@ -375,18 +335,6 @@ export function AnimatedTimerButton({
         <Reanimated.View pointerEvents="none" style={[styles.emoji, emojiStyle]}>
           <Text style={[styles.emojiText, { textShadowColor: colors.accent }]}>💸</Text>
         </Reanimated.View>
-
-        <Reanimated.View pointerEvents="none" style={[styles.successShell, successStyle]}>
-          <Reanimated.Text style={[styles.sparkle, sparkleOneStyle]}>✦</Reanimated.Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            style={[styles.successText, { color: colors.text, textShadowColor: colors.accent }]}
-          >
-            {successText}
-          </Text>
-          <Reanimated.Text style={[styles.sparkle, sparkleTwoStyle]}>✦</Reanimated.Text>
-        </Reanimated.View>
       </Reanimated.View>
     </Pressable>
   );
@@ -466,28 +414,5 @@ const styles = StyleSheet.create({
   emojiText: {
     fontSize: 28,
     textShadowRadius: 9,
-  },
-  successShell: {
-    alignItems: "center",
-    bottom: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    left: 0,
-    paddingHorizontal: 20,
-    position: "absolute",
-    right: 0,
-    top: 0,
-  },
-  successText: {
-    fontSize: 14,
-    fontWeight: "800",
-    textAlign: "center",
-    textShadowRadius: 12,
-  },
-  sparkle: {
-    color: "#DFFFEF",
-    fontSize: 15,
-    fontWeight: "800",
-    position: "absolute",
   },
 });
