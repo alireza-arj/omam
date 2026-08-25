@@ -5,7 +5,7 @@
   "dependencies": {
     "@elysiajs/cors": "*",
     "@libsql/client": "^0.17.3",
-    "@omam/contracts": "file:../../packages/contracts",
+    "@omam/contracts": "workspace:*",
     "@prisma/adapter-libsql": "^7.8.0",
     "@prisma/client": "*",
     "dotenv": "^17.4.2",
