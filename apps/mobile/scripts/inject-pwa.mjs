@@ -28,7 +28,7 @@ for (const file of publicFiles) {
 
 const headTags = [
   '<meta name="description" content="Offline-first attendance and work session tracking." />',
-  '<meta name="theme-color" content="#eaf4ed" />',
+  '<meta name="theme-color" content="#F5F7FA" />',
   '<meta name="apple-mobile-web-app-capable" content="yes" />',
   '<meta name="apple-mobile-web-app-title" content="Omam" />',
   '<meta name="apple-mobile-web-app-status-bar-style" content="default" />',

@@ -1,156 +1,200 @@
 import { useMemo, useState } from "react";
-import { Alert, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { View } from "react-native";
 import { Redirect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LogIn, LockKeyhole, UserRound } from "lucide-react-native";
-import { OmamLogo } from "../../src/components/omam-logo";
+import { LockKeyhole, UserRound } from "lucide-react-native";
+import { Wordmark } from "../../src/components/wordmark";
 import { useAuth } from "../../src/providers/auth-provider";
+import {
+  Button,
+  Card,
+  Icon,
+  Input,
+  Text,
+  layout,
+  useColors,
+} from "../../src/design/taraz";
+
+type Mode = "signIn" | "signUp";
+
+const MIN_PASSWORD_LENGTH = 6;
 
 function isUsernameValid(input: string) {
   return /^[a-zA-Z0-9_]{3,32}$/.test(input.trim());
 }
 
-export default function LoginScreen() {
-  const { isAuthenticated, isReady, isMutating, signIn, needsProfileSetup } = useAuth();
+export default function SignInScreen() {
+  const { isAuthenticated, isReady, isMutating, signIn, signUp, hasAccounts, needsProfileSetup } =
+    useAuth();
+  const colors = useColors();
+  const [mode, setMode] = useState<Mode | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Until an account exists, signing up is the only thing that can succeed.
+  const activeMode: Mode = mode ?? (hasAccounts ? "signIn" : "signUp");
+  const isSignUp = activeMode === "signUp";
+
   const isInvalid = useMemo(() => {
-    return !isUsernameValid(username) || password.length < 6;
-  }, [password.length, username]);
+    if (!isUsernameValid(username) || password.length < MIN_PASSWORD_LENGTH) {
+      return true;
+    }
+
+    return isSignUp && confirmPassword !== password;
+  }, [confirmPassword, isSignUp, password, username]);
 
   if (!isReady) {
     return null;
   }
 
   if (isAuthenticated) {
-    if (needsProfileSetup) {
-      return <Redirect href="/(auth)/profile" />;
-    }
-
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href={needsProfileSetup ? "/(auth)/profile" : "/(tabs)"} />;
   }
 
-  async function handleLogin() {
+  function switchMode(next: Mode) {
+    setMode(next);
+    setPassword("");
+    setConfirmPassword("");
+    setErrorMessage(null);
+  }
+
+  async function handleSubmit() {
     setErrorMessage(null);
 
     if (!isUsernameValid(username)) {
-      setErrorMessage("Username must be 3-32 letters, numbers, or underscores.");
+      setErrorMessage("Username must be 3–32 letters, numbers or underscores.");
+
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage("Password must be at least 6 characters.");
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setErrorMessage(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+
+      return;
+    }
+
+    if (isSignUp && confirmPassword !== password) {
+      setErrorMessage("The two passwords do not match.");
+
       return;
     }
 
     try {
-      await signIn(username.trim(), password);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "An unknown error occurred while signing in.";
-      setErrorMessage(message);
-
-      if (Platform.OS !== "web") {
-        Alert.alert("Sign in failed", message);
+      if (isSignUp) {
+        await signUp(username.trim(), password);
+      } else {
+        await signIn(username.trim(), password);
       }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Something went wrong. Try again.",
+      );
     }
   }
 
-  function updateUsername(value: string) {
-    setUsername(value);
-    if (errorMessage) setErrorMessage(null);
-  }
-
-  function updatePassword(value: string) {
-    setPassword(value);
-    if (errorMessage) setErrorMessage(null);
-  }
-
   return (
-    <SafeAreaView className="flex-1 bg-[#eaf4ed]" edges={["top", "bottom"]}>
-      <View className="flex-1 items-center justify-center bg-[#eaf4ed] px-6 pb-8 pt-6">
-        <View className="absolute left-[-120px] top-[-80px] h-[230px] w-[230px] rounded-full bg-[#1f7d56]/10" />
-        <View className="absolute right-[-90px] top-[150px] h-[190px] w-[190px] rounded-full bg-[#c9ad64]/14" />
-
-        <View
-          className="w-full max-w-[460px] rounded-[34px] border border-[#d5e5da] bg-[#f8fdf9] px-5 py-6"
-          style={{
-            shadowColor: "#15372b",
-            shadowOffset: { width: 0, height: 14 },
-            shadowOpacity: 0.08,
-            shadowRadius: 24,
-            elevation: 3,
-          }}
+    <SafeAreaView
+      style={{ backgroundColor: colors.surfaceApp, flex: 1 }}
+      edges={["top", "bottom"]}
+    >
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          paddingHorizontal: layout.padPage,
+        }}
+      >
+        <Card
+          elevation={2}
+          style={{ alignSelf: "center", gap: layout.gapLoose, maxWidth: 460, padding: layout.padSection, width: "100%" }}
         >
-          <View className="mb-5 items-center">
-            <View className="rounded-[28px] border border-[#d5e5da] bg-white p-3">
-              <OmamLogo size={88} />
-            </View>
+          <View style={{ gap: layout.gapTight }}>
+            <Wordmark size={34} />
+            <Text role="title3" tone="muted">
+              {isSignUp ? "Create an account on this device." : "Sign in to continue."}
+            </Text>
           </View>
 
-          <Text className="mt-2 text-center text-[34px] leading-[40px] text-[#0f2225]">Sign in to Omam</Text>
-          <Text className="mt-2 text-center text-sm leading-6 text-[#5b6d70]">Enter your username and password to continue.</Text>
+          <View style={{ gap: layout.gapDefault }}>
+            <Input
+              label="Username"
+              accessibilityLabel="Username"
+              autoCapitalize="none"
+              autoComplete="username"
+              autoCorrect={false}
+              leading={<Icon glyph={UserRound} size={16} color={colors.textMuted} />}
+              onChangeText={(value) => {
+                setUsername(value);
+                setErrorMessage(null);
+              }}
+              placeholder="hassan_dev"
+              value={username}
+            />
 
-          <View className="mt-5 gap-2">
-            <Text className="text-sm text-[#5b6d70]">Username</Text>
-            <View className="min-h-[52px] flex-row items-center rounded-xl border border-[#d7e4db] bg-white px-4">
-              <UserRound size={18} color="#245748" />
-              <TextInput
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="username"
-                value={username}
-                onChangeText={updateUsername}
-                placeholder="e.g. hassan_dev"
-                placeholderTextColor="#8b9598"
-                className="mx-3 flex-1 py-3 text-base text-[#163034]"
-                accessibilityLabel="Username"
-              />
-            </View>
-          </View>
+            <Input
+              label="Password"
+              accessibilityLabel="Password"
+              autoComplete={isSignUp ? "new-password" : "password"}
+              leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
+              onChangeText={(value) => {
+                setPassword(value);
+                setErrorMessage(null);
+              }}
+              onSubmitEditing={isSignUp ? undefined : handleSubmit}
+              placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+              secureTextEntry
+              value={password}
+            />
 
-          <View className="mt-3 gap-2">
-            <Text className="text-sm text-[#5b6d70]">Password</Text>
-            <View className="min-h-[52px] flex-row items-center rounded-xl border border-[#d7e4db] bg-white px-4">
-              <LockKeyhole size={18} color="#245748" />
-              <TextInput
+            {isSignUp ? (
+              <Input
+                label="Confirm password"
+                accessibilityLabel="Confirm password"
+                autoComplete="new-password"
+                leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
+                onChangeText={(value) => {
+                  setConfirmPassword(value);
+                  setErrorMessage(null);
+                }}
+                onSubmitEditing={handleSubmit}
+                placeholder="Repeat it"
                 secureTextEntry
-                autoComplete="password"
-                value={password}
-                onChangeText={updatePassword}
-                placeholder="At least 6 characters"
-                placeholderTextColor="#8b9598"
-                className="mx-3 flex-1 py-3 text-base text-[#163034]"
-                accessibilityLabel="Password"
-                onSubmitEditing={handleLogin}
+                value={confirmPassword}
               />
-            </View>
+            ) : null}
           </View>
 
           {errorMessage ? (
-            <Text accessibilityRole="alert" className="mt-4 rounded-xl bg-[#fff2f0] px-4 py-3 text-sm leading-5 text-[#a23b2a]">
+            <Text accessibilityRole="alert" role="bodySm" tone="accent">
               {errorMessage}
             </Text>
           ) : null}
 
-          <Pressable
-            onPress={handleLogin}
-            disabled={isMutating}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: isMutating, busy: isMutating }}
-            className={`mt-5 min-h-[52px] flex-row items-center justify-center rounded-full px-5 ${isInvalid ? "bg-[#9fbab0]" : "bg-[#1e6f4d]"}`}
-          >
-            <LogIn size={19} color="#f7fbf7" />
-            <Text className="mx-2 text-center text-base text-[#f7fbf7]">
-              {isMutating ? "Signing in..." : "Sign in"}
-            </Text>
-          </Pressable>
+          <Button
+            label={isSignUp ? "Create account" : "Sign in"}
+            full
+            size="lg"
+            disabled={isInvalid}
+            loading={isMutating}
+            onPress={handleSubmit}
+          />
 
-          <Text className="mt-4 text-center text-xs leading-5 text-[#7d8c88]">
-            If there is no user yet, the first sign-in automatically creates the initial account.
+          <Button
+            label={isSignUp ? "I already have an account" : "Create a new account"}
+            full
+            size="md"
+            variant="ghost"
+            disabled={isMutating}
+            onPress={() => switchMode(isSignUp ? "signIn" : "signUp")}
+          />
+
+          <Text role="caption" tone="muted">
+            Accounts and their sessions live only on this device. There is no password recovery —
+            keep a note of it somewhere safe.
           </Text>
-        </View>
+        </Card>
       </View>
     </SafeAreaView>
   );

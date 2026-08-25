@@ -1,214 +1,397 @@
-import { useMemo } from "react";
-import { ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { BarChart3, Building2, CalendarDays, Clock3, Laptop, ListChecks, LogIn, LogOut, Target, Wallet } from "lucide-react-native";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { View } from "react-native";
+import { router } from "expo-router";
+import { useSQLiteContext } from "expo-sqlite";
+import {
+  Building2,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Laptop,
+  ListChecks,
+  LogIn,
+  LogOut,
+  Plus,
+  Wallet,
+} from "lucide-react-native";
+import type { LucideIcon } from "lucide-react-native";
+import type { SessionDto } from "@omam/contracts";
 import { SessionItem } from "../../src/components/session-item";
-import { formatCurrency, formatMinutes } from "../../src/lib/format";
+import { getSessions } from "../../src/lib/db/sessions";
+import { formatClock, formatCurrency, formatShortMinutes, joinMeta } from "../../src/lib/format";
+import {
+  formatRangeLabel,
+  getPeriodGoalHours,
+  getPeriodRange,
+  groupSessionsByDay,
+  reportPeriods,
+  summarizeSessions,
+  type ReportPeriod,
+} from "../../src/lib/report";
 import { useAttendance } from "../../src/providers/attendance-provider";
+import { useAuth } from "../../src/providers/auth-provider";
+import {
+  Accordion,
+  Card,
+  Divider,
+  EmptyState,
+  Icon,
+  IconButton,
+  ListRow,
+  PageHeader,
+  ProgressBar,
+  Screen,
+  SegmentedControl,
+  Stat,
+  Text,
+  layout,
+  radius,
+  useColors,
+  useTabBarHeight,
+  type SegmentOption,
+} from "../../src/design/taraz";
 
 const locale = "en-US";
+const CHART_HEIGHT = 96;
 
-function formatTime(iso: string) {
-  return new Intl.DateTimeFormat(locale, {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
-}
+const periodOptions: SegmentOption<ReportPeriod>[] = reportPeriods.map((period) => ({
+  value: period.key,
+  label: period.label,
+}));
 
 export default function ReportScreen() {
-  const { sessions, settings, summary } = useAttendance();
+  const db = useSQLiteContext();
+  const { user } = useAuth();
+  const { sessions: monthSessions, settings } = useAttendance();
+  const colors = useColors();
+  const tabBarHeight = useTabBarHeight();
+
+  const openSession = useCallback((sessionId: string) => {
+    router.push({ pathname: "/session/[id]", params: { id: sessionId } });
+  }, []);
+
+  const [period, setPeriod] = useState<ReportPeriod>("MONTH");
+  const [offset, setOffset] = useState(0);
+  const [rangeSessions, setRangeSessions] = useState<SessionDto[]>([]);
+
+  const range = useMemo(() => getPeriodRange(period, offset), [offset, period]);
+  const rangeLabel = useMemo(() => formatRangeLabel(period, range, offset), [offset, period, range]);
+  const userId = user?.id;
+
+  useEffect(() => {
+    let active = true;
+
+    if (!userId) {
+      setRangeSessions([]);
+      return;
+    }
+
+    getSessions(db, userId, range.from.toISOString(), range.to.toISOString())
+      .then((rows) => {
+        if (active) setRangeSessions(rows);
+      })
+      .catch(() => {
+        if (active) setRangeSessions([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [db, monthSessions, range.from, range.to, userId]);
+
+  const totals = useMemo(
+    () => summarizeSessions(rangeSessions, settings.hourlyRate, period, range),
+    [period, range, rangeSessions, settings.hourlyRate],
+  );
 
   const sortedSessions = useMemo(
-    () => [...sessions].sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime()),
-    [sessions],
+    () => [...rangeSessions].sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime()),
+    [rangeSessions],
   );
+  const sessionDays = useMemo(() => groupSessionsByDay(sortedSessions), [sortedSessions]);
   const latestSession = sortedSessions[0];
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), []);
-  const progress =
-    settings.monthlyGoalHours > 0
-      ? Math.min(100, Math.round((summary.totalMinutes / (settings.monthlyGoalHours * 60)) * 100))
-      : 0;
+
+  const goalHours = getPeriodGoalHours(period, settings.monthlyGoalHours);
+  const goalRatio = goalHours > 0 ? Math.min(1, totals.totalMinutes / (goalHours * 60)) : 0;
+  const trackedHours = Math.round(totals.totalMinutes / 60);
+
+  const peakBucketMinutes = Math.max(1, ...totals.buckets.map((bucket) => bucket.minutes));
+  const labelEveryBucket = period !== "MONTH";
+  const axisLabels = useMemo(() => {
+    const { buckets } = totals;
+
+    if (!buckets.length) {
+      return [];
+    }
+
+    return [buckets[0], buckets[Math.floor(buckets.length / 2)], buckets[buckets.length - 1]];
+  }, [totals]);
+
+  const categoryTotal = totals.categoryMinutes.onsite + totals.categoryMinutes.remote;
+  const onsiteShare = categoryTotal ? totals.categoryMinutes.onsite / categoryTotal : 0;
+  const averageMinutes = totals.workedDays ? Math.round(totals.totalMinutes / totals.workedDays) : 0;
+
+  function changePeriod(next: ReportPeriod) {
+    setPeriod(next);
+    setOffset(0);
+  }
 
   return (
-    <SafeAreaView className="flex-1 bg-[#eef3ec]" edges={["top"]}>
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          paddingHorizontal: 20,
-          paddingBottom: 122,
-          paddingTop: 10,
-          gap: 12,
-        }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View className="overflow-hidden rounded-[30px] border border-[#2a5b50] bg-[#2f6558] p-4">
-          <View className="mb-3 flex-row items-center justify-between">
-            <View>
-              <Text className="text-sm text-[#cde5da]">Finance</Text>
-              <Text className="mt-1 text-[34px] leading-[38px] text-white">Report</Text>
-            </View>
-            <View className="h-11 w-11 items-center justify-center rounded-2xl bg-[#45796a]">
-              <BarChart3 size={20} color="#d9efe5" />
-            </View>
-          </View>
+    <Screen scroll bottomInset={tabBarHeight} gap={layout.gapDefault}>
+      <PageHeader
+        title="Report"
+        subtitle={rangeLabel}
+        trailing={
+          <IconButton label="Add a session" variant="primary" onPress={() => openSession("new")}>
+            <Icon glyph={Plus} size={20} color={colors.textOnAccent} />
+          </IconButton>
+        }
+      />
 
-          <View className="flex-row gap-3">
-            <View className="flex-1 rounded-2xl border border-[#74a793] bg-[#f2f9f5] p-3.5">
-              <Text className="text-xs uppercase tracking-[1.1px] text-[#57776b]">Tracked</Text>
-              <Text className="mt-1 text-[29px] leading-[32px] text-[#17372e]">{formatMinutes(summary.totalMinutes)}</Text>
-              <Text className="text-xs text-[#67877a]">This month</Text>
-            </View>
+      <SegmentedControl options={periodOptions} value={period} onChange={changePeriod} size="lg" full />
 
-            <View className="flex-1 rounded-2xl border border-[#dcb26d] bg-[#fff6e7] p-3.5">
-              <Text className="text-xs uppercase tracking-[1.1px] text-[#8b6d3f]">Earned</Text>
-              <Text className="mt-1 text-[20px] leading-[24px] text-[#403425]">
-                {formatCurrency(summary.totalIncome, settings.currency)}
-              </Text>
-              <Text className="text-xs text-[#9d7f50]">Calculated</Text>
-            </View>
-          </View>
-        </View>
+      <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapDefault }}>
+        <IconButton label="Previous period" round onPress={() => setOffset((current) => current - 1)}>
+          <Icon glyph={ChevronLeft} size={20} color={colors.textTitle} />
+        </IconButton>
 
-        <View className="rounded-2xl border border-[#d0dccf] bg-[#f8fbf7] p-4">
-          <View className="mb-3 flex-row items-center gap-2">
-            <Clock3 size={18} color="#245f4f" />
-            <Text className="text-xl text-[#18352d]">Monthly split</Text>
-          </View>
+        <Text role="label" tone="title" numberOfLines={1} style={{ flex: 1, textAlign: "center" }}>
+          {rangeLabel}
+        </Text>
 
-          <View className="flex-row gap-3">
-            <View className="flex-1 rounded-xl border border-[#bdd7cc] bg-[#edf7f2] p-3.5">
-              <View className="mb-2 h-8 w-8 items-center justify-center rounded-full bg-[#d7ebe2]">
-                <Building2 size={16} color="#2c6d59" />
-              </View>
-              <Text className="text-sm text-[#47675b]">On-site</Text>
-              <Text className="mt-1 text-[24px] leading-[28px] text-[#17372e]">
-                {formatMinutes(summary.categoryMinutes.onsite)}
-              </Text>
-            </View>
+        <IconButton
+          label="Next period"
+          round
+          disabled={offset >= 0}
+          onPress={() => setOffset((current) => Math.min(0, current + 1))}
+        >
+          <Icon glyph={ChevronRight} size={20} color={colors.textTitle} />
+        </IconButton>
+      </View>
 
-            <View className="flex-1 rounded-xl border border-[#ddcfb6] bg-[#fbf6ea] p-3.5">
-              <View className="mb-2 h-8 w-8 items-center justify-center rounded-full bg-[#f2e4c8]">
-                <Laptop size={16} color="#996a24" />
-              </View>
-              <Text className="text-sm text-[#6f665a]">Remote</Text>
-              <Text className="mt-1 text-[24px] leading-[28px] text-[#2d2a26]">
-                {formatMinutes(summary.categoryMinutes.remote)}
-              </Text>
-            </View>
-          </View>
-        </View>
+      <View style={{ flexDirection: "row", gap: layout.gapDefault }}>
+        <Stat
+          mono
+          label="Tracked"
+          value={formatShortMinutes(totals.totalMinutes)}
+          hint={joinMeta(`${numberFormatter.format(totals.sessionCount)} sessions`, rangeLabel)}
+          icon={<Icon glyph={Clock3} size={16} color={colors.textMuted} />}
+        />
+        <Stat
+          mono
+          label="Earned"
+          value={formatCurrency(totals.totalIncome, settings.currency)}
+          hint={`${numberFormatter.format(trackedHours)} h billed`}
+          icon={<Icon glyph={Wallet} size={16} color={colors.textMuted} />}
+        />
+      </View>
 
-        <View className="rounded-2xl border border-[#d0dccf] bg-[#f8fbf7] p-4">
-          <View className="mb-3 flex-row items-center justify-between">
-            <View className="flex-row items-center gap-2">
-              <Target size={16} color="#2c6d59" />
-              <Text className="text-lg text-[#17362e]">Monthly goal</Text>
-            </View>
-            <Text className="text-[28px] text-[#2c8c68]">{progress}%</Text>
-          </View>
+      <Card style={{ gap: layout.gapDefault }}>
+        <Text role="title3">{period === "DAY" ? "By hour" : "By day"}</Text>
 
-          <View className="h-3 rounded-full bg-[#e5ede8]">
+        <View style={{ alignItems: "flex-end", flexDirection: "row", gap: 2, height: CHART_HEIGHT }}>
+          {totals.buckets.map((bucket) => (
             <View
-              className="h-3 rounded-full bg-[#5cb58e]"
+              key={bucket.key}
               style={{
-                width: `${progress}%`,
+                backgroundColor: bucket.minutes ? colors.fillAccent : colors.fillQuiet,
+                borderRadius: radius.xs,
+                flex: 1,
+                height: Math.max(3, Math.round((bucket.minutes / peakBucketMinutes) * CHART_HEIGHT)),
               }}
             />
-          </View>
+          ))}
+        </View>
 
-          <Text className="mt-2 text-sm text-[#5f7268]">
-            Target: {numberFormatter.format(settings.monthlyGoalHours)} h | Current: {numberFormatter.format(Math.round(summary.totalMinutes / 60))} h
+        {labelEveryBucket ? (
+          <View style={{ flexDirection: "row", gap: 2 }}>
+            {totals.buckets.map((bucket) => (
+              <Text
+                key={bucket.key}
+                role="caption"
+                tone="faint"
+                numberOfLines={1}
+                style={{ flex: 1, textAlign: "center" }}
+              >
+                {bucket.label}
+              </Text>
+            ))}
+          </View>
+        ) : (
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            {axisLabels.map((bucket, index) => (
+              <Text key={`${bucket.key}-${index}`} role="caption" tone="faint">
+                {bucket.label}
+              </Text>
+            ))}
+          </View>
+        )}
+      </Card>
+
+      <Card style={{ gap: layout.gapDefault }}>
+        <View style={{ alignItems: "baseline", flexDirection: "row", justifyContent: "space-between" }}>
+          <Text role="title3">Goal</Text>
+          <Text role="monoLg" tone="title">
+            {Math.round(goalRatio * 100)}%
           </Text>
         </View>
 
-        <View className="rounded-2xl border border-[#d0dccf] bg-[#f8fbf7] p-4">
-          <View className="mb-3 flex-row items-center gap-2">
-            <CalendarDays size={18} color="#245f4f" />
-            <Text className="text-xl text-[#18352d]">Logs</Text>
-          </View>
+        <ProgressBar value={goalRatio} />
 
-          <View className="flex-row gap-3">
-            <View className="flex-1 rounded-xl border border-[#d8dfdb] bg-white p-3">
-              <View className="mb-1 flex-row items-center gap-2">
-                <LogIn size={14} color="#2f6b58" />
-                <Text className="text-sm text-[#3e5b52]">Check In</Text>
-              </View>
-              <Text className="text-base text-[#15241f]">
-                {latestSession ? formatTime(latestSession.startAt) : "--:--"}
-              </Text>
-            </View>
+        <Text role="caption" tone="muted">
+          {joinMeta(
+            `${numberFormatter.format(trackedHours)} of ${numberFormatter.format(Math.round(goalHours))} h`,
+            period === "DAY" ? "Daily target" : period === "WEEK" ? "Weekly target" : "Monthly target",
+          )}
+        </Text>
+      </Card>
 
-            <View className="flex-1 rounded-xl border border-[#d8dfdb] bg-white p-3">
-              <View className="mb-1 flex-row items-center gap-2">
-                <LogOut size={14} color="#8f5f23" />
-                <Text className="text-sm text-[#3e5b52]">Check Out</Text>
-              </View>
-              <Text className="text-base text-[#15241f]">
-                {latestSession?.endAt ? formatTime(latestSession.endAt) : latestSession ? "Running" : "--:--"}
-              </Text>
-            </View>
-          </View>
+      <Card style={{ gap: layout.gapDefault }}>
+        <Text role="title3">Split</Text>
 
-          <View className="mt-3 flex-row gap-3">
-            <View className="flex-1 rounded-xl border border-[#d8dfdb] bg-white p-3">
-              <View className="mb-1 flex-row items-center gap-2">
-                <Clock3 size={14} color="#2f6b58" />
-                <Text className="text-sm text-[#3e5b52]">Monthly goal</Text>
-              </View>
-              <Text className="text-base text-[#15241f]">
-                {numberFormatter.format(settings.monthlyGoalHours)} hr
-              </Text>
-            </View>
-
-            <View className="flex-1 rounded-xl border border-[#d8dfdb] bg-white p-3">
-              <View className="mb-1 flex-row items-center gap-2">
-                <Wallet size={14} color="#2f6b58" />
-                <Text className="text-sm text-[#3e5b52]">Earned</Text>
-              </View>
-              <Text className="text-base text-[#15241f]">
-                {formatCurrency(summary.totalIncome, settings.currency)}
-              </Text>
-            </View>
-          </View>
+        <View
+          style={{
+            backgroundColor: colors.fillQuiet,
+            borderRadius: radius.pill,
+            flexDirection: "row",
+            height: 6,
+            overflow: "hidden",
+          }}
+        >
+          <View style={{ backgroundColor: colors.fillAccent, flex: onsiteShare }} />
+          <View style={{ backgroundColor: colors.textFaint, flex: 1 - onsiteShare }} />
         </View>
 
-        <View className="flex-row gap-3">
-          <View className="flex-1 rounded-2xl border border-[#d0dccf] bg-[#e7f1eb] p-4">
-            <View className="mb-2 h-8 w-8 items-center justify-center rounded-full bg-[#d5e8dd]">
-              <ListChecks size={16} color="#2c6d59" />
-            </View>
-            <Text className="text-sm text-[#587066]">Sessions</Text>
-            <Text className="mt-1 text-[32px] leading-[36px] text-[#193a30]">{sessions.length}</Text>
-            <Text className="text-xs text-[#60756a]">Total records</Text>
-          </View>
-
-          <View className="flex-1 rounded-2xl border border-[#ddcfb6] bg-[#fbf6ea] p-4">
-            <View className="mb-2 h-8 w-8 items-center justify-center rounded-full bg-[#f2e4c8]">
-              <Clock3 size={15} color="#996a24" />
-            </View>
-            <Text className="text-sm text-[#6f665a]">Tracked</Text>
-            <Text className="mt-1 text-[24px] leading-[28px] text-[#2d2a26]">{formatMinutes(summary.totalMinutes)}</Text>
-            <Text className="text-xs text-[#8c7f6b]">Worked time</Text>
-          </View>
+        <View style={{ gap: layout.gapTight }}>
+          <SplitRow
+            glyph={Building2}
+            label="On-site"
+            value={formatShortMinutes(totals.categoryMinutes.onsite)}
+            swatch={colors.fillAccent}
+          />
+          <SplitRow
+            glyph={Laptop}
+            label="Remote"
+            value={formatShortMinutes(totals.categoryMinutes.remote)}
+            swatch={colors.textFaint}
+          />
         </View>
+      </Card>
 
-        <View className="rounded-2xl border border-[#d0dccf] bg-[#f8fbf7] p-4">
-          <Text className="mb-3 text-xl text-[#18352d]">Recent sessions</Text>
-          <View className="gap-3">
-            {sortedSessions.length ? (
-              sortedSessions.map((session) => <SessionItem key={session.id} session={session} />)
-            ) : (
-              <View className="rounded-xl border border-[#d2ddcf] bg-[#f1f7f2] p-4">
-                <Text className="text-sm leading-6 text-[#5f7268]">
-                  No sessions yet. Start the timer from the Today screen to build your history here.
-                </Text>
-              </View>
-            )}
+      <Card padded={false} style={{ paddingHorizontal: layout.padCard }}>
+        <ListRow
+          label="Worked days"
+          leading={<Icon glyph={CalendarDays} size={20} color={colors.textMuted} />}
+          trailing={
+            <Text role="mono" tone="body">
+              {numberFormatter.format(totals.workedDays)}
+            </Text>
+          }
+        />
+        <Divider inset={30} />
+        <ListRow
+          label="Average per day"
+          hint="Worked days only"
+          leading={<Icon glyph={ListChecks} size={20} color={colors.textMuted} />}
+          trailing={
+            <Text role="mono" tone="body">
+              {formatShortMinutes(averageMinutes)}
+            </Text>
+          }
+        />
+        <Divider inset={30} />
+        <ListRow
+          label="Last check-in"
+          leading={<Icon glyph={LogIn} size={20} color={colors.textMuted} />}
+          trailing={
+            <Text role="mono" tone="body">
+              {latestSession ? formatClock(latestSession.startAt) : "--:--"}
+            </Text>
+          }
+        />
+        <Divider inset={30} />
+        <ListRow
+          label="Last check-out"
+          leading={<Icon glyph={LogOut} size={20} color={colors.textMuted} />}
+          trailing={
+            <Text role="mono" tone={latestSession && !latestSession.endAt ? "accent" : "body"}>
+              {latestSession?.endAt
+                ? formatClock(latestSession.endAt)
+                : latestSession
+                  ? "Running"
+                  : "--:--"}
+            </Text>
+          }
+        />
+      </Card>
+
+      <Card padded={false}>
+        {sessionDays.length ? (
+          <View style={{ padding: layout.padCard }}>
+            <Text role="title3" style={{ marginBottom: layout.gapTight }}>
+              Sessions
+            </Text>
+
+            {sessionDays.map((day, index) => (
+              <Fragment key={day.key}>
+                {index ? <Divider /> : null}
+                <Accordion
+                  title={day.label}
+                  meta={joinMeta(
+                    `${day.sessions.length} ${day.sessions.length === 1 ? "session" : "sessions"}`,
+                    formatShortMinutes(day.totalMinutes),
+                  )}
+                >
+                  <View style={{ gap: layout.gapDefault, paddingBottom: layout.gapDefault }}>
+                    {day.sessions.map((session) => (
+                      <SessionItem
+                        key={session.id}
+                        session={session}
+                        showDate={false}
+                        onPress={() => openSession(session.id)}
+                      />
+                    ))}
+                  </View>
+                </Accordion>
+              </Fragment>
+            ))}
           </View>
-        </View>
+        ) : (
+          <EmptyState
+            title="No sessions yet"
+            description="Start the timer on Today, or add one with the + button."
+            icon={<Icon glyph={Clock3} size={20} color={colors.textMuted} />}
+          />
+        )}
+      </Card>
 
-        <View className="h-12" />
-      </ScrollView>
-    </SafeAreaView>
+      <View style={{ height: layout.gapDefault }} />
+    </Screen>
+  );
+}
+
+type SplitRowProps = {
+  glyph: LucideIcon;
+  label: string;
+  value: string;
+  swatch: string;
+};
+
+function SplitRow({ glyph, label, value, swatch }: SplitRowProps) {
+  const colors = useColors();
+
+  return (
+    <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapTight }}>
+      <View style={{ backgroundColor: swatch, borderRadius: radius.full, height: 8, width: 8 }} />
+      <Icon glyph={glyph} size={16} color={colors.textMuted} />
+      <Text role="body" tone="title" style={{ flex: 1 }}>
+        {label}
+      </Text>
+      <Text role="mono" tone="body">
+        {value}
+      </Text>
+    </View>
   );
 }

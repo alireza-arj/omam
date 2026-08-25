@@ -1,7 +1,6 @@
 {
   "name": "omam",
   "private": true,
-  "main": "expo-router/entry",
   "packageManager": "bun@1.3.1",
   "dependencies": {
     "react": "19.1.0",
@@ -16,9 +15,6 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ],
-  "trustedDependencies": [
-    "@shopify/react-native-skia"
   ],
   "scripts": {
     "start": "bun run dev:mobile",

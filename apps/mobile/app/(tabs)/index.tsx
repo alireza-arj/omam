@@ -1,71 +1,97 @@
-import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, Text, View, useWindowDimensions } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Building2, Laptop } from "lucide-react-native";
+import { useCallback, useMemo, useState } from "react";
+import { View, useWindowDimensions } from "react-native";
+import { useFocusEffect } from "expo-router";
+import { Building2, Laptop, Play, Square } from "lucide-react-native";
 import type { WorkSessionCategory } from "@omam/contracts";
-import { AttendanceCookieClock } from "../../src/components/attendance-cookie-clock";
-import { formatDurationHms } from "../../src/lib/format";
+import { SessionDial } from "../../src/components/session-dial";
+import { formatDurationHms, joinMeta } from "../../src/lib/format";
 import { useAttendance } from "../../src/providers/attendance-provider";
+import {
+  Button,
+  Icon,
+  Screen,
+  SegmentedControl,
+  Text,
+  layout,
+  useColors,
+  useTabBarHeight,
+  useToast,
+  type SegmentOption,
+} from "../../src/design/taraz";
 
-const categoryOptions: WorkSessionCategory[] = ["ONSITE", "REMOTE"];
 const locale = "en-US";
 
-function formatClockParts(date: Date) {
-  const formatter = new Intl.NumberFormat(locale, {
-    minimumIntegerDigits: 2,
-    useGrouping: false,
-  });
+/* Module scope — the clock re-renders every second and must not rebuild these. */
+const twoDigits = new Intl.NumberFormat(locale, { minimumIntegerDigits: 2, useGrouping: false });
+const weekdayFormat = new Intl.DateTimeFormat(locale, { weekday: "long" });
+const dayMonthFormat = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long" });
 
-  return {
-    hour: formatter.format(date.getHours()),
-    minute: formatter.format(date.getMinutes()),
-    second: formatter.format(date.getSeconds()),
-  };
+function formatWallClock(date: Date) {
+  return `${twoDigits.format(date.getHours())}:${twoDigits.format(date.getMinutes())}:${twoDigits.format(date.getSeconds())}`;
 }
 
-export default function DashboardScreen() {
+export default function TodayScreen() {
   const { summary, clockIn, clockOut, isMutating } = useAttendance();
+  const { showToast } = useToast();
   const { width } = useWindowDimensions();
+  const colors = useColors();
+  const tabBarHeight = useTabBarHeight();
+
   const [now, setNow] = useState(() => new Date());
   const [optimisticStartAt, setOptimisticStartAt] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<WorkSessionCategory>("ONSITE");
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
+  // Only tick while this screen is actually on top. It used to run for the
+  // life of the app, re-rendering Today once a second behind the other tabs.
+  useFocusEffect(
+    useCallback(() => {
+      setNow(new Date());
 
-    return () => clearInterval(timer);
-  }, []);
+      const timer = setInterval(() => setNow(new Date()), 1000);
 
-  const displayDate = useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale, {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-        weekday: "long",
-      }).format(now),
-    [now],
+      return () => clearInterval(timer);
+    }, []),
   );
 
-  const { hour, minute, second } = useMemo(() => formatClockParts(now), [now]);
+  // Cheap now that the formatters are built once at module scope.
+  const displayDate = joinMeta(weekdayFormat.format(now), dayMonthFormat.format(now));
 
   const activeStartAt = summary.activeSession?.startAt ?? optimisticStartAt;
   const activeCategory = summary.activeSession?.category ?? selectedCategory;
-  const isSessionRunning = Boolean(activeStartAt);
-  const activeSeconds = activeStartAt
+  const isRunning = Boolean(activeStartAt);
+  const elapsedSeconds = activeStartAt
     ? Math.max(0, Math.floor((now.getTime() - new Date(activeStartAt).getTime()) / 1000))
     : 0;
 
-  const activeDurationClock = useMemo(() => formatDurationHms(activeSeconds), [activeSeconds]);
+  const timecode = isRunning ? formatDurationHms(elapsedSeconds) : formatWallClock(now);
+  const dialSize = useMemo(() => Math.min(Math.max(width * 0.72, 232), 300), [width]);
 
-  const clockSize = useMemo(() => Math.min(Math.max(width * 0.78, 250), 336), [width]);
-  const headlineTime = isSessionRunning ? activeDurationClock : `${hour}:${minute}:${second}`;
+  const categoryOptions = useMemo<SegmentOption<WorkSessionCategory>[]>(
+    () => [
+      {
+        value: "ONSITE",
+        label: "On-site",
+        icon: (active) => (
+          <Icon glyph={Building2} size={16} color={active ? colors.textTitle : colors.textMuted} />
+        ),
+      },
+      {
+        value: "REMOTE",
+        label: "Remote",
+        icon: (active) => (
+          <Icon glyph={Laptop} size={16} color={active ? colors.textTitle : colors.textMuted} />
+        ),
+      },
+    ],
+    [colors.textMuted, colors.textTitle],
+  );
 
-  async function handleAction() {
+  async function handleToggle() {
     try {
       if (summary.activeSession) {
         setOptimisticStartAt(null);
         await clockOut();
+
         return;
       }
 
@@ -75,66 +101,68 @@ export default function DashboardScreen() {
       if (!summary.activeSession) {
         setOptimisticStartAt(null);
       }
-      const message =
-        error instanceof Error
-          ? error.message === "ATTENDANCE_CLOCKIN_FAILED" || error.message === "ATTENDANCE_CLOCKOUT_FAILED"
-            ? "An unknown error occurred while tracking time."
-            : error.message
-          : "An unknown error occurred while tracking time.";
-      Alert.alert("Time tracking failed", message);
+
+      const known =
+        error instanceof Error &&
+        error.message !== "ATTENDANCE_CLOCKIN_FAILED" &&
+        error.message !== "ATTENDANCE_CLOCKOUT_FAILED";
+
+      showToast({
+        title: "Time tracking failed",
+        description: known ? (error as Error).message : "Something went wrong. Try again.",
+        tone: "error",
+      });
     }
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-[#eef3ec]" edges={["top"]}>
-      <View className="flex-1 items-center justify-center px-5 pb-[132px] pt-0">
-        <View className="items-center">
-          <Text className="text-sm text-[#5f7268]">{displayDate}</Text>
-          <Text
-            className="mt-1 text-center text-[64px] leading-[70px] text-[#122b24]"
-            style={{ fontWeight: "300" }}
-          >
-            {headlineTime}
-          </Text>
-        </View>
+    <Screen center bottomInset={tabBarHeight} gap={layout.gapSection}>
+      <View style={{ alignItems: "center", gap: 2 }}>
+        <Text role="overline" tone="muted">
+          {displayDate}
+        </Text>
+        <Text role="monoDisplay" tone="title">
+          {timecode}
+        </Text>
+        <Text role="caption" tone="muted">
+          {isRunning ? "Session running" : "Not tracking"}
+        </Text>
+      </View>
 
-        <AttendanceCookieClock
-          size={clockSize}
-          isRunning={isSessionRunning}
-          isMutating={isMutating}
-          elapsedSeconds={activeSeconds}
-          currentDate={now}
-          onPress={handleAction}
-          idleLabel="Start timer"
-          runningLabel="Stop timer"
-          savingLabel="Saving..."
-          categorySelector={
-            <View className="mt-3 flex-row rounded-full border border-[#d5dfd5] bg-[#f8fbf7] p-1">
-              {categoryOptions.map((category) => {
-                const isSelected = activeCategory === category;
-                const Icon = category === "ONSITE" ? Building2 : Laptop;
+      <SessionDial
+        size={dialSize}
+        isRunning={isRunning}
+        elapsedSeconds={elapsedSeconds}
+        currentDate={now}
+      />
 
-                return (
-                  <Pressable
-                    key={category}
-                    disabled={isSessionRunning || isMutating}
-                    onPress={() => setSelectedCategory(category)}
-                    className={`h-9 min-w-[104px] flex-row items-center justify-center gap-1.5 rounded-full px-3 ${
-                      isSelected ? "bg-[#2f6558]" : "bg-transparent"
-                    }`}
-                  >
-                    <Icon size={15} color={isSelected ? "#f4fbf7" : "#456b5f"} />
-                    <Text className={`text-xs ${isSelected ? "text-white" : "text-[#456b5f]"}`}>
-                      {category === "ONSITE" ? "On-site" : "Remote"}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          }
+      <View style={{ alignItems: "center", gap: layout.gapLoose }}>
+        <SegmentedControl
+          options={categoryOptions}
+          value={activeCategory}
+          onChange={setSelectedCategory}
+          disabled={isRunning || isMutating}
+          size="lg"
         />
 
+        <Button
+          label={isMutating ? "Saving" : isRunning ? "Stop" : "Start"}
+          size="lg"
+          pill
+          loading={isMutating}
+          variant={isRunning ? "secondary" : "primary"}
+          onPress={handleToggle}
+          icon={
+            <Icon
+              glyph={isRunning ? Square : Play}
+              size={18}
+              color={isRunning ? colors.textTitle : colors.textOnAccent}
+              filled
+            />
+          }
+          style={{ minWidth: 184 }}
+        />
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }

@@ -1,14 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import type { SettingsDto, UpdateSettingsInputDto } from "@omam/contracts";
-
-function generateId(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let id = "";
-  for (let i = 0; i < 25; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return id;
-}
+import { generateId } from "./id";
 
 function now() {
   return new Date().toISOString();

@@ -1,18 +1,32 @@
 import { useMemo, useState } from "react";
-import { Alert, Image, Pressable, Text, TextInput, View } from "react-native";
+import { View } from "react-native";
 import { Redirect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Camera } from "lucide-react-native";
+import { persistPickedAvatar, supportsAvatarFiles } from "../../src/lib/avatar";
 import { useAuth } from "../../src/providers/auth-provider";
+import {
+  Avatar,
+  Button,
+  Card,
+  Icon,
+  Input,
+  Text,
+  layout,
+  useColors,
+  useToast,
+} from "../../src/design/taraz";
 
 export default function ProfileSetupScreen() {
-  const { isReady, isAuthenticated, needsProfileSetup, completeProfile, isMutating, user } = useAuth();
+  const { isReady, isAuthenticated, needsProfileSetup, completeProfile, isMutating, user } =
+    useAuth();
+  const colors = useColors();
+  const { showToast } = useToast();
   const [nickname, setNickname] = useState(user?.nickname ?? "");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
 
-  const isDisabled = useMemo(() => {
-    return isMutating || nickname.trim().length < 2;
-  }, [isMutating, nickname]);
+  const isIncomplete = useMemo(() => nickname.trim().length < 2, [nickname]);
 
   if (!isReady) {
     return null;
@@ -30,7 +44,12 @@ export default function ProfileSetupScreen() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      Alert.alert("Permission required", "Enable gallery access to pick an avatar.");
+      showToast({
+        title: "Gallery access needed",
+        description: "Enable photo access to choose an avatar.",
+        tone: "warning",
+      });
+
       return;
     }
 
@@ -39,7 +58,8 @@ export default function ProfileSetupScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.6,
-      base64: true,
+      // Only the web build needs the bytes inline; native copies the file.
+      base64: !supportsAvatarFiles,
     });
 
     if (result.canceled) {
@@ -48,74 +68,85 @@ export default function ProfileSetupScreen() {
 
     const asset = result.assets[0];
 
-    if (!asset?.base64) {
-      Alert.alert("Image selection failed", "Please choose a different image.");
-      return;
+    try {
+      setAvatarUrl(persistPickedAvatar(asset));
+    } catch {
+      showToast({
+        title: "Image could not be read",
+        description: "Choose a different photo.",
+        tone: "error",
+      });
     }
-
-    const mimeType = asset.mimeType?.startsWith("image/") ? asset.mimeType : "image/jpeg";
-    setAvatarUrl(`data:${mimeType};base64,${asset.base64}`);
   }
 
   async function handleSave() {
     try {
-      await completeProfile({
-        nickname: nickname.trim(),
-        avatarUrl,
-      });
+      await completeProfile({ nickname: nickname.trim(), avatarUrl });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "An unknown error occurred while signing in.";
-      Alert.alert("Sign in failed", message);
+      showToast({
+        title: "Profile could not be saved",
+        description: error instanceof Error ? error.message : "Try again.",
+        tone: "error",
+      });
     }
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-[#eaf4ed]" edges={["top", "bottom"]}>
-      <View className="flex-1 items-center justify-center bg-[#eaf4ed] px-6 pb-8 pt-6">
-        <View className="absolute left-[-120px] top-[-80px] h-[230px] w-[230px] rounded-full bg-[#1f7d56]/10" />
-        <View className="absolute right-[-90px] top-[150px] h-[190px] w-[190px] rounded-full bg-[#c9ad64]/14" />
-
-        <View className="w-full max-w-[460px] rounded-[34px] border border-[#d5e5da] bg-[#f8fdf9] px-5 py-6">
-          <Text className="text-sm text-[#5e6e72]">Profile</Text>
-          <Text className="mt-2 text-[32px] leading-[38px] text-[#0f2225]">Complete your account</Text>
-          <Text className="mt-2 text-sm leading-6 text-[#5b6d70]">Before entering the app, set your nickname and avatar.</Text>
-
-          <View className="mt-5 items-center">
-            <View className="h-[92px] w-[92px] items-center justify-center overflow-hidden rounded-full border border-[#cfe0d4] bg-[#e3efe7]">
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} className="h-[92px] w-[92px]" resizeMode="cover" />
-              ) : (
-                <Text className="text-3xl">👤</Text>
-              )}
-            </View>
-
-            <Pressable onPress={pickAvatar} className="mt-3 rounded-full border border-[#c9d9cf] bg-white px-4 py-2.5">
-              <Text className="text-sm text-[#245748]">Upload photo</Text>
-            </Pressable>
+    <SafeAreaView
+      style={{ backgroundColor: colors.surfaceApp, flex: 1 }}
+      edges={["top", "bottom"]}
+    >
+      <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: layout.padPage }}>
+        <Card
+          elevation={2}
+          style={{
+            alignSelf: "center",
+            gap: layout.gapLoose,
+            maxWidth: 460,
+            padding: layout.padSection,
+            width: "100%",
+          }}
+        >
+          <View style={{ gap: 2 }}>
+            <Text role="overline" tone="muted">
+              Profile
+            </Text>
+            <Text role="title1">Finish your account</Text>
+            <Text role="bodySm" tone="muted">
+              Set a nickname and a photo before you start tracking.
+            </Text>
           </View>
 
-          <View className="mt-5 gap-2">
-            <Text className="text-sm text-[#5b6d70]">Nickname</Text>
-            <TextInput
-              autoCapitalize="words"
-              value={nickname}
-              onChangeText={setNickname}
-              placeholder="e.g. Hassan"
-              placeholderTextColor="#8b9598"
-              className="rounded-xl border border-[#d7e4db] bg-white px-4 py-3 text-base text-[#163034]"
+          <View style={{ alignItems: "center", gap: layout.gapDefault }}>
+            <Avatar uri={avatarUrl} name={nickname || user?.username} size={88} />
+            <Button
+              label="Upload photo"
+              variant="quiet"
+              size="sm"
+              onPress={pickAvatar}
+              icon={<Icon glyph={Camera} size={16} color={colors.textTitle} />}
+              style={{ alignSelf: "center" }}
             />
           </View>
 
-          <Pressable
+          <Input
+            label="Nickname"
+            autoCapitalize="words"
+            value={nickname}
+            onChangeText={setNickname}
+            placeholder="Hassan"
+            hint={isIncomplete ? "At least two characters." : undefined}
+          />
+
+          <Button
+            label="Save profile"
+            full
+            size="lg"
+            disabled={isIncomplete}
+            loading={isMutating}
             onPress={handleSave}
-            disabled={isDisabled}
-            className={`mt-5 rounded-full px-5 py-4 ${isDisabled ? "bg-[#9fbab0]" : "bg-[#1e6f4d]"}`}
-          >
-            <Text className="text-center text-base text-[#f7fbf7]">
-              {isMutating ? "Saving..." : "Save profile"}
-            </Text>
-          </Pressable>
-        </View>
+          />
+        </Card>
       </View>
     </SafeAreaView>
   );

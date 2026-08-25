@@ -1,68 +1,95 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Camera, CheckCircle2, Clock3, LogOut, Target, UserRound, Wallet } from "lucide-react-native";
+import {
+  Camera,
+  Coins,
+  LockKeyhole,
+  Moon,
+  Smartphone,
+  Sun,
+  Target,
+  UserRoundCog,
+  Wallet,
+} from "lucide-react-native";
+import { persistPickedAvatar, supportsAvatarFiles } from "../../src/lib/avatar";
 import { useAttendance } from "../../src/providers/attendance-provider";
 import { useAuth } from "../../src/providers/auth-provider";
+import {
+  Accordion,
+  Avatar,
+  Button,
+  Card,
+  ConfirmDialog,
+  Divider,
+  Icon,
+  Input,
+  PageHeader,
+  Screen,
+  SegmentedControl,
+  Text,
+  layout,
+  useColors,
+  useTabBarHeight,
+  useThemeMode,
+  useToast,
+  type SegmentOption,
+  type ThemeMode,
+} from "../../src/design/taraz";
 
-type SegmentedToggleProps<T extends string> = {
-  compact?: boolean;
-  leftLabel: string;
-  rightLabel: string;
-  leftValue: T;
-  rightValue: T;
-  value: T;
-  onChange: (next: T) => void;
-};
+const MIN_PASSWORD_LENGTH = 6;
 
-function SegmentedToggle<T extends string>({
-  compact = false,
-  leftLabel,
-  rightLabel,
-  leftValue,
-  rightValue,
-  value,
-  onChange,
-}: SegmentedToggleProps<T>) {
-  const isLeftActive = value === leftValue;
-  const isRightActive = value === rightValue;
+type Currency = "IRR" | "USD";
 
-  return (
-    <View className={`${compact ? "h-10 w-[144px]" : "h-11 w-[170px]"} flex-row rounded-full border border-[#d6ccb8] bg-[#f9f4e8] p-1`}>
-      <Pressable
-        onPress={() => onChange(leftValue)}
-        className={`flex-1 items-center justify-center rounded-full ${isLeftActive ? "bg-[#89cfb1]" : "bg-transparent"}`}
-      >
-        <Text className={`${compact ? "text-sm" : "text-base"} ${isLeftActive ? "text-[#1c4b3c]" : "text-[#5f5c53]"}`}>{leftLabel}</Text>
-      </Pressable>
-
-      <Pressable
-        onPress={() => onChange(rightValue)}
-        className={`flex-1 items-center justify-center rounded-full ${isRightActive ? "bg-[#89cfb1]" : "bg-transparent"}`}
-      >
-        <Text className={`${compact ? "text-sm" : "text-base"} ${isRightActive ? "text-[#1c4b3c]" : "text-[#5f5c53]"}`}>{rightLabel}</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-function SectionDivider() {
-  return <View className="h-px bg-[#e3d8c6]" />;
-}
+const currencyOptions: SegmentOption<Currency>[] = [
+  { value: "IRR", label: "IRR" },
+  { value: "USD", label: "USD" },
+];
 
 export default function ProfileScreen() {
-  const { settings, saveSettings, isMutating: isAttendanceMutating } = useAttendance();
-  const { user, completeProfile, signOut, isMutating: isAuthMutating } = useAuth();
-  const { height } = useWindowDimensions();
-  const isShortScreen = height < 760;
-  const controlWidthClassName = isShortScreen ? "w-[136px]" : "w-[156px]";
+  const { settings, saveSettings, isMutating: isSavingSettings } = useAttendance();
+  const { user, completeProfile, changePassword, signOut, isMutating: isSavingProfile } = useAuth();
+  const colors = useColors();
+  const tabBarHeight = useTabBarHeight();
+  const { mode, setMode } = useThemeMode();
+  const { showToast } = useToast();
+
+  const appearanceOptions = useMemo<SegmentOption<ThemeMode>[]>(
+    () => [
+      {
+        value: "system",
+        label: "System",
+        icon: (active) => (
+          <Icon glyph={Smartphone} size={16} color={active ? colors.textTitle : colors.textMuted} />
+        ),
+      },
+      {
+        value: "light",
+        label: "Light",
+        icon: (active) => (
+          <Icon glyph={Sun} size={16} color={active ? colors.textTitle : colors.textMuted} />
+        ),
+      },
+      {
+        value: "dark",
+        label: "Dark",
+        icon: (active) => (
+          <Icon glyph={Moon} size={16} color={active ? colors.textTitle : colors.textMuted} />
+        ),
+      },
+    ],
+    [colors.textMuted, colors.textTitle],
+  );
 
   const [nickname, setNickname] = useState(user?.nickname ?? "");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
   const [hourlyRate, setHourlyRate] = useState(`${settings.hourlyRate}`);
   const [monthlyGoalHours, setMonthlyGoalHours] = useState(`${settings.monthlyGoalHours}`);
-  const [currency, setCurrency] = useState<"IRR" | "USD">(settings.currency);
+  const [currency, setCurrency] = useState<Currency>(settings.currency);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [nextPassword, setNextPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [switchingAccount, setSwitchingAccount] = useState(false);
 
   useEffect(() => {
     setNickname(user?.nickname ?? "");
@@ -75,15 +102,27 @@ export default function ProfileScreen() {
     setCurrency(settings.currency);
   }, [settings.currency, settings.hourlyRate, settings.monthlyGoalHours]);
 
-  const isProfileDisabled = useMemo(() => {
-    return isAuthMutating || nickname.trim().length < 2;
-  }, [isAuthMutating, nickname]);
+  const isProfileIncomplete = useMemo(() => nickname.trim().length < 2, [nickname]);
+
+  const passwordProblem = useMemo(() => {
+    if (!currentPassword || !nextPassword || !confirmPassword) return "incomplete";
+    if (nextPassword.length < MIN_PASSWORD_LENGTH) return "tooShort";
+    if (nextPassword !== confirmPassword) return "mismatch";
+    if (nextPassword === currentPassword) return "unchanged";
+
+    return null;
+  }, [confirmPassword, currentPassword, nextPassword]);
 
   async function pickAvatar() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      Alert.alert("Permission required", "Enable gallery access to pick an avatar.");
+      showToast({
+        title: "Gallery access needed",
+        description: "Enable photo access to choose an avatar.",
+        tone: "warning",
+      });
+
       return;
     }
 
@@ -92,7 +131,8 @@ export default function ProfileScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.6,
-      base64: true,
+      // Only the web build needs the bytes inline; native copies the file.
+      base64: !supportsAvatarFiles,
     });
 
     if (result.canceled) {
@@ -101,24 +141,47 @@ export default function ProfileScreen() {
 
     const asset = result.assets[0];
 
-    if (!asset?.base64) {
-      Alert.alert("Image selection failed", "Please choose a different image.");
-      return;
+    try {
+      setAvatarUrl(persistPickedAvatar(asset));
+    } catch {
+      showToast({
+        title: "Image could not be read",
+        description: "Choose a different photo.",
+        tone: "error",
+      });
     }
-
-    const mimeType = asset.mimeType?.startsWith("image/") ? asset.mimeType : "image/jpeg";
-    setAvatarUrl(`data:${mimeType};base64,${asset.base64}`);
   }
 
   async function handleSaveProfile() {
     try {
-      await completeProfile({
-        nickname: nickname.trim(),
-        avatarUrl,
-      });
+      await completeProfile({ nickname: nickname.trim(), avatarUrl });
+      showToast({ title: "Profile saved", tone: "success" });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "An unknown error occurred while signing in.";
-      Alert.alert("Sign in failed", message);
+      showToast({
+        title: "Profile could not be saved",
+        description: error instanceof Error ? error.message : "Try again.",
+        tone: "error",
+      });
+    }
+  }
+
+  async function handleChangePassword() {
+    if (passwordProblem) {
+      return;
+    }
+
+    try {
+      await changePassword(currentPassword, nextPassword);
+      setCurrentPassword("");
+      setNextPassword("");
+      setConfirmPassword("");
+      showToast({ title: "Password changed", tone: "success" });
+    } catch (error) {
+      showToast({
+        title: "Password could not be changed",
+        description: error instanceof Error ? error.message : "Try again.",
+        tone: "error",
+      });
     }
   }
 
@@ -130,162 +193,252 @@ export default function ProfileScreen() {
         monthlyGoalHours: Number(monthlyGoalHours) || 0,
         currency,
       });
+      showToast({ title: "Settings saved", tone: "success" });
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message === "ATTENDANCE_SAVE_FAILED"
-            ? "An unknown error occurred while saving settings."
-            : error.message
-          : "An unknown error occurred while saving settings.";
-      Alert.alert("Saving settings failed", message);
+      const known = error instanceof Error && error.message !== "ATTENDANCE_SAVE_FAILED";
+
+      showToast({
+        title: "Settings could not be saved",
+        description: known ? (error as Error).message : "Try again.",
+        tone: "error",
+      });
     }
   }
 
-  async function handleLogout() {
-    await signOut();
-  }
-
   return (
-    <SafeAreaView className="flex-1 bg-[#eef3ec]" edges={["top"]}>
-      <View
-        className="flex-1 px-5 pb-[112px] pt-2"
-        style={{
-          gap: isShortScreen ? 8 : 10,
-        }}
-      >
-        <View className={`rounded-[24px] border border-[#d0dccf] bg-[#f8fbf7] ${isShortScreen ? "p-3" : "p-4"}`}>
-          <View className={`${isShortScreen ? "mb-1.5" : "mb-3"} flex-row items-center gap-3`}>
-            <View className={`${isShortScreen ? "h-10 w-10" : "h-11 w-11"} items-center justify-center rounded-2xl bg-[#deece2]`}>
-              <UserRound size={20} color="#2f6e5b" />
-            </View>
-            <View>
-              <Text className="text-xl text-[#16352d]">Account</Text>
-              <Text className="text-sm text-[#5f7268]">{user?.username}</Text>
-            </View>
-          </View>
+    <Screen scroll bottomInset={tabBarHeight} gap={layout.gapDefault}>
+      <PageHeader title="Profile" overline={user?.username} />
 
-          <View className={`${isShortScreen ? "mb-2" : "mb-3"} flex-row items-center gap-3`}>
-            <View className={`${isShortScreen ? "h-[58px] w-[58px]" : "h-[68px] w-[68px]"} items-center justify-center overflow-hidden rounded-full border border-[#cfe0d4] bg-[#e3efe7]`}>
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} className={isShortScreen ? "h-[58px] w-[58px]" : "h-[68px] w-[68px]"} resizeMode="cover" />
-              ) : (
-                <UserRound size={isShortScreen ? 26 : 30} color="#7d978b" />
-              )}
-            </View>
-            <View className="flex-1 gap-2">
-              <Pressable onPress={pickAvatar} className={`flex-row items-center justify-center gap-2 rounded-full border border-[#c9d9cf] bg-white px-4 ${isShortScreen ? "py-2" : "py-2.5"}`}>
-                <Camera size={14} color="#245748" />
-                <Text className="text-sm text-[#245748]">Upload photo</Text>
-              </Pressable>
-              <TextInput
-                autoCapitalize="words"
-                value={nickname}
-                onChangeText={setNickname}
-                placeholder="e.g. Hassan"
-                placeholderTextColor="#8b9598"
-                className={`rounded-xl border border-[#d7e4db] bg-white px-4 ${isShortScreen ? "py-2" : "py-2.5"} text-base text-[#163034]`}
-              />
-            </View>
-          </View>
+      <Card style={{ gap: layout.gapLoose }}>
+        <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapLoose }}>
+          <Avatar uri={avatarUrl} name={nickname || user?.username} size={64} />
 
-          <Pressable
-            onPress={handleSaveProfile}
-            disabled={isProfileDisabled}
-            className={`rounded-full px-5 ${isShortScreen ? "py-3" : "py-3.5"} ${isProfileDisabled ? "bg-[#9fbab0]" : "bg-[#1e6f4d]"}`}
-          >
-            <Text className="text-center text-base text-[#f7fbf7]">
-              {isAuthMutating ? "Saving..." : "Save profile"}
+          <View style={{ flex: 1, gap: layout.gapTight }}>
+            <Text role="title3" numberOfLines={1}>
+              {nickname.trim() || "Your account"}
             </Text>
-          </Pressable>
-        </View>
-
-        <View className={`rounded-[24px] border border-[#d9cfbb] bg-[#fbf6ea] ${isShortScreen ? "p-3" : "p-4"}`}>
-          <View className="mb-1 flex-row items-center gap-2">
-            <Target size={20} color="#2f6e5b" />
-            <Text className="text-lg text-[#24453c]">Calculation settings</Text>
-          </View>
-
-          <View className={`flex-row items-center justify-between ${isShortScreen ? "py-2" : "py-3"}`}>
-            <View className="min-w-0 flex-1 flex-row items-center gap-2">
-              <Wallet size={20} color="#2f6e5b" />
-              <Text className="flex-1 text-base text-[#24453c]" numberOfLines={1}>Currency</Text>
-            </View>
-            <SegmentedToggle
-              compact={isShortScreen}
-              leftLabel="IRR"
-              rightLabel="USD"
-              leftValue="IRR"
-              rightValue="USD"
-              value={currency}
-              onChange={setCurrency}
+            <Button
+              label="Upload photo"
+              variant="quiet"
+              size="sm"
+              onPress={pickAvatar}
+              icon={<Icon glyph={Camera} size={16} color={colors.textTitle} />}
             />
           </View>
-
-          <SectionDivider />
-
-          <View className={`flex-row items-center justify-between ${isShortScreen ? "py-2" : "py-3"}`}>
-            <View className="min-w-0 flex-1 flex-row items-center gap-2">
-              <Clock3 size={19} color="#2f6e5b" />
-              <Text className="flex-1 text-base text-[#24453c]" numberOfLines={1}>Hourly rate</Text>
-            </View>
-
-            <View className={`${controlWidthClassName} flex-row items-center rounded-xl border border-[#d9cfbb] bg-[#fffaf0] px-3 ${isShortScreen ? "py-1.5" : "py-2"}`}>
-              <TextInput
-                keyboardType="numeric"
-                value={hourlyRate}
-                onChangeText={setHourlyRate}
-                className={`${isShortScreen ? "text-base" : "text-[17px]"} flex-1 text-[#1d3f35]`}
-                placeholder="e.g. 250000"
-                placeholderTextColor="#98a99e"
-              />
-              <Text className="text-sm text-[#7c7567]">{currency === "IRR" ? "Toman" : "USD"}</Text>
-            </View>
-          </View>
-
-          <SectionDivider />
-
-          <View className={`flex-row items-center justify-between ${isShortScreen ? "py-2" : "py-3"}`}>
-            <View className="min-w-0 flex-1 flex-row items-center gap-2">
-              <Target size={19} color="#d69090" />
-              <Text className="flex-1 text-base text-[#24453c]" numberOfLines={1}>Monthly goal hours</Text>
-            </View>
-
-            <View className={`${controlWidthClassName} flex-row items-center rounded-xl border border-[#d9cfbb] bg-[#fffaf0] px-3 ${isShortScreen ? "py-1.5" : "py-2"}`}>
-              <TextInput
-                keyboardType="numeric"
-                value={monthlyGoalHours}
-                onChangeText={setMonthlyGoalHours}
-                className={`${isShortScreen ? "text-base" : "text-[17px]"} flex-1 text-[#1d3f35]`}
-                placeholder="e.g. 160"
-                placeholderTextColor="#98a99e"
-              />
-              <Text className="text-sm text-[#7c7567]">hr</Text>
-            </View>
-          </View>
-
-          <Pressable
-            onPress={handleSaveSettings}
-            disabled={isAttendanceMutating}
-            className={`mt-2 flex-row items-center justify-center rounded-full border border-[#89cfb1] bg-[#93ddbe] px-5 ${isShortScreen ? "py-3" : "py-3.5"}`}
-          >
-            <CheckCircle2 size={19} color="#245748" />
-            <Text className="mx-2 text-base text-[#10392d]">
-              {isAttendanceMutating ? "Saving..." : "Save settings"}
-            </Text>
-          </Pressable>
         </View>
 
-        <View className={`rounded-2xl border border-[#e0c9c1] bg-[#fff3f0] ${isShortScreen ? "p-3" : "p-4"}`}>
-          <Pressable onPress={handleLogout} disabled={isAuthMutating} className={`rounded-xl bg-[#f2d5ce] px-5 ${isShortScreen ? "py-3" : "py-3.5"}`}>
-            <View className="flex-row items-center justify-center gap-2">
-              <LogOut size={16} color="#6e3328" />
-              <Text className="text-center text-base text-[#6e3328]">
-                {isAuthMutating ? "Signing out..." : "Sign out"}
+        <Input
+          label="Nickname"
+          autoCapitalize="words"
+          value={nickname}
+          onChangeText={setNickname}
+          placeholder="Hassan"
+          hint={isProfileIncomplete ? "At least two characters." : undefined}
+        />
+
+        <Button
+          label="Save profile"
+          full
+          size="lg"
+          loading={isSavingProfile}
+          disabled={isProfileIncomplete}
+          onPress={handleSaveProfile}
+        />
+      </Card>
+
+      <Card style={{ gap: layout.gapTight }}>
+        <Text role="title3">Calculation</Text>
+
+        <View
+          style={{
+            alignItems: "center",
+            flexDirection: "row",
+            gap: layout.gapDefault,
+            paddingVertical: layout.padControlY,
+          }}
+        >
+          <Icon glyph={Wallet} size={20} color={colors.textMuted} />
+          <Text role="body" tone="title" style={{ flex: 1 }}>
+            Currency
+          </Text>
+          <SegmentedControl options={currencyOptions} value={currency} onChange={setCurrency} />
+        </View>
+
+        <Divider inset={30} />
+
+        <View style={{ flexDirection: "row", gap: layout.gapDefault, paddingVertical: layout.padControlY }}>
+          <Icon glyph={Coins} size={20} color={colors.textMuted} />
+          <Input
+            label="Hourly rate"
+            keyboardType="numeric"
+            value={hourlyRate}
+            onChangeText={setHourlyRate}
+            placeholder="250000"
+            trailing={
+              <Text role="caption" tone="muted">
+                {currency === "IRR" ? "Toman" : "USD"}
               </Text>
-            </View>
-          </Pressable>
+            }
+            containerStyle={{ flex: 1 }}
+          />
         </View>
-      </View>
-    </SafeAreaView>
+
+        <Divider inset={30} />
+
+        <View style={{ flexDirection: "row", gap: layout.gapDefault, paddingVertical: layout.padControlY }}>
+          <Icon glyph={Target} size={20} color={colors.textMuted} />
+          <Input
+            label="Monthly goal"
+            keyboardType="numeric"
+            value={monthlyGoalHours}
+            onChangeText={setMonthlyGoalHours}
+            placeholder="160"
+            trailing={
+              <Text role="caption" tone="muted">
+                hours
+              </Text>
+            }
+            containerStyle={{ flex: 1 }}
+          />
+        </View>
+
+        <Button
+          label="Save settings"
+          full
+          size="lg"
+          variant="secondary"
+          loading={isSavingSettings}
+          onPress={handleSaveSettings}
+          style={{ marginTop: layout.gapTight }}
+        />
+      </Card>
+
+      <Card style={{ gap: layout.gapDefault }}>
+        <View style={{ gap: 1 }}>
+          <Text role="title3">Appearance</Text>
+          <Text role="caption" tone="muted">
+            System follows your device setting.
+          </Text>
+        </View>
+
+        <SegmentedControl
+          options={appearanceOptions}
+          value={mode}
+          onChange={setMode}
+          size="lg"
+          full
+        />
+      </Card>
+
+      <Card padded={false} style={{ paddingHorizontal: layout.padCard }}>
+        <Accordion title="Password" titleRole="title3">
+          <View style={{ gap: layout.gapDefault, paddingBottom: layout.padCard }}>
+            <Text role="caption" tone="muted">
+              There is no recovery — a forgotten password cannot be reset.
+            </Text>
+
+            <Input
+              label="Current password"
+              autoComplete="password"
+              leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
+              onChangeText={setCurrentPassword}
+              placeholder="Current password"
+              secureTextEntry
+              value={currentPassword}
+            />
+
+            <Input
+              label="New password"
+              autoComplete="new-password"
+              leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
+              onChangeText={setNextPassword}
+              placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+              secureTextEntry
+              value={nextPassword}
+            />
+
+            <Input
+              label="Confirm new password"
+              autoComplete="new-password"
+              error={
+                confirmPassword && passwordProblem === "mismatch"
+                  ? "The two passwords do not match."
+                  : undefined
+              }
+              leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
+              onChangeText={setConfirmPassword}
+              placeholder="Repeat it"
+              secureTextEntry
+              value={confirmPassword}
+            />
+
+            {passwordProblem === "tooShort" ? (
+              <Text role="caption" tone="accent">
+                {`New password must be at least ${MIN_PASSWORD_LENGTH} characters.`}
+              </Text>
+            ) : null}
+
+            {passwordProblem === "unchanged" ? (
+              <Text role="caption" tone="accent">
+                Pick a password different from the current one.
+              </Text>
+            ) : null}
+
+            <Button
+              label="Change password"
+              full
+              size="lg"
+              variant="secondary"
+              disabled={Boolean(passwordProblem)}
+              loading={isSavingProfile}
+              onPress={handleChangePassword}
+            />
+          </View>
+        </Accordion>
+      </Card>
+
+      <Card style={{ gap: layout.gapDefault }}>
+        <View style={{ gap: 1 }}>
+          <Text role="title3">Account</Text>
+          <Text role="caption" tone="muted">
+            Each account keeps its own sessions and settings on this device.
+          </Text>
+        </View>
+
+        <Button
+          label="Switch account"
+          full
+          size="lg"
+          variant="quiet"
+          disabled={isSavingProfile}
+          onPress={() => setSwitchingAccount(true)}
+          icon={<Icon glyph={UserRoundCog} size={18} color={colors.textTitle} />}
+        />
+
+        <Button
+          label="Sign out"
+          full
+          size="lg"
+          variant="outline"
+          loading={isSavingProfile}
+          onPress={signOut}
+        />
+      </Card>
+
+      <ConfirmDialog
+        visible={switchingAccount}
+        title="Switch account?"
+        description="You will be signed out. Sign in with another account, or create a new one — this account's sessions stay on the device."
+        confirmLabel="Sign out"
+        loading={isSavingProfile}
+        onConfirm={() => {
+          setSwitchingAccount(false);
+          void signOut();
+        }}
+        onCancel={() => setSwitchingAccount(false)}
+      />
+
+      <View style={{ height: layout.gapDefault }} />
+    </Screen>
   );
 }

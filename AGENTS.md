@@ -32,19 +32,26 @@ OMAM is a time-tracking / attendance mobile application with a backend API.
 - Never use raw SQL directly unless absolutely necessary.
 - SQLite is used for local development; production can switch provider later.
 
-### 5. Code Style & Quality
+### 5. Design System (Taraz)
+- All UI is built from the **Taraz** design layer in `apps/mobile/src/design/taraz`, a React Native port of the Moview design system.
+- Screens must not name a colour, type size, radius, spacing step or duration directly — import components and tokens from `src/design/taraz`.
+- If a value is missing, add it to `tokens.ts`; never inline a hex value or a `fontSize`.
+- Crimson (`accent`) is reserved for actions and active states. Semantics (success/warning/info) are for status only.
+- Copy is sentence case, buttons are verbs, no emoji. See `src/design/taraz/README.md`.
+
+### 6. Code Style & Quality
 - Keep code concise and direct.
 - No unnecessary comments unless requested.
 - Follow existing naming and folder structure.
 - Use proper typing everywhere — avoid `any`.
 - Run lint and typecheck after changes.
 
-### 6. Authentication & Security
+### 7. Authentication & Security
 - Token-based auth stored via AsyncStorage on mobile.
 - Never commit secrets, tokens, or `.env` files.
 - Always use the existing auth provider and API client.
 
-### 7. Project Workflow Summary
+### 8. Project Workflow Summary
 1. Make changes in TypeScript only.
 2. Update Prisma schema → run migrations when needed.
 3. Test on Expo dev client (`npm run dev` or `expo start`).

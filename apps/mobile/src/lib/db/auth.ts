@@ -1,35 +1,16 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import * as Crypto from "expo-crypto";
 import type { AuthUserDto } from "@omam/contracts";
+import { hashPassword, needsRehash, verifyPassword } from "../crypto/password";
+import { generateId } from "./id";
 
 type AuthUserRow = AuthUserDto & {
   passwordHash: string;
 };
 
-function generateId(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let id = "";
-  for (let i = 0; i < 25; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return id;
-}
+export { hashPassword, needsRehash, verifyPassword };
 
 function normalizeUsername(input: string) {
   return input.trim().toLowerCase();
-}
-
-export async function hashPassword(password: string): Promise<string> {
-  const salt = generateId();
-  const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, salt + password);
-  return `${salt}:${hash}`;
-}
-
-export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  const [salt, expectedHash] = storedHash.split(":");
-  if (!salt || !expectedHash) return false;
-  const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, salt + password);
-  return hash === expectedHash;
 }
 
 function now() {
@@ -51,6 +32,12 @@ export async function createUser(db: SQLiteDatabase, username: string, passwordH
   const ts = now();
   const normalized = normalizeUsername(username);
 
+  const existing = await getUserByUsername(db, normalized);
+
+  if (existing) {
+    throw new Error("That username is already taken on this device.");
+  }
+
   await db.runAsync(
     "INSERT INTO User (id, username, passwordHash, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
     [id, normalized, passwordHash, ts, ts],
@@ -66,6 +53,34 @@ export async function getUserById(db: SQLiteDatabase, id: string) {
     "SELECT id, username, nickname, avatarUrl, createdAt, updatedAt FROM User WHERE id = ?",
     [id],
   );
+}
+
+/** Rewrites a stored hash in place — used to upgrade the legacy scheme and to change a password. */
+export async function updateUserPasswordHash(
+  db: SQLiteDatabase,
+  userId: string,
+  passwordHash: string,
+) {
+  await db.runAsync("UPDATE User SET passwordHash = ?, updatedAt = ? WHERE id = ?", [
+    passwordHash,
+    now(),
+    userId,
+  ]);
+}
+
+/** Avatar alone, so the legacy `data:` migration cannot disturb the nickname. */
+export async function updateUserAvatar(
+  db: SQLiteDatabase,
+  userId: string,
+  avatarUrl: string | null,
+) {
+  await db.runAsync("UPDATE User SET avatarUrl = ?, updatedAt = ? WHERE id = ?", [
+    avatarUrl,
+    now(),
+    userId,
+  ]);
+
+  return (await getUserById(db, userId))!;
 }
 
 export async function updateUserProfile(

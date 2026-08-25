@@ -1,18 +1,59 @@
 import "../global.css";
 import { Component, Suspense, type PropsWithChildren, type ReactNode } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { Stack } from "expo-router";
 import { SQLiteProvider } from "expo-sqlite";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { AttendanceProvider } from "../src/providers/attendance-provider";
 import { AuthProvider } from "../src/providers/auth-provider";
 import { DATABASE_NAME, initializeDatabase } from "../src/lib/database";
+import {
+  Card,
+  Text,
+  ThemeProvider,
+  ToastProvider,
+  motion,
+  useTarazFonts,
+  useTheme,
+} from "../src/design/taraz";
 
-function LoadingFallback() {
+function Splash() {
+  const { colors } = useTheme();
+
   return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#eaf4ed" }}>
-      <ActivityIndicator size="large" color="#1e6f4d" />
+    <View
+      style={{
+        alignItems: "center",
+        backgroundColor: colors.surfaceApp,
+        flex: 1,
+        justifyContent: "center",
+      }}
+    >
+      <ActivityIndicator size="large" color={colors.fillAccent} />
+    </View>
+  );
+}
+
+function StartupFailure({ message }: { message: string }) {
+  const { colors } = useTheme();
+
+  return (
+    <View
+      style={{
+        backgroundColor: colors.surfaceApp,
+        flex: 1,
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <Card elevation={2} style={{ alignSelf: "center", gap: 6, maxWidth: 520, width: "100%" }}>
+        <Text role="title2">Omam could not start</Text>
+        <Text role="bodySm" tone="muted">
+          {message}
+        </Text>
+      </Card>
     </View>
   );
 }
@@ -26,16 +67,7 @@ class RootErrorBoundary extends Component<PropsWithChildren, { error: Error | nu
 
   render(): ReactNode {
     if (this.state.error) {
-      return (
-        <View style={{ flex: 1, justifyContent: "center", backgroundColor: "#eaf4ed", padding: 24 }}>
-          <View style={{ width: "100%", maxWidth: 520, alignSelf: "center", borderRadius: 24, backgroundColor: "#f8fdf9", padding: 24 }}>
-            <Text style={{ color: "#0f2225", fontSize: 24, lineHeight: 30 }}>Omam could not start</Text>
-            <Text style={{ marginTop: 10, color: "#5b6d70", fontSize: 15, lineHeight: 22 }}>
-              {this.state.error.message}
-            </Text>
-          </View>
-        </View>
-      );
+      return <StartupFailure message={this.state.error.message} />;
     }
 
     return this.props.children;
@@ -43,26 +75,44 @@ class RootErrorBoundary extends Component<PropsWithChildren, { error: Error | nu
 }
 
 function RootNavigation() {
+  const { colors, isDark } = useTheme();
+  const { fontsLoaded, fontError } = useTarazFonts();
+
+  if (!fontsLoaded && !fontError) {
+    return <Splash />;
+  }
+
   return (
-    <Suspense fallback={<LoadingFallback />}>
+    <Suspense fallback={<Splash />}>
       <SQLiteProvider databaseName={DATABASE_NAME} onInit={initializeDatabase}>
         <AuthProvider>
-          <GestureHandlerRootView style={{ flex: 1, direction: "ltr" }}>
-            <SafeAreaProvider>
-              <StatusBar style="dark" />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  animation: "fade",
-                  animationTypeForReplace: "push",
-                  animationDuration: 140,
-                }}
-              >
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen name="(tabs)" />
-              </Stack>
-            </SafeAreaProvider>
-          </GestureHandlerRootView>
+          {/*
+           * Attendance lives above the navigator, not inside `(tabs)`, so the
+           * session editor at `/session/[id]` shares the same cache and its
+           * `refresh()` reaches both tabs.
+           */}
+          <AttendanceProvider>
+            <GestureHandlerRootView style={{ flex: 1, direction: "ltr" }}>
+              <SafeAreaProvider>
+                <StatusBar style={isDark ? "light" : "dark"} />
+                <ToastProvider>
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      animation: "fade",
+                      animationTypeForReplace: "push",
+                      animationDuration: motion.durFast,
+                      contentStyle: { backgroundColor: colors.surfaceApp },
+                    }}
+                  >
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="session/[id]" options={{ animation: "slide_from_right" }} />
+                  </Stack>
+                </ToastProvider>
+              </SafeAreaProvider>
+            </GestureHandlerRootView>
+          </AttendanceProvider>
         </AuthProvider>
       </SQLiteProvider>
     </Suspense>
@@ -71,8 +121,10 @@ function RootNavigation() {
 
 export default function RootLayout() {
   return (
-    <RootErrorBoundary>
-      <RootNavigation />
-    </RootErrorBoundary>
+    <ThemeProvider>
+      <RootErrorBoundary>
+        <RootNavigation />
+      </RootErrorBoundary>
+    </ThemeProvider>
   );
 }

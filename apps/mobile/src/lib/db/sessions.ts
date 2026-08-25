@@ -1,14 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import type { SessionDto, WorkSessionCategory } from "@omam/contracts";
-
-function generateId(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let id = "";
-  for (let i = 0; i < 25; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return id;
-}
+import { localDayKey, localMonthRange } from "../format";
+import { generateId } from "./id";
 
 function now() {
   return new Date().toISOString();
@@ -110,7 +103,7 @@ export async function clockOut(db: SQLiteDatabase, sessionId: string, userId: st
 
   const endDate = new Date(endAt);
   if (endDate.getTime() < new Date(session.startAt).getTime()) {
-    throw new Error("endAt cannot be before startAt.");
+    throw new Error("End time cannot be before start time.");
   }
 
   const durationMinutes = calculateSessionMinutes(session.startAt, endAt);
@@ -145,7 +138,7 @@ export async function updateSession(
 
   const endDate = endAt ? new Date(endAt) : null;
   if (endDate && endDate.getTime() < new Date(startAt).getTime()) {
-    throw new Error("endAt cannot be before startAt.");
+    throw new Error("End time cannot be before start time.");
   }
 
   const durationMinutes = endDate ? calculateSessionMinutes(startAt, endAt!) : 0;
@@ -158,6 +151,61 @@ export async function updateSession(
 
   const row = await db.getFirstAsync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [sessionId]);
   return toSessionDto(row!);
+}
+
+export async function getSessionById(db: SQLiteDatabase, sessionId: string, userId: string) {
+  const row = await db.getFirstAsync<SessionRow>(
+    "SELECT * FROM WorkSession WHERE id = ? AND userId = ?",
+    [sessionId, userId],
+  );
+
+  return row ? toSessionDto(row) : null;
+}
+
+export async function createSession(
+  db: SQLiteDatabase,
+  userId: string,
+  startAt: string,
+  endAt: string | null,
+  category: WorkSessionCategory,
+  note: string | null,
+) {
+  const endDate = endAt ? new Date(endAt) : null;
+
+  if (endDate && endDate.getTime() < new Date(startAt).getTime()) {
+    throw new Error("End time cannot be before start time.");
+  }
+
+  if (!endAt) {
+    const active = await getActiveSession(db, userId);
+
+    if (active) {
+      throw new Error("There is already an active session.");
+    }
+  }
+
+  const id = generateId();
+  const ts = now();
+  const durationMinutes = endAt ? calculateSessionMinutes(startAt, endAt) : 0;
+
+  await db.runAsync(
+    "INSERT INTO WorkSession (id, userId, startAt, endAt, durationMinutes, category, note, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [id, userId, startAt, endAt, durationMinutes, category, note, ts, ts],
+  );
+
+  const row = await db.getFirstAsync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [id]);
+  return toSessionDto(row!);
+}
+
+export async function deleteSession(db: SQLiteDatabase, sessionId: string, userId: string) {
+  const result = await db.runAsync("DELETE FROM WorkSession WHERE id = ? AND userId = ?", [
+    sessionId,
+    userId,
+  ]);
+
+  if (!result.changes) {
+    throw new Error("Session not found.");
+  }
 }
 
 export async function getMonthlySummary(
@@ -174,15 +222,11 @@ export async function getMonthlySummary(
     remote: number;
   };
 }> {
-  const [yearStr, monthStr] = month.split("-");
-  const year = Number(yearStr);
-  const monthIndex = Number(monthStr) - 1;
-  const from = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0, 0)).toISOString();
-  const to = new Date(Date.UTC(year, monthIndex + 1, 0, 23, 59, 59, 999)).toISOString();
+  const range = localMonthRange(month);
 
   const sessions = await db.getAllAsync<SessionRow>(
     "SELECT * FROM WorkSession WHERE userId = ? AND startAt >= ? AND startAt <= ?",
-    [userId, from, to],
+    [userId, range.from.toISOString(), range.to.toISOString()],
   );
 
   const settings = await db.getFirstAsync<{ hourlyRate: number }>(
@@ -210,7 +254,7 @@ export async function getMonthlySummary(
         categoryMinutes.onsite += minutes;
       }
     }
-    workedDaysSet.add(session.startAt.slice(0, 10));
+    workedDaysSet.add(localDayKey(new Date(session.startAt)));
   }
 
   const hourlyRate = settings?.hourlyRate ?? 0;

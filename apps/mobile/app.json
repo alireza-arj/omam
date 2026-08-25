@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "scheme": "omam",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "icon": "./assets/brand/app-icon.png",
     "plugins": [
       "expo-router",
@@ -32,12 +32,11 @@
       "versionCode": 1,
       "permissions": [
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.READ_EXTERNAL_STORAGE"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/app-icon.png",
-        "backgroundColor": "#08111f"
+        "backgroundColor": "#0B0E12"
       }
     },
     "web": {

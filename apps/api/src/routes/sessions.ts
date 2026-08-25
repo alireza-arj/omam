@@ -9,6 +9,7 @@ import { prisma } from "../lib/prisma";
 import {
   calculateSessionMinutes,
   endOfMonth,
+  localDayKey,
   normalizeMonth,
   startOfMonth,
 } from "../lib/time";
@@ -337,9 +338,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
 
         return sum + minutes;
       }, 0);
-      const workedDays = new Set(
-        sessions.map((session) => session.startAt.toISOString().slice(0, 10)),
-      ).size;
+      const workedDays = new Set(sessions.map((session) => localDayKey(session.startAt))).size;
       const hourlyRate = settings?.hourlyRate ?? 0;
 
       return {
