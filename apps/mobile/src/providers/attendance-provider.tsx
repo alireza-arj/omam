@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
 import { useSQLiteContext } from "expo-sqlite";
+import { DEFAULT_CALENDAR, monthKey, monthRange, type CalendarSystem } from "@omam/calendar";
 import type { SessionDto, SettingsDto, SummaryDto, UpdateSettingsInputDto, WorkSessionCategory } from "@omam/contracts";
 import {
   getSessions,
@@ -11,13 +12,13 @@ import {
   updateSession as dbUpdateSession,
 } from "../lib/db/sessions";
 import { getSettings, upsertSettings } from "../lib/db/settings";
-import { currentMonthKey, localMonthRange } from "../lib/format";
 import { useAuth } from "./auth-provider";
 
 const defaultSettings: SettingsDto = {
   hourlyRate: 0,
   currency: "IRR",
   monthlyGoalHours: 160,
+  calendar: DEFAULT_CALENDAR,
 };
 
 const defaultSummary: SummaryDto = {
@@ -43,6 +44,10 @@ type AttendanceContextValue = {
   sessions: SessionDto[];
   settings: SettingsDto;
   summary: SummaryDto;
+  /** The calendar every date on screen is read in. */
+  calendar: CalendarSystem;
+  /** `YYYY-MM` of the month in view, in `calendar`. */
+  month: string;
   isLoading: boolean;
   isMutating: boolean;
   refresh: () => Promise<void>;
@@ -64,13 +69,18 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
   const [summary, setSummary] = useState<SummaryDto>(defaultSummary);
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
-  const month = useMemo(() => currentMonthKey(), []);
+  const [month, setMonth] = useState(() => monthKey(new Date(), DEFAULT_CALENDAR));
 
+  /**
+   * Settings load first because they name the calendar, and the calendar
+   * decides where the month starts — 1 Shahrivar is not 1 September.
+   */
   const refresh = useCallback(async () => {
     if (!isAuthenticated || !user) {
       setSessions([]);
       setSettings(defaultSettings);
       setSummary(defaultSummary);
+      setMonth(monthKey(new Date(), DEFAULT_CALENDAR));
       setIsLoading(false);
       return;
     }
@@ -78,20 +88,23 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
     setIsLoading(true);
 
     try {
-      const range = localMonthRange(month);
-      const [userSettings, userSessions, userSummary] = await Promise.all([
-        getSettings(db, user.id),
+      const userSettings = await getSettings(db, user.id);
+      const currentMonth = monthKey(new Date(), userSettings.calendar);
+      const range = monthRange(currentMonth, userSettings.calendar);
+
+      const [userSessions, userSummary] = await Promise.all([
         getSessions(db, user.id, range.from.toISOString(), range.to.toISOString()),
-        getMonthlySummary(db, user.id, month),
+        getMonthlySummary(db, user.id, currentMonth, userSettings.calendar),
       ]);
 
       setSettings(userSettings);
+      setMonth(currentMonth);
       setSessions(userSessions);
       setSummary(userSummary);
     } finally {
       setIsLoading(false);
     }
-  }, [db, isAuthenticated, month, user]);
+  }, [db, isAuthenticated, user]);
 
   useEffect(() => {
     refresh().catch(() => {
@@ -210,6 +223,8 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
       sessions,
       settings,
       summary,
+      calendar: settings.calendar,
+      month,
       isLoading,
       isMutating,
       refresh,
@@ -227,6 +242,7 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
       deleteSession,
       isLoading,
       isMutating,
+      month,
       refresh,
       saveSettings,
       sessions,

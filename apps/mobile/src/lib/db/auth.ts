@@ -108,7 +108,7 @@ async function ensureDefaultSettings(db: SQLiteDatabase, userId: string) {
   const id = generateId();
   const ts = now();
   await db.runAsync(
-    "INSERT INTO AppSettings (id, userId, hourlyRate, currency, monthlyGoalHours, createdAt, updatedAt) VALUES (?, ?, 0, 'IRR', 160, ?, ?)",
+    "INSERT INTO AppSettings (id, userId, hourlyRate, currency, monthlyGoalHours, calendar, createdAt, updatedAt) VALUES (?, ?, 0, 'IRR', 160, 'JALALI', ?, ?)",
     [id, userId, ts, ts],
   );
 }

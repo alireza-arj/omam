@@ -11,6 +11,11 @@ enum Currency {
   USD
 }
 
+enum CalendarSystem {
+  JALALI
+  GREGORIAN
+}
+
 enum WorkSessionCategory {
   ONSITE
   REMOTE
@@ -50,6 +55,7 @@ model AppSettings {
   hourlyRate       Float    @default(0)
   currency         Currency @default(IRR)
   monthlyGoalHours Float    @default(160)
+  calendar         CalendarSystem @default(JALALI)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

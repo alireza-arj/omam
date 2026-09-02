@@ -1,3 +1,11 @@
+import {
+  dayKey,
+  formatDayLabel as formatCalendarDayLabel,
+  formatMonthLabel,
+  parseDayKey,
+  toDate,
+  type CalendarSystem,
+} from "@omam/calendar";
 import type { Currency, SessionDto } from "@omam/contracts";
 
 const locale = "en-US";
@@ -58,19 +66,14 @@ export function formatDurationHms(totalSeconds: number) {
   return `${formatter.format(hours)}:${formatter.format(minutes)}:${formatter.format(seconds)}`;
 }
 
-export function formatMonth(month: string) {
-  return new Intl.DateTimeFormat(locale, {
-    month: "long",
-    year: "numeric",
-  }).format(localMonthRange(month).from);
+/** `Shahrivar 1405` from a `YYYY-MM` key in the active calendar. */
+export function formatMonth(month: string, calendar: CalendarSystem) {
+  return formatMonthLabel(month, calendar);
 }
 
-export function formatDayLabel(iso: string) {
-  return new Intl.DateTimeFormat(locale, {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(iso));
+/** `Seshanbe, 10 Shahrivar` */
+export function formatDayLabel(iso: string, calendar: CalendarSystem) {
+  return formatCalendarDayLabel(new Date(iso), calendar);
 }
 
 export function formatClock(iso: string) {
@@ -103,9 +106,9 @@ export function sessionMinutes(session: SessionDto) {
 
 /* ── editable date and time ──────────────────────────────────────────────── */
 
-/** `YYYY-MM-DD` for a text field, in local time. */
-export function toDateInput(iso: string) {
-  return localDayKey(new Date(iso));
+/** `YYYY-MM-DD` for a text field, in the active calendar and local time. */
+export function toDateInput(iso: string, calendar: CalendarSystem) {
+  return dayKey(new Date(iso), calendar);
 }
 
 /** `HH:MM` for a text field, in local time. */
@@ -117,70 +120,31 @@ export function toTimeInput(iso: string) {
   return `${hours}:${minutes}`;
 }
 
-const DATE_INPUT_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_INPUT_PATTERN = /^(\d{1,2}):(\d{2})$/;
 
 /**
- * Builds a local-time `Date` from a `YYYY-MM-DD` and an `HH:MM` field. Returns
- * null when either is malformed or names a day that does not exist, so the
- * caller can surface the error instead of storing a silent `Invalid Date`.
+ * Builds a local-time `Date` from a `YYYY-MM-DD` field read in `calendar` and
+ * an `HH:MM` field. Returns null when either is malformed or names a day that
+ * does not exist — 31 Esfand in a common year, 31 April — so the caller can
+ * surface the error instead of storing a silently rolled-over date.
  */
-export function parseLocalDateTime(dateText: string, timeText: string): Date | null {
-  const dateMatch = DATE_INPUT_PATTERN.exec(dateText.trim());
+export function parseLocalDateTime(
+  dateText: string,
+  timeText: string,
+  calendar: CalendarSystem,
+): Date | null {
+  const parts = parseDayKey(dateText, calendar);
   const timeMatch = TIME_INPUT_PATTERN.exec(timeText.trim());
 
-  if (!dateMatch || !timeMatch) {
+  if (!parts || !timeMatch) {
     return null;
   }
 
-  const [, year, month, day] = dateMatch.map(Number);
   const [, hours, minutes] = timeMatch.map(Number);
 
   if (hours > 23 || minutes > 59) {
     return null;
   }
 
-  const parsed = new Date(year, month - 1, day, hours, minutes, 0, 0);
-
-  // Rejects 2026-02-31, which `Date` would silently roll into March.
-  if (parsed.getMonth() !== month - 1 || parsed.getDate() !== day) {
-    return null;
-  }
-
-  return parsed;
-}
-
-export function currentMonthKey() {
-  return localDayKey(new Date()).slice(0, 7);
-}
-
-/**
- * `YYYY-MM-DD` in the device's timezone.
- *
- * Sessions are stamped in local time, so an ISO-UTC date prefix buckets the
- * wrong day for every zone with a non-zero offset — in Iran (UTC+03:30) a
- * session starting at 00:30 belongs to the previous UTC day.
- */
-export function localDayKey(date: Date) {
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
-/**
- * Local-time bounds of a `YYYY-MM` key, `to` inclusive of the final
- * millisecond. UTC bounds would drop the last hours of every month and pull in
- * the first hours of the next one.
- */
-export function localMonthRange(month: string): { from: Date; to: Date } {
-  const [yearValue, monthValue] = month.split("-").map(Number);
-  const reference = new Date();
-  const year = Number.isFinite(yearValue) ? yearValue : reference.getFullYear();
-  const monthIndex = Number.isFinite(monthValue) ? monthValue - 1 : reference.getMonth();
-
-  const from = new Date(year, monthIndex, 1, 0, 0, 0, 0);
-  const to = new Date(new Date(year, monthIndex + 1, 1, 0, 0, 0, 0).getTime() - 1);
-
-  return { from, to };
+  return toDate(parts, calendar, hours, minutes);
 }

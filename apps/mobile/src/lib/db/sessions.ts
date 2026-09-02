@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
+import { dayKey, monthRange, type CalendarSystem } from "@omam/calendar";
 import type { SessionDto, WorkSessionCategory } from "@omam/contracts";
-import { localDayKey, localMonthRange } from "../format";
 import { generateId } from "./id";
 
 function now() {
@@ -212,6 +212,7 @@ export async function getMonthlySummary(
   db: SQLiteDatabase,
   userId: string,
   month: string,
+  calendar: CalendarSystem,
 ): Promise<{
   totalMinutes: number;
   totalIncome: number;
@@ -222,7 +223,7 @@ export async function getMonthlySummary(
     remote: number;
   };
 }> {
-  const range = localMonthRange(month);
+  const range = monthRange(month, calendar);
 
   const sessions = await db.getAllAsync<SessionRow>(
     "SELECT * FROM WorkSession WHERE userId = ? AND startAt >= ? AND startAt <= ?",
@@ -254,7 +255,7 @@ export async function getMonthlySummary(
         categoryMinutes.onsite += minutes;
       }
     }
-    workedDaysSet.add(localDayKey(new Date(session.startAt)));
+    workedDaysSet.add(dayKey(new Date(session.startAt), calendar));
   }
 
   const hourlyRate = settings?.hourlyRate ?? 0;

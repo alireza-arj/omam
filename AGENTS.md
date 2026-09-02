@@ -39,19 +39,26 @@ OMAM is a time-tracking / attendance mobile application with a backend API.
 - Crimson (`accent`) is reserved for actions and active states. Semantics (success/warning/info) are for status only.
 - Copy is sentence case, buttons are verbs, no emoji. See `src/design/taraz/README.md`.
 
-### 6. Code Style & Quality
+### 6. Dates & Calendars
+- The app reads dates in the **Jalali (Shamsi)** calendar by default; Gregorian is a per-user setting on `AppSettings.calendar`.
+- All conversion, keys, ranges and month/weekday names live in `packages/calendar` (`@omam/calendar`) — dependency-free arithmetic, shared by the API and the app. Do not add a date library and do not use `Intl.DateTimeFormat` for a date; `Intl` is fine for a clock time or a number.
+- Instants are always stored as absolute ISO-8601 strings. A calendar only decides how an instant is *read*, so switching calendars never rewrites data.
+- Any function that produces a day key, a month key, a range or a date label takes a `CalendarSystem`. Screens get it from `useAttendance().calendar`.
+- Month and week boundaries are calendar-dependent; day boundaries are not (both break at local midnight).
+
+### 7. Code Style & Quality
 - Keep code concise and direct.
 - No unnecessary comments unless requested.
 - Follow existing naming and folder structure.
 - Use proper typing everywhere — avoid `any`.
 - Run lint and typecheck after changes.
 
-### 7. Authentication & Security
+### 8. Authentication & Security
 - Token-based auth stored via AsyncStorage on mobile.
 - Never commit secrets, tokens, or `.env` files.
 - Always use the existing auth provider and API client.
 
-### 8. Project Workflow Summary
+### 9. Project Workflow Summary
 1. Make changes in TypeScript only.
 2. Update Prisma schema → run migrations when needed.
 3. Test on Expo dev client (`npm run dev` or `expo start`).

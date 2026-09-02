@@ -13,6 +13,7 @@ import {
   normalizeMonth,
   startOfMonth,
 } from "../lib/time";
+import { asCalendarSystem } from "@omam/calendar";
 import { authenticateByBearerToken, parseBearerToken } from "../lib/auth";
 
 function serializeSession(session: {
@@ -283,11 +284,20 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
         });
       }
 
-      const month = normalizeMonth(query.month);
-      const from = startOfMonth(month);
-      const to = endOfMonth(month);
+      // Settings decide the calendar, and the calendar decides where the month
+      // starts, so they have to be read before the range is built.
+      const settings = await prisma.appSettings.findUnique({
+        where: {
+          userId,
+        },
+      });
 
-      const [sessions, settings, activeSession] = await Promise.all([
+      const calendar = asCalendarSystem(query.calendar ?? settings?.calendar);
+      const month = normalizeMonth(query.month, calendar);
+      const from = startOfMonth(month, calendar);
+      const to = endOfMonth(month, calendar);
+
+      const [sessions, activeSession] = await Promise.all([
         prisma.workSession.findMany({
           where: {
             userId,
@@ -295,11 +305,6 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
               gte: from,
               lte: to,
             },
-          },
-        }),
-        prisma.appSettings.findUnique({
-          where: {
-            userId,
           },
         }),
         prisma.workSession.findFirst({
@@ -338,11 +343,13 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
 
         return sum + minutes;
       }, 0);
-      const workedDays = new Set(sessions.map((session) => localDayKey(session.startAt))).size;
+      const workedDays = new Set(sessions.map((session) => localDayKey(session.startAt, calendar)))
+        .size;
       const hourlyRate = settings?.hourlyRate ?? 0;
 
       return {
         month,
+        calendar,
         summary: {
           totalMinutes,
           totalIncome: Number(((totalMinutes / 60) * hourlyRate).toFixed(2)),
@@ -355,6 +362,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
     {
       query: t.Object({
         month: t.Optional(t.String()),
+        calendar: t.Optional(t.Union([t.Literal("JALALI"), t.Literal("GREGORIAN")])),
       }),
     },
   );

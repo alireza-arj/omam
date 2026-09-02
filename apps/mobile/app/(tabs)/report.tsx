@@ -63,7 +63,7 @@ const periodOptions: SegmentOption<ReportPeriod>[] = reportPeriods.map((period) 
 export default function ReportScreen() {
   const db = useSQLiteContext();
   const { user } = useAuth();
-  const { sessions: monthSessions, settings } = useAttendance();
+  const { sessions: monthSessions, settings, calendar } = useAttendance();
   const colors = useColors();
   const tabBarHeight = useTabBarHeight();
 
@@ -75,8 +75,11 @@ export default function ReportScreen() {
   const [offset, setOffset] = useState(0);
   const [rangeSessions, setRangeSessions] = useState<SessionDto[]>([]);
 
-  const range = useMemo(() => getPeriodRange(period, offset), [offset, period]);
-  const rangeLabel = useMemo(() => formatRangeLabel(period, range, offset), [offset, period, range]);
+  const range = useMemo(() => getPeriodRange(period, offset, calendar), [calendar, offset, period]);
+  const rangeLabel = useMemo(
+    () => formatRangeLabel(period, range, offset, calendar),
+    [calendar, offset, period, range],
+  );
   const userId = user?.id;
 
   useEffect(() => {
@@ -101,15 +104,18 @@ export default function ReportScreen() {
   }, [db, monthSessions, range.from, range.to, userId]);
 
   const totals = useMemo(
-    () => summarizeSessions(rangeSessions, settings.hourlyRate, period, range),
-    [period, range, rangeSessions, settings.hourlyRate],
+    () => summarizeSessions(rangeSessions, settings.hourlyRate, period, range, calendar),
+    [calendar, period, range, rangeSessions, settings.hourlyRate],
   );
 
   const sortedSessions = useMemo(
     () => [...rangeSessions].sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime()),
     [rangeSessions],
   );
-  const sessionDays = useMemo(() => groupSessionsByDay(sortedSessions), [sortedSessions]);
+  const sessionDays = useMemo(
+    () => groupSessionsByDay(sortedSessions, calendar),
+    [calendar, sortedSessions],
+  );
   const latestSession = sortedSessions[0];
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), []);
 

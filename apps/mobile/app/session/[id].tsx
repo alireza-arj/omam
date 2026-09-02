@@ -3,11 +3,11 @@ import { View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { Building2, ChevronLeft, Laptop, Trash2 } from "lucide-react-native";
+import { dayKey, formatFullDate } from "@omam/calendar";
 import type { WorkSessionCategory } from "@omam/contracts";
 import { getSessionById } from "../../src/lib/db/sessions";
 import {
   formatShortMinutes,
-  localDayKey,
   parseLocalDateTime,
   toDateInput,
   toTimeInput,
@@ -39,7 +39,7 @@ export default function SessionEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const db = useSQLiteContext();
   const { user } = useAuth();
-  const { createSession, updateSession, deleteSession, isMutating } = useAttendance();
+  const { calendar, createSession, updateSession, deleteSession, isMutating } = useAttendance();
   const { showToast } = useToast();
   const colors = useColors();
 
@@ -48,7 +48,7 @@ export default function SessionEditorScreen() {
 
   const [isLoading, setIsLoading] = useState(!isNew);
   const [notFound, setNotFound] = useState(false);
-  const [dateText, setDateText] = useState(() => localDayKey(new Date()));
+  const [dateText, setDateText] = useState(() => dayKey(new Date(), calendar));
   const [startText, setStartText] = useState("09:00");
   const [endText, setEndText] = useState("17:00");
   const [category, setCategory] = useState<WorkSessionCategory>("ONSITE");
@@ -71,7 +71,7 @@ export default function SessionEditorScreen() {
         if (!session) {
           setNotFound(true);
         } else {
-          setDateText(toDateInput(session.startAt));
+          setDateText(toDateInput(session.startAt, calendar));
           setStartText(toTimeInput(session.startAt));
           setEndText(session.endAt ? toTimeInput(session.endAt) : "");
           setCategory(session.category);
@@ -88,7 +88,7 @@ export default function SessionEditorScreen() {
     return () => {
       active = false;
     };
-  }, [db, id, isNew, userId]);
+  }, [calendar, db, id, isNew, userId]);
 
   const categoryOptions = useMemo<SegmentOption<WorkSessionCategory>[]>(
     () => [
@@ -110,16 +110,28 @@ export default function SessionEditorScreen() {
     [colors.textMuted, colors.textTitle],
   );
 
+  const calendarName = calendar === "JALALI" ? "Shamsi" : "Gregorian";
+
+  /** Today in the active calendar, so the field shows the shape it expects. */
+  const datePlaceholder = useMemo(() => dayKey(new Date(), calendar), [calendar]);
+
+  /** `10 Shahrivar 1405` under the field, so the digits are readable at a glance. */
+  const dateHint = useMemo(() => {
+    const parsed = parseLocalDateTime(dateText, "00:00", calendar);
+
+    return parsed ? formatFullDate(parsed, calendar) : `A ${calendarName} date, as YYYY-MM-DD`;
+  }, [calendar, calendarName, dateText]);
+
   /**
    * A blank end time means the session is still running. An end earlier than
    * the start is read as an overnight shift and rolled to the next day rather
    * than rejected — that is what a night shift actually looks like.
    */
   const draft = useMemo<{ input: SessionInput; crossesMidnight: boolean } | string>(() => {
-    const startAt = parseLocalDateTime(dateText, startText);
+    const startAt = parseLocalDateTime(dateText, startText, calendar);
 
     if (!startAt) {
-      return "Enter a date as YYYY-MM-DD and a start time as HH:MM.";
+      return `Enter a ${calendarName} date as YYYY-MM-DD and a start time as HH:MM.`;
     }
 
     const trimmedEnd = endText.trim();
@@ -131,7 +143,7 @@ export default function SessionEditorScreen() {
       };
     }
 
-    const parsedEnd = parseLocalDateTime(dateText, trimmedEnd);
+    const parsedEnd = parseLocalDateTime(dateText, trimmedEnd, calendar);
 
     if (!parsedEnd) {
       return "Enter an end time as HH:MM, or leave it empty for a running session.";
@@ -149,7 +161,7 @@ export default function SessionEditorScreen() {
       },
       crossesMidnight,
     };
-  }, [category, dateText, endText, note, startText]);
+  }, [calendar, calendarName, category, dateText, endText, note, startText]);
 
   const isDraftValid = typeof draft !== "string";
 
@@ -259,15 +271,16 @@ export default function SessionEditorScreen() {
 
       <Card style={{ gap: layout.gapLoose }}>
         <Input
-          label="Date"
+          label={`Date (${calendarName})`}
           autoCapitalize="none"
           autoCorrect={false}
+          hint={dateHint}
           keyboardType="numbers-and-punctuation"
           onChangeText={(value) => {
             setDateText(value);
             setError(null);
           }}
-          placeholder="2026-08-25"
+          placeholder={datePlaceholder}
           value={dateText}
         />
 

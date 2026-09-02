@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const currencySchema = z.enum(["IRR", "USD"]);
+export const calendarSystemSchema = z.enum(["JALALI", "GREGORIAN"]);
 export const workSessionCategorySchema = z.enum(["ONSITE", "REMOTE"]);
 
 export const authUserSchema = z.object({
@@ -38,6 +39,8 @@ export const settingsSchema = z.object({
   hourlyRate: z.number().nonnegative(),
   currency: currencySchema,
   monthlyGoalHours: z.number().nonnegative(),
+  /** The calendar dates are read in. Instants stay absolute ISO-8601. */
+  calendar: calendarSystemSchema,
 });
 
 export const summarySchema = z.object({
@@ -56,11 +59,15 @@ export const sessionsResponseSchema = z.object({
 });
 
 export const summaryResponseSchema = z.object({
+  /** `YYYY-MM` in `calendar`, so `1405-06` under Jalali. */
   month: z.string(),
+  calendar: calendarSystemSchema,
   summary: summarySchema,
 });
 
-export const updateSettingsInputSchema = settingsSchema;
+export const updateSettingsInputSchema = settingsSchema.extend({
+  calendar: calendarSystemSchema.default("JALALI"),
+});
 
 export const completeProfileInputSchema = z.object({
   nickname: z.string().trim().min(1).max(80),
@@ -85,6 +92,7 @@ export const updateSessionInputSchema = z.object({
 });
 
 export type Currency = z.infer<typeof currencySchema>;
+export type CalendarSystemDto = z.infer<typeof calendarSystemSchema>;
 export type WorkSessionCategory = z.infer<typeof workSessionCategorySchema>;
 export type AuthUserDto = z.infer<typeof authUserSchema>;
 export type AuthResponseDto = z.infer<typeof authResponseSchema>;

@@ -12,6 +12,9 @@
     "paths": {
       "@omam/contracts": [
         "packages/contracts/src/index.ts"
+      ],
+      "@omam/calendar": [
+        "packages/calendar/src/index.ts"
       ]
     }
   }

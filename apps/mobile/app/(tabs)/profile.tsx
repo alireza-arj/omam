@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import {
+  CalendarDays,
   Camera,
   Coins,
   LockKeyhole,
@@ -12,6 +13,7 @@ import {
   UserRoundCog,
   Wallet,
 } from "lucide-react-native";
+import { formatFullDate, type CalendarSystem } from "@omam/calendar";
 import { persistPickedAvatar, supportsAvatarFiles } from "../../src/lib/avatar";
 import { useAttendance } from "../../src/providers/attendance-provider";
 import { useAuth } from "../../src/providers/auth-provider";
@@ -44,6 +46,11 @@ type Currency = "IRR" | "USD";
 const currencyOptions: SegmentOption<Currency>[] = [
   { value: "IRR", label: "IRR" },
   { value: "USD", label: "USD" },
+];
+
+const calendarOptions: SegmentOption<CalendarSystem>[] = [
+  { value: "JALALI", label: "Shamsi" },
+  { value: "GREGORIAN", label: "Gregorian" },
 ];
 
 export default function ProfileScreen() {
@@ -86,6 +93,7 @@ export default function ProfileScreen() {
   const [hourlyRate, setHourlyRate] = useState(`${settings.hourlyRate}`);
   const [monthlyGoalHours, setMonthlyGoalHours] = useState(`${settings.monthlyGoalHours}`);
   const [currency, setCurrency] = useState<Currency>(settings.currency);
+  const [calendar, setCalendar] = useState<CalendarSystem>(settings.calendar);
   const [currentPassword, setCurrentPassword] = useState("");
   const [nextPassword, setNextPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -100,7 +108,11 @@ export default function ProfileScreen() {
     setHourlyRate(`${settings.hourlyRate}`);
     setMonthlyGoalHours(`${settings.monthlyGoalHours}`);
     setCurrency(settings.currency);
-  }, [settings.currency, settings.hourlyRate, settings.monthlyGoalHours]);
+    setCalendar(settings.calendar);
+  }, [settings.calendar, settings.currency, settings.hourlyRate, settings.monthlyGoalHours]);
+
+  /** Today in the selected calendar, so the choice is legible before saving. */
+  const calendarPreview = useMemo(() => formatFullDate(new Date(), calendar), [calendar]);
 
   const isProfileIncomplete = useMemo(() => nickname.trim().length < 2, [nickname]);
 
@@ -192,6 +204,7 @@ export default function ProfileScreen() {
         hourlyRate: Number(hourlyRate) || 0,
         monthlyGoalHours: Number(monthlyGoalHours) || 0,
         currency,
+        calendar,
       });
       showToast({ title: "Settings saved", tone: "success" });
     } catch (error) {
@@ -248,6 +261,28 @@ export default function ProfileScreen() {
 
       <Card style={{ gap: layout.gapTight }}>
         <Text role="title3">Calculation</Text>
+
+        <View style={{ gap: layout.gapTight, paddingVertical: layout.padControlY }}>
+          <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapDefault }}>
+            <Icon glyph={CalendarDays} size={20} color={colors.textMuted} />
+            <View style={{ flex: 1, gap: 1 }}>
+              <Text role="body" tone="title">
+                Calendar
+              </Text>
+              <Text role="caption" tone="muted">
+                {calendarPreview}
+              </Text>
+            </View>
+          </View>
+
+          <SegmentedControl options={calendarOptions} value={calendar} onChange={setCalendar} full />
+
+          <Text role="caption" tone="muted">
+            Months and weeks are grouped in this calendar. Recorded sessions are not changed.
+          </Text>
+        </View>
+
+        <Divider inset={30} />
 
         <View
           style={{

@@ -1,5 +1,18 @@
+import {
+  addDays,
+  addMonths,
+  dayKey,
+  formatDayLabel,
+  formatMonthLabel,
+  formatShortDayMonth,
+  shortWeekdayNames,
+  startOfDay,
+  startOfWeek,
+  toParts,
+  type CalendarSystem,
+} from "@omam/calendar";
 import type { SessionDto } from "@omam/contracts";
-import { localDayKey, sessionMinutes } from "./format";
+import { sessionMinutes } from "./format";
 
 export type ReportPeriod = "DAY" | "WEEK" | "MONTH";
 
@@ -26,8 +39,6 @@ export type ReportTotals = {
   buckets: ReportBucket[];
 };
 
-const locale = "en-US";
-const WEEK_START_DAY = 6;
 const DAYS_PER_MONTH = 30;
 const WEEKS_PER_MONTH = 30 / 7;
 
@@ -37,74 +48,62 @@ export const reportPeriods: { key: ReportPeriod; label: string }[] = [
   { key: "MONTH", label: "Monthly" },
 ];
 
-function startOfDay(date: Date) {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-
-  return next;
-}
-
 function endOfRange(exclusiveEnd: Date) {
   return new Date(exclusiveEnd.getTime() - 1);
 }
 
-export function getPeriodRange(period: ReportPeriod, offset: number, reference = new Date()): ReportRange {
+/**
+ * The window a report covers, `offset` periods back from today.
+ *
+ * Days are the same in either calendar — both break at local midnight — but
+ * weeks and months are not: a Jalali week starts on Shanbe and a Jalali month
+ * on the 1st of Farvardin, Ordibehesht and so on.
+ */
+export function getPeriodRange(
+  period: ReportPeriod,
+  offset: number,
+  calendar: CalendarSystem,
+  reference = new Date(),
+): ReportRange {
   const base = startOfDay(reference);
 
   if (period === "DAY") {
-    const from = new Date(base);
-    from.setDate(from.getDate() + offset);
+    const from = addDays(base, offset);
 
-    const exclusiveEnd = new Date(from);
-    exclusiveEnd.setDate(exclusiveEnd.getDate() + 1);
-
-    return { from, to: endOfRange(exclusiveEnd) };
+    return { from, to: endOfRange(addDays(from, 1)) };
   }
 
   if (period === "WEEK") {
-    const diff = (base.getDay() - WEEK_START_DAY + 7) % 7;
-    const from = new Date(base);
-    from.setDate(from.getDate() - diff + offset * 7);
+    const from = addDays(startOfWeek(base, calendar), offset * 7);
 
-    const exclusiveEnd = new Date(from);
-    exclusiveEnd.setDate(exclusiveEnd.getDate() + 7);
-
-    return { from, to: endOfRange(exclusiveEnd) };
+    return { from, to: endOfRange(addDays(from, 7)) };
   }
 
-  const from = new Date(base.getFullYear(), base.getMonth() + offset, 1);
-  const exclusiveEnd = new Date(from.getFullYear(), from.getMonth() + 1, 1);
+  const from = addMonths(base, offset, calendar);
 
-  return { from, to: endOfRange(exclusiveEnd) };
+  return { from, to: endOfRange(addMonths(from, 1, calendar)) };
 }
 
-export function formatRangeLabel(period: ReportPeriod, range: ReportRange, offset: number) {
+export function formatRangeLabel(
+  period: ReportPeriod,
+  range: ReportRange,
+  offset: number,
+  calendar: CalendarSystem,
+) {
   if (period === "DAY") {
     if (offset === 0) return "Today";
     if (offset === -1) return "Yesterday";
 
-    return new Intl.DateTimeFormat(locale, {
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-    }).format(range.from);
+    return formatDayLabel(range.from, calendar);
   }
 
   if (period === "WEEK") {
     if (offset === 0) return "This week";
 
-    const formatter = new Intl.DateTimeFormat(locale, {
-      month: "short",
-      day: "numeric",
-    });
-
-    return `${formatter.format(range.from)} - ${formatter.format(range.to)}`;
+    return `${formatShortDayMonth(range.from, calendar)} - ${formatShortDayMonth(range.to, calendar)}`;
   }
 
-  return new Intl.DateTimeFormat(locale, {
-    month: "long",
-    year: "numeric",
-  }).format(range.from);
+  return formatMonthLabel(range.from, calendar);
 }
 
 export function getPeriodGoalHours(period: ReportPeriod, monthlyGoalHours: number) {
@@ -114,7 +113,11 @@ export function getPeriodGoalHours(period: ReportPeriod, monthlyGoalHours: numbe
   return monthlyGoalHours;
 }
 
-function buildBuckets(period: ReportPeriod, range: ReportRange): ReportBucket[] {
+function buildBuckets(
+  period: ReportPeriod,
+  range: ReportRange,
+  calendar: CalendarSystem,
+): ReportBucket[] {
   if (period === "DAY") {
     return Array.from({ length: 12 }, (_, index) => {
       const hour = index * 2;
@@ -128,13 +131,13 @@ function buildBuckets(period: ReportPeriod, range: ReportRange): ReportBucket[] 
   }
 
   const buckets: ReportBucket[] = [];
+  const weekdays = shortWeekdayNames(calendar);
   const cursor = new Date(range.from);
-  const dayFormatter = new Intl.DateTimeFormat(locale, { weekday: "narrow" });
 
   while (cursor.getTime() <= range.to.getTime()) {
     buckets.push({
-      key: localDayKey(cursor),
-      label: period === "WEEK" ? dayFormatter.format(cursor) : `${cursor.getDate()}`,
+      key: dayKey(cursor, calendar),
+      label: period === "WEEK" ? weekdays[cursor.getDay()] : `${toParts(cursor, calendar).day}`,
       minutes: 0,
     });
     cursor.setDate(cursor.getDate() + 1);
@@ -148,8 +151,9 @@ export function summarizeSessions(
   hourlyRate: number,
   period: ReportPeriod,
   range: ReportRange,
+  calendar: CalendarSystem,
 ): ReportTotals {
-  const buckets = buildBuckets(period, range);
+  const buckets = buildBuckets(period, range, calendar);
   const bucketIndex = new Map(buckets.map((bucket, index) => [bucket.key, index]));
   const workedDays = new Set<string>();
   const categoryMinutes = { onsite: 0, remote: 0 };
@@ -159,7 +163,7 @@ export function summarizeSessions(
     const minutes = sessionMinutes(session);
     const startAt = new Date(session.startAt);
 
-    workedDays.add(localDayKey(startAt));
+    workedDays.add(dayKey(startAt, calendar));
 
     if (!minutes) {
       continue;
@@ -173,7 +177,8 @@ export function summarizeSessions(
       categoryMinutes.onsite += minutes;
     }
 
-    const key = period === "DAY" ? `${Math.floor(startAt.getHours() / 2) * 2}` : localDayKey(startAt);
+    const key =
+      period === "DAY" ? `${Math.floor(startAt.getHours() / 2) * 2}` : dayKey(startAt, calendar);
     const index = bucketIndex.get(key);
 
     if (index !== undefined) {
@@ -198,7 +203,7 @@ export type SessionDay = {
   totalMinutes: number;
 };
 
-function formatDayHeading(iso: string) {
+function formatDayHeading(iso: string, calendar: CalendarSystem) {
   const day = startOfDay(new Date(iso));
   const today = startOfDay(new Date());
   const distance = Math.round((day.getTime() - today.getTime()) / 86_400_000);
@@ -206,22 +211,21 @@ function formatDayHeading(iso: string) {
   if (distance === 0) return "Today";
   if (distance === -1) return "Yesterday";
 
-  return new Intl.DateTimeFormat(locale, {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  }).format(day);
+  return formatDayLabel(day, calendar);
 }
 
 /**
  * One accordion section per day. A month of sessions reads as a handful of
  * dated rows instead of a wall of repeated dates.
  */
-export function groupSessionsByDay(sessions: SessionDto[]): SessionDay[] {
+export function groupSessionsByDay(
+  sessions: SessionDto[],
+  calendar: CalendarSystem,
+): SessionDay[] {
   const groups = new Map<string, SessionDto[]>();
 
   for (const session of sessions) {
-    const key = localDayKey(new Date(session.startAt));
+    const key = dayKey(new Date(session.startAt), calendar);
     const bucket = groups.get(key);
 
     if (bucket) {
@@ -235,7 +239,7 @@ export function groupSessionsByDay(sessions: SessionDto[]): SessionDay[] {
     .sort(([left], [right]) => right.localeCompare(left))
     .map(([key, daySessions]) => ({
       key,
-      label: formatDayHeading(daySessions[0].startAt),
+      label: formatDayHeading(daySessions[0].startAt, calendar),
       sessions: daySessions,
       totalMinutes: daySessions.reduce((total, session) => total + sessionMinutes(session), 0),
     }));

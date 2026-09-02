@@ -7,6 +7,7 @@ import {
   formatShortMinutes,
   sessionMinutes,
 } from "../lib/format";
+import { useAttendance } from "../providers/attendance-provider";
 import { Badge, Icon, Text, layout, motion, useColors } from "../design/taraz";
 
 type Props = {
@@ -19,6 +20,7 @@ type Props = {
 
 export function SessionItem({ session, showDate = true, onPress }: Props) {
   const colors = useColors();
+  const { calendar } = useAttendance();
   const isRemote = session.category === "REMOTE";
   const isOpen = !session.endAt;
 
@@ -30,7 +32,7 @@ export function SessionItem({ session, showDate = true, onPress }: Props) {
         {showDate ? (
           <>
             <Text role="body" tone="title" numberOfLines={1}>
-              {formatDayLabel(session.startAt)}
+              {formatDayLabel(session.startAt, calendar)}
             </Text>
             <Text role="mono" tone="muted" numberOfLines={1}>
               {formatSessionRange(session)}

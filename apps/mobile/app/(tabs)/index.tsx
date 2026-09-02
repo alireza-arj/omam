@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Building2, Laptop, Play, Square } from "lucide-react-native";
+import { formatDayMonth, formatWeekday } from "@omam/calendar";
 import type { WorkSessionCategory } from "@omam/contracts";
 import { SessionDial } from "../../src/components/session-dial";
 import { formatDurationHms, joinMeta } from "../../src/lib/format";
@@ -21,17 +22,15 @@ import {
 
 const locale = "en-US";
 
-/* Module scope — the clock re-renders every second and must not rebuild these. */
+/* Module scope — the clock re-renders every second and must not rebuild this. */
 const twoDigits = new Intl.NumberFormat(locale, { minimumIntegerDigits: 2, useGrouping: false });
-const weekdayFormat = new Intl.DateTimeFormat(locale, { weekday: "long" });
-const dayMonthFormat = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long" });
 
 function formatWallClock(date: Date) {
   return `${twoDigits.format(date.getHours())}:${twoDigits.format(date.getMinutes())}:${twoDigits.format(date.getSeconds())}`;
 }
 
 export default function TodayScreen() {
-  const { summary, clockIn, clockOut, isMutating } = useAttendance();
+  const { summary, calendar, clockIn, clockOut, isMutating } = useAttendance();
   const { showToast } = useToast();
   const { width } = useWindowDimensions();
   const colors = useColors();
@@ -53,8 +52,8 @@ export default function TodayScreen() {
     }, []),
   );
 
-  // Cheap now that the formatters are built once at module scope.
-  const displayDate = joinMeta(weekdayFormat.format(now), dayMonthFormat.format(now));
+  // Plain arithmetic and a name lookup — cheap enough to run every tick.
+  const displayDate = joinMeta(formatWeekday(now, calendar), formatDayMonth(now, calendar));
 
   const activeStartAt = summary.activeSession?.startAt ?? optimisticStartAt;
   const activeCategory = summary.activeSession?.category ?? selectedCategory;

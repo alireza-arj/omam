@@ -45,6 +45,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       hourlyRate: settings.hourlyRate,
       currency: settings.currency,
       monthlyGoalHours: settings.monthlyGoalHours,
+      calendar: settings.calendar,
     };
   })
   .patch(
@@ -75,6 +76,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         hourlyRate: settings.hourlyRate,
         currency: settings.currency,
         monthlyGoalHours: settings.monthlyGoalHours,
+        calendar: settings.calendar,
       };
     },
     {
@@ -82,6 +84,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         hourlyRate: t.Number({ minimum: 0 }),
         currency: t.Union([t.Literal("IRR"), t.Literal("USD")]),
         monthlyGoalHours: t.Number({ minimum: 0 }),
+        calendar: t.Optional(t.Union([t.Literal("JALALI"), t.Literal("GREGORIAN")])),
       }),
     },
   );
