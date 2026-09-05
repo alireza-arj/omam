@@ -1,0 +1,26 @@
+{
+  "name": "@omam/admin",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@omam/calendar": "workspace:*",
+    "@omam/contracts": "workspace:*",
+    "@tanstack/react-query": "^5.90.2",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-router-dom": "^7.9.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "@types/react-dom": "~19.1.7",
+    "@vitejs/plugin-react": "^5.0.2",
+    "typescript": "*",
+    "vite": "^7.1.5"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
