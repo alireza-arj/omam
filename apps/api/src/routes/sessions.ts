@@ -77,10 +77,20 @@ async function ownSession(userId: string, id: string) {
   return session;
 }
 
-/** Editing approved time sends it back through review. */
+/** Editing time that was already reviewed sends it back through review. */
 function reviewResetFor(organization: Organization, session: WorkSession) {
-  if (session.status !== "APPROVED" || !organization.requireApproval) {
+  const wasReviewed = session.status === "APPROVED" || session.status === "REJECTED";
+
+  if (!wasReviewed) {
     return {};
+  }
+
+  if (!organization.requireApproval) {
+    // With approval off, a rejected entry still has to leave that state, or an
+    // edit would silently keep it out of payroll.
+    return session.status === "REJECTED"
+      ? { status: "APPROVED" as const, approvedAt: new Date(), reviewNote: null }
+      : {};
   }
 
   return { status: "PENDING" as const, approvedAt: null, approvedById: null, reviewNote: null };

@@ -183,6 +183,14 @@ check(
   ),
 );
 
+// A rejected entry that the member fixes must return to the queue, not stay
+// silently out of payroll.
+const fixable = await call("POST", "/sessions", { token: devToken, body: { startAt: past(12, 9), endAt: past(12, 11) } });
+await call("POST", `/timesheets/${fixable.json.id}/reject`, { token: ownerToken, body: { reviewNote: "Wrong day" } });
+const fixed = await call("PATCH", `/sessions/${fixable.json.id}`, { token: devToken, body: { startAt: past(12, 9), endAt: past(12, 12) } });
+check("editing a rejected entry re-queues it", fixed.json?.status === "PENDING", fixed.json?.status);
+check("the review note is cleared", fixed.json?.reviewNote === null, fixed.json?.reviewNote);
+
 const lockedPush = await call("POST", "/sync", {
   token: devToken,
   body: { sessions: [{ ...offline, clientId: "device-row-2", startAt: day(5, 9), endAt: day(5, 12), updatedAt: new Date().toISOString() }] },

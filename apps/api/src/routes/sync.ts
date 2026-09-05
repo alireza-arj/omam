@@ -37,7 +37,10 @@ export const syncRoutes = new Elysia({ prefix: "/sync" })
     const lockedMonths = new Map<string, string | null>();
 
     async function lockedMonthFor(date: Date) {
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      // Keyed by day, not by Gregorian month: a Jalali payroll month starts
+      // mid-month, so two dates in one Gregorian month can fall on either side
+      // of a lock.
+      const key = date.toISOString().slice(0, 10);
 
       if (!lockedMonths.has(key)) {
         lockedMonths.set(key, await isMonthLocked(organization.id, date));
