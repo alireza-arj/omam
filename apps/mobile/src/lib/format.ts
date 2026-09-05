@@ -6,6 +6,7 @@ import {
   toDate,
   type CalendarSystem,
 } from "@omam/calendar";
+import { formatDurationShort, type Language, type Translator } from "@omam/i18n";
 import type { Currency, SessionDto } from "@omam/contracts";
 
 const locale = "en-US";
@@ -14,44 +15,21 @@ function formatNumber(value: number, options?: Intl.NumberFormatOptions) {
   return new Intl.NumberFormat(locale, options).format(value);
 }
 
-export function formatCurrency(value: number, currency: Currency) {
-  if (currency === "USD") {
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    }).format(value);
+export function formatCurrency(value: number, currency: Currency, t: Translator) {
+  if (currency === "IRR") {
+    return `${formatNumber(Math.round(value))} ${t("units.toman")}`;
   }
-  return `${formatNumber(Math.round(value))} Toman`;
+
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
-export function formatMinutes(totalMinutes: number) {
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (!hours) {
-    return `${formatNumber(minutes)} min`;
-  }
-  if (!minutes) {
-    return `${formatNumber(hours)} hr`;
-  }
-  return `${formatNumber(hours)} hr ${formatNumber(minutes)} min`;
-}
-
-/** Runtime as `1h 56m`, per the design system's number rules. */
-export function formatShortMinutes(totalMinutes: number) {
-  const safe = Math.max(0, Math.round(totalMinutes));
-  const hours = Math.floor(safe / 60);
-  const minutes = safe % 60;
-
-  if (!hours) {
-    return `${formatNumber(minutes)}m`;
-  }
-
-  if (!minutes) {
-    return `${formatNumber(hours)}h`;
-  }
-
-  return `${formatNumber(hours)}h ${formatNumber(minutes)}m`;
+/** Runtime as `1h 56m` in English and `1:56` in Persian. */
+export function formatShortMinutes(totalMinutes: number, language: Language) {
+  return formatDurationShort(totalMinutes, language);
 }
 
 export function formatDurationHms(totalSeconds: number) {
@@ -67,13 +45,13 @@ export function formatDurationHms(totalSeconds: number) {
 }
 
 /** `Shahrivar 1405` from a `YYYY-MM` key in the active calendar. */
-export function formatMonth(month: string, calendar: CalendarSystem) {
-  return formatMonthLabel(month, calendar);
+export function formatMonth(month: string, calendar: CalendarSystem, language: Language) {
+  return formatMonthLabel(month, calendar, language);
 }
 
 /** `Seshanbe, 10 Shahrivar` */
-export function formatDayLabel(iso: string, calendar: CalendarSystem) {
-  return formatCalendarDayLabel(new Date(iso), calendar);
+export function formatDayLabel(iso: string, calendar: CalendarSystem, language: Language) {
+  return formatCalendarDayLabel(new Date(iso), calendar, language);
 }
 
 export function formatClock(iso: string) {
@@ -83,10 +61,12 @@ export function formatClock(iso: string) {
   }).format(new Date(iso));
 }
 
-export function formatSessionRange(session: SessionDto) {
+export function formatSessionRange(session: SessionDto, t: Translator) {
   const start = formatClock(session.startAt);
 
-  return session.endAt ? `${start} \u2013 ${formatClock(session.endAt)}` : `${start} \u2013 now`;
+  return session.endAt
+    ? `${start} \u2013 ${formatClock(session.endAt)}`
+    : `${start} \u2013 ${t("units.now")}`;
 }
 
 /** Metadata joined with a thin middot: `Monday · On-site · 7h 30m`. */

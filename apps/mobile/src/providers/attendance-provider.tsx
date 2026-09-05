@@ -12,6 +12,8 @@ import {
   updateSession as dbUpdateSession,
 } from "../lib/db/sessions";
 import { getSettings, upsertSettings } from "../lib/db/settings";
+import { DEFAULT_LANGUAGE } from "@omam/i18n";
+import { useLanguage } from "../design/taraz";
 import { useAuth } from "./auth-provider";
 
 const defaultSettings: SettingsDto = {
@@ -19,6 +21,7 @@ const defaultSettings: SettingsDto = {
   currency: "IRR",
   monthlyGoalHours: 160,
   calendar: DEFAULT_CALENDAR,
+  language: DEFAULT_LANGUAGE,
 };
 
 const defaultSummary: SummaryDto = {
@@ -66,6 +69,7 @@ const AttendanceContext = createContext<AttendanceContextValue | null>(null);
 export function AttendanceProvider({ children }: PropsWithChildren) {
   const db = useSQLiteContext();
   const { user, isAuthenticated } = useAuth();
+  const { setLanguage } = useLanguage();
   const [sessions, setSessions] = useState<SessionDto[]>([]);
   const [settings, setSettings] = useState<SettingsDto>(defaultSettings);
   const [summary, setSummary] = useState<SummaryDto>(defaultSummary);
@@ -99,6 +103,9 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
         getMonthlySummary(db, user.id, currentMonth, userSettings.calendar),
       ]);
 
+      // The account's own language wins over whatever the device was reading,
+      // so signing in as someone else switches the interface with them.
+      setLanguage(userSettings.language);
       setSettings(userSettings);
       setMonth(currentMonth);
       setSessions(userSessions);
@@ -106,7 +113,7 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
     } finally {
       setIsLoading(false);
     }
-  }, [db, isAuthenticated, user]);
+  }, [db, isAuthenticated, setLanguage, user]);
 
   useEffect(() => {
     refresh().catch(() => {
@@ -146,7 +153,7 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
 
   const createSession = useCallback(
     async (input: SessionInput) => {
-      if (!user) throw new Error("Not authenticated.");
+      if (!user) throw new Error("NOT_AUTHENTICATED");
 
       setIsMutating(true);
 
@@ -162,7 +169,7 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
 
   const updateSession = useCallback(
     async (sessionId: string, input: SessionInput) => {
-      if (!user) throw new Error("Not authenticated.");
+      if (!user) throw new Error("NOT_AUTHENTICATED");
 
       setIsMutating(true);
 
@@ -186,7 +193,7 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
 
   const deleteSession = useCallback(
     async (sessionId: string) => {
-      if (!user) throw new Error("Not authenticated.");
+      if (!user) throw new Error("NOT_AUTHENTICATED");
 
       setIsMutating(true);
 
@@ -202,7 +209,7 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
 
   const saveSettings = useCallback(
     async (payload: UpdateSettingsInputDto) => {
-      if (!user) throw new Error("Not authenticated.");
+      if (!user) throw new Error("NOT_AUTHENTICATED");
 
       setIsMutating(true);
 

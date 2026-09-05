@@ -15,6 +15,9 @@
       ],
       "@omam/calendar": [
         "packages/calendar/src/index.ts"
+      ],
+      "@omam/i18n": [
+        "packages/i18n/src/index.ts"
       ]
     }
   }

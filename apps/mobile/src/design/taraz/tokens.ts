@@ -388,3 +388,58 @@ export const typeRoles: Record<TypeRole, TextStyle> = {
   monoLg: role(fontFamily.mono[400], fontSize["2xl"], leading.snug, -0.018),
   monoDisplay: role(fontFamily.mono[400], fontSize["3xl"], leading.tight, -0.03),
 };
+
+/* ── Persian faces ───────────────────────────────────────────────────────── */
+
+/**
+ * Vazirmatn stands in for all three Latin families when the app is read in
+ * Persian, which none of them have glyphs for.
+ *
+ * `monoDisplay` is the exception and keeps IBM Plex Mono: it only ever renders
+ * digits and colons, and it is the running clock, which would jitter once a
+ * second on a proportional face.
+ */
+const PERSIAN_FACE: Record<string, string> = {
+  [fontFamily.display[400]]: "Vazirmatn_400Regular",
+  [fontFamily.display[500]]: "Vazirmatn_500Medium",
+  [fontFamily.display[600]]: "Vazirmatn_600SemiBold",
+  [fontFamily.display[700]]: "Vazirmatn_700Bold",
+  [fontFamily.display[800]]: "Vazirmatn_800ExtraBold",
+  [fontFamily.text[400]]: "Vazirmatn_400Regular",
+  [fontFamily.text[500]]: "Vazirmatn_500Medium",
+  [fontFamily.text[600]]: "Vazirmatn_600SemiBold",
+  [fontFamily.mono[400]]: "Vazirmatn_400Regular",
+  [fontFamily.mono[500]]: "Vazirmatn_500Medium",
+};
+
+/** Persian ascenders and descenders are taller; the Latin leading crowds them. */
+const PERSIAN_LEADING = 1.14;
+
+const persianTypeRoles = Object.fromEntries(
+  (Object.entries(typeRoles) as [TypeRole, TextStyle][]).map(([role, style]) => {
+    if (role === "monoDisplay") {
+      return [role, style];
+    }
+
+    const family = typeof style.fontFamily === "string" ? style.fontFamily : undefined;
+
+    return [
+      role,
+      {
+        ...style,
+        ...(family && PERSIAN_FACE[family] ? { fontFamily: PERSIAN_FACE[family] } : null),
+        ...(typeof style.lineHeight === "number"
+          ? { lineHeight: Math.round(style.lineHeight * PERSIAN_LEADING) }
+          : null),
+        // Latin tracking is authored for Latin letterforms and pulls Persian
+        // joins apart.
+        letterSpacing: 0,
+      },
+    ];
+  }),
+) as Record<TypeRole, TextStyle>;
+
+export const typeRolesByLanguage = {
+  en: typeRoles,
+  fa: persianTypeRoles,
+} as const;

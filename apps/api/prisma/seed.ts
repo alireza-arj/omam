@@ -50,6 +50,7 @@ async function main() {
     data: {
       userId: owner.id,
       calendar: organization.calendar,
+      language: organization.language,
       currency: organization.currency,
       monthlyGoalHours: organization.monthlyGoalHours,
     },

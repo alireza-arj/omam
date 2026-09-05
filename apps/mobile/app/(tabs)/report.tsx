@@ -49,6 +49,7 @@ import {
   layout,
   radius,
   useColors,
+  useLanguage,
   useTabBarHeight,
   type SegmentOption,
 } from "../../src/design/taraz";
@@ -56,18 +57,25 @@ import {
 const locale = "en-US";
 const CHART_HEIGHT = 96;
 
-const periodOptions: SegmentOption<ReportPeriod>[] = reportPeriods.map((period) => ({
-  value: period.key,
-  label: period.label,
-}));
+const PERIOD_LABEL = {
+  DAY: "report.periodDay",
+  WEEK: "report.periodWeek",
+  MONTH: "report.periodMonth",
+} as const;
 
 export default function ReportScreen() {
   const db = useSQLiteContext();
   const { user } = useAuth();
   const { sessions: monthSessions, settings, calendar } = useAttendance();
   const { isLinked } = useSync();
+  const { language, t } = useLanguage();
   const colors = useColors();
   const tabBarHeight = useTabBarHeight();
+
+  const periodOptions = useMemo<SegmentOption<ReportPeriod>[]>(
+    () => reportPeriods.map((period) => ({ value: period, label: t(PERIOD_LABEL[period]) })),
+    [t],
+  );
 
   const openSession = useCallback((sessionId: string) => {
     router.push({ pathname: "/session/[id]", params: { id: sessionId } });
@@ -79,8 +87,8 @@ export default function ReportScreen() {
 
   const range = useMemo(() => getPeriodRange(period, offset, calendar), [calendar, offset, period]);
   const rangeLabel = useMemo(
-    () => formatRangeLabel(period, range, offset, calendar),
-    [calendar, offset, period, range],
+    () => formatRangeLabel(period, range, offset, calendar, language, t),
+    [calendar, language, offset, period, range, t],
   );
   const userId = user?.id;
 
@@ -106,8 +114,8 @@ export default function ReportScreen() {
   }, [db, monthSessions, range.from, range.to, userId]);
 
   const totals = useMemo(
-    () => summarizeSessions(rangeSessions, settings.hourlyRate, period, range, calendar),
-    [calendar, period, range, rangeSessions, settings.hourlyRate],
+    () => summarizeSessions(rangeSessions, settings.hourlyRate, period, range, calendar, language),
+    [calendar, language, period, range, rangeSessions, settings.hourlyRate],
   );
 
   const sortedSessions = useMemo(
@@ -115,8 +123,8 @@ export default function ReportScreen() {
     [rangeSessions],
   );
   const sessionDays = useMemo(
-    () => groupSessionsByDay(sortedSessions, calendar),
-    [calendar, sortedSessions],
+    () => groupSessionsByDay(sortedSessions, calendar, language, t),
+    [calendar, language, sortedSessions, t],
   );
   const latestSession = sortedSessions[0];
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), []);
@@ -149,10 +157,10 @@ export default function ReportScreen() {
   return (
     <Screen scroll bottomInset={tabBarHeight} gap={layout.gapDefault}>
       <PageHeader
-        title="Report"
+        title={t("report.title")}
         subtitle={rangeLabel}
         trailing={
-          <IconButton label="Add a session" variant="primary" onPress={() => openSession("new")}>
+          <IconButton label={t("report.addSession")} variant="primary" onPress={() => openSession("new")}>
             <Icon glyph={Plus} size={20} color={colors.textOnAccent} />
           </IconButton>
         }
@@ -161,7 +169,7 @@ export default function ReportScreen() {
       <SegmentedControl options={periodOptions} value={period} onChange={changePeriod} size="lg" full />
 
       <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapDefault }}>
-        <IconButton label="Previous period" round onPress={() => setOffset((current) => current - 1)}>
+        <IconButton label={t("report.previousPeriod")} round onPress={() => setOffset((current) => current - 1)}>
           <Icon glyph={ChevronLeft} size={20} color={colors.textTitle} />
         </IconButton>
 
@@ -170,7 +178,7 @@ export default function ReportScreen() {
         </Text>
 
         <IconButton
-          label="Next period"
+          label={t("report.nextPeriod")}
           round
           disabled={offset >= 0}
           onPress={() => setOffset((current) => Math.min(0, current + 1))}
@@ -182,22 +190,22 @@ export default function ReportScreen() {
       <View style={{ flexDirection: "row", gap: layout.gapDefault }}>
         <Stat
           mono
-          label="Tracked"
-          value={formatShortMinutes(totals.totalMinutes)}
-          hint={joinMeta(`${numberFormatter.format(totals.sessionCount)} sessions`, rangeLabel)}
+          label={t("report.tracked")}
+          value={formatShortMinutes(totals.totalMinutes, language)}
+          hint={joinMeta(t("report.sessionCount", { count: totals.sessionCount }), rangeLabel)}
           icon={<Icon glyph={Clock3} size={16} color={colors.textMuted} />}
         />
         <Stat
           mono
-          label="Earned"
-          value={formatCurrency(totals.totalIncome, settings.currency)}
-          hint={`${numberFormatter.format(trackedHours)} h billed`}
+          label={t("report.earned")}
+          value={formatCurrency(totals.totalIncome, settings.currency, t)}
+          hint={t("report.billed", { value: numberFormatter.format(trackedHours) })}
           icon={<Icon glyph={Wallet} size={16} color={colors.textMuted} />}
         />
       </View>
 
       <Card style={{ gap: layout.gapDefault }}>
-        <Text role="title3">{period === "DAY" ? "By hour" : "By day"}</Text>
+        <Text role="title3">{period === "DAY" ? t("report.byHour") : t("report.byDay")}</Text>
 
         <View style={{ alignItems: "flex-end", flexDirection: "row", gap: 2, height: CHART_HEIGHT }}>
           {totals.buckets.map((bucket) => (
@@ -240,7 +248,7 @@ export default function ReportScreen() {
 
       <Card style={{ gap: layout.gapDefault }}>
         <View style={{ alignItems: "baseline", flexDirection: "row", justifyContent: "space-between" }}>
-          <Text role="title3">Goal</Text>
+          <Text role="title3">{t("report.goal")}</Text>
           <Text role="monoLg" tone="title">
             {Math.round(goalRatio * 100)}%
           </Text>
@@ -250,14 +258,21 @@ export default function ReportScreen() {
 
         <Text role="caption" tone="muted">
           {joinMeta(
-            `${numberFormatter.format(trackedHours)} of ${numberFormatter.format(Math.round(goalHours))} h`,
-            period === "DAY" ? "Daily target" : period === "WEEK" ? "Weekly target" : "Monthly target",
+            t("report.ofGoal", {
+              value: numberFormatter.format(trackedHours),
+              goal: numberFormatter.format(Math.round(goalHours)),
+            }),
+            period === "DAY"
+              ? t("report.dailyTarget")
+              : period === "WEEK"
+                ? t("report.weeklyTarget")
+                : t("report.monthlyTarget"),
           )}
         </Text>
       </Card>
 
       <Card style={{ gap: layout.gapDefault }}>
-        <Text role="title3">Split</Text>
+        <Text role="title3">{t("report.split")}</Text>
 
         <View
           style={{
@@ -275,14 +290,14 @@ export default function ReportScreen() {
         <View style={{ gap: layout.gapTight }}>
           <SplitRow
             glyph={Building2}
-            label="On-site"
-            value={formatShortMinutes(totals.categoryMinutes.onsite)}
+            label={t("category.ONSITE")}
+            value={formatShortMinutes(totals.categoryMinutes.onsite, language)}
             swatch={colors.fillAccent}
           />
           <SplitRow
             glyph={Laptop}
-            label="Remote"
-            value={formatShortMinutes(totals.categoryMinutes.remote)}
+            label={t("category.REMOTE")}
+            value={formatShortMinutes(totals.categoryMinutes.remote, language)}
             swatch={colors.textFaint}
           />
         </View>
@@ -290,7 +305,7 @@ export default function ReportScreen() {
 
       <Card padded={false} style={{ paddingHorizontal: layout.padCard }}>
         <ListRow
-          label="Worked days"
+          label={t("report.workedDays")}
           leading={<Icon glyph={CalendarDays} size={20} color={colors.textMuted} />}
           trailing={
             <Text role="mono" tone="body">
@@ -300,18 +315,18 @@ export default function ReportScreen() {
         />
         <Divider inset={30} />
         <ListRow
-          label="Average per day"
-          hint="Worked days only"
+          label={t("report.averagePerDay")}
+          hint={t("report.workedDaysOnly")}
           leading={<Icon glyph={ListChecks} size={20} color={colors.textMuted} />}
           trailing={
             <Text role="mono" tone="body">
-              {formatShortMinutes(averageMinutes)}
+              {formatShortMinutes(averageMinutes, language)}
             </Text>
           }
         />
         <Divider inset={30} />
         <ListRow
-          label="Last check-in"
+          label={t("report.lastCheckIn")}
           leading={<Icon glyph={LogIn} size={20} color={colors.textMuted} />}
           trailing={
             <Text role="mono" tone="body">
@@ -321,14 +336,14 @@ export default function ReportScreen() {
         />
         <Divider inset={30} />
         <ListRow
-          label="Last check-out"
+          label={t("report.lastCheckOut")}
           leading={<Icon glyph={LogOut} size={20} color={colors.textMuted} />}
           trailing={
             <Text role="mono" tone={latestSession && !latestSession.endAt ? "accent" : "body"}>
               {latestSession?.endAt
                 ? formatClock(latestSession.endAt)
                 : latestSession
-                  ? "Running"
+                  ? t("status.OPEN")
                   : "--:--"}
             </Text>
           }
@@ -348,8 +363,8 @@ export default function ReportScreen() {
                 <Accordion
                   title={day.label}
                   meta={joinMeta(
-                    `${day.sessions.length} ${day.sessions.length === 1 ? "session" : "sessions"}`,
-                    formatShortMinutes(day.totalMinutes),
+                    t("report.sessionCount", { count: day.sessions.length }),
+                    formatShortMinutes(day.totalMinutes, language),
                   )}
                 >
                   <View style={{ gap: layout.gapDefault, paddingBottom: layout.gapDefault }}>
@@ -369,8 +384,8 @@ export default function ReportScreen() {
           </View>
         ) : (
           <EmptyState
-            title="No sessions yet"
-            description="Start the timer on Today, or add one with the + button."
+            title={t("report.emptyTitle")}
+            description={t("report.emptyHint")}
             icon={<Icon glyph={Clock3} size={20} color={colors.textMuted} />}
           />
         )}

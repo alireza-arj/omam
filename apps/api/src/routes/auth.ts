@@ -49,7 +49,10 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
 
     const membership = await loadMembership(user.id);
 
-    await ensureUserDefaultSettings(user.id, membership?.organization.calendar);
+    await ensureUserDefaultSettings(user.id, {
+      calendar: membership?.organization.calendar,
+      language: membership?.organization.language,
+    });
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
     const token = await createAuthSession(user.id, payload.deviceName);
@@ -114,6 +117,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         data: {
           userId: created.id,
           calendar: invite.organization.calendar,
+          language: invite.organization.language,
           currency: invite.organization.currency,
           monthlyGoalHours: invite.organization.monthlyGoalHours,
         },

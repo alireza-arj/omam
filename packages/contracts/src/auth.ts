@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { calendarSystemSchema, currencySchema, orgRoleSchema, payTypeSchema } from "./common";
+import {
+  calendarSystemSchema,
+  currencySchema,
+  languageSchema,
+  orgRoleSchema,
+  payTypeSchema,
+} from "./common";
 
 export const usernameSchema = z
   .string()
@@ -33,6 +39,7 @@ export const authMembershipSchema = z.object({
   currency: currencySchema,
   monthlyGoalHours: z.number(),
   calendar: calendarSystemSchema,
+  language: languageSchema,
   requireApproval: z.boolean(),
   jobTitle: z.string().nullable(),
 });

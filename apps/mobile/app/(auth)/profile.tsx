@@ -4,6 +4,7 @@ import { Redirect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Camera } from "lucide-react-native";
+import { translateError } from "@omam/i18n";
 import { persistPickedAvatar, supportsAvatarFiles } from "../../src/lib/avatar";
 import { useAuth } from "../../src/providers/auth-provider";
 import {
@@ -16,6 +17,7 @@ import {
   layout,
   useColors,
   useToast,
+  useTranslation,
 } from "../../src/design/taraz";
 
 export default function ProfileSetupScreen() {
@@ -23,6 +25,7 @@ export default function ProfileSetupScreen() {
     useAuth();
   const colors = useColors();
   const { showToast } = useToast();
+  const t = useTranslation();
   const [nickname, setNickname] = useState(user?.nickname ?? "");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
 
@@ -45,8 +48,8 @@ export default function ProfileSetupScreen() {
 
     if (!permission.granted) {
       showToast({
-        title: "Gallery access needed",
-        description: "Enable photo access to choose an avatar.",
+        title: t("profile.galleryTitle"),
+        description: t("profile.galleryDescription"),
         tone: "warning",
       });
 
@@ -72,8 +75,8 @@ export default function ProfileSetupScreen() {
       setAvatarUrl(persistPickedAvatar(asset));
     } catch {
       showToast({
-        title: "Image could not be read",
-        description: "Choose a different photo.",
+        title: t("profile.imageFailed"),
+        description: t("profile.imageDescription"),
         tone: "error",
       });
     }
@@ -84,8 +87,8 @@ export default function ProfileSetupScreen() {
       await completeProfile({ nickname: nickname.trim(), avatarUrl });
     } catch (error) {
       showToast({
-        title: "Profile could not be saved",
-        description: error instanceof Error ? error.message : "Try again.",
+        title: t("profile.profileFailed"),
+        description: translateError(error, t),
         tone: "error",
       });
     }
@@ -109,18 +112,18 @@ export default function ProfileSetupScreen() {
         >
           <View style={{ gap: 2 }}>
             <Text role="overline" tone="muted">
-              Profile
+              {t("auth.setupOverline")}
             </Text>
-            <Text role="title1">Finish your account</Text>
+            <Text role="title1">{t("auth.setupTitle")}</Text>
             <Text role="bodySm" tone="muted">
-              Set a nickname and a photo before you start tracking.
+              {t("auth.setupSubtitle")}
             </Text>
           </View>
 
           <View style={{ alignItems: "center", gap: layout.gapDefault }}>
             <Avatar uri={avatarUrl} name={nickname || user?.username} size={88} />
             <Button
-              label="Upload photo"
+              label={t("auth.uploadPhoto")}
               variant="quiet"
               size="sm"
               onPress={pickAvatar}
@@ -130,16 +133,17 @@ export default function ProfileSetupScreen() {
           </View>
 
           <Input
-            label="Nickname"
+            label={t("auth.nickname")}
+            freeText
             autoCapitalize="words"
             value={nickname}
             onChangeText={setNickname}
-            placeholder="Hassan"
-            hint={isIncomplete ? "At least two characters." : undefined}
+            placeholder={t("auth.nicknamePlaceholder")}
+            hint={isIncomplete ? t("auth.nicknameRule") : undefined}
           />
 
           <Button
-            label="Save profile"
+            label={t("auth.saveProfile")}
             full
             size="lg"
             disabled={isIncomplete}

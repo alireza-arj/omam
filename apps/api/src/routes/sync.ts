@@ -208,6 +208,7 @@ export const syncRoutes = new Elysia({ prefix: "/sync" })
         currency: settings.currency,
         monthlyGoalHours: settings.monthlyGoalHours,
         calendar: settings.calendar,
+        language: settings.language,
       },
       organization: {
         id: organization.id,

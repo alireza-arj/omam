@@ -14,6 +14,7 @@ import {
   Wallet,
 } from "lucide-react-native";
 import { formatFullDate, type CalendarSystem } from "@omam/calendar";
+import { LANGUAGES, LANGUAGE_LABEL, translateError, type Language } from "@omam/i18n";
 import type { Currency } from "@omam/contracts";
 import { persistPickedAvatar, supportsAvatarFiles } from "../../src/lib/avatar";
 import { TeamSyncCard } from "../../src/components/team-sync-card";
@@ -35,6 +36,7 @@ import {
   layout,
   useColors,
   useTabBarHeight,
+  useLanguage,
   useThemeMode,
   useToast,
   type SegmentOption,
@@ -51,10 +53,7 @@ const currencyOptions: SegmentOption<Currency>[] = [
   { value: "EUR", label: "EUR" },
 ];
 
-const calendarOptions: SegmentOption<CalendarSystem>[] = [
-  { value: "JALALI", label: "Shamsi" },
-  { value: "GREGORIAN", label: "Gregorian" },
-];
+
 
 export default function ProfileScreen() {
   const { settings, saveSettings, isMutating: isSavingSettings } = useAttendance();
@@ -63,32 +62,46 @@ export default function ProfileScreen() {
   const tabBarHeight = useTabBarHeight();
   const { mode, setMode } = useThemeMode();
   const { showToast } = useToast();
+  const { language, setLanguage, t } = useLanguage();
 
   const appearanceOptions = useMemo<SegmentOption<ThemeMode>[]>(
     () => [
       {
         value: "system",
-        label: "System",
+        label: t("profile.themeSystem"),
         icon: (active) => (
           <Icon glyph={Smartphone} size={16} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
       {
         value: "light",
-        label: "Light",
+        label: t("profile.themeLight"),
         icon: (active) => (
           <Icon glyph={Sun} size={16} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
       {
         value: "dark",
-        label: "Dark",
+        label: t("profile.themeDark"),
         icon: (active) => (
           <Icon glyph={Moon} size={16} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
     ],
-    [colors.textMuted, colors.textTitle],
+    [colors.textMuted, colors.textTitle, t],
+  );
+
+  const calendarOptions = useMemo<SegmentOption<CalendarSystem>[]>(
+    () => [
+      { value: "JALALI", label: t("calendarName.JALALI") },
+      { value: "GREGORIAN", label: t("calendarName.GREGORIAN") },
+    ],
+    [t],
+  );
+
+  const languageOptions = useMemo<SegmentOption<Language>[]>(
+    () => LANGUAGES.map((value) => ({ value, label: LANGUAGE_LABEL[value] })),
+    [],
   );
 
   const [nickname, setNickname] = useState(user?.nickname ?? "");
@@ -115,7 +128,10 @@ export default function ProfileScreen() {
   }, [settings.calendar, settings.currency, settings.hourlyRate, settings.monthlyGoalHours]);
 
   /** Today in the selected calendar, so the choice is legible before saving. */
-  const calendarPreview = useMemo(() => formatFullDate(new Date(), calendar), [calendar]);
+  const calendarPreview = useMemo(
+    () => formatFullDate(new Date(), calendar, language),
+    [calendar, language],
+  );
 
   const isProfileIncomplete = useMemo(() => nickname.trim().length < 2, [nickname]);
 
@@ -133,8 +149,8 @@ export default function ProfileScreen() {
 
     if (!permission.granted) {
       showToast({
-        title: "Gallery access needed",
-        description: "Enable photo access to choose an avatar.",
+        title: t("profile.galleryTitle"),
+        description: t("profile.galleryDescription"),
         tone: "warning",
       });
 
@@ -160,8 +176,8 @@ export default function ProfileScreen() {
       setAvatarUrl(persistPickedAvatar(asset));
     } catch {
       showToast({
-        title: "Image could not be read",
-        description: "Choose a different photo.",
+        title: t("profile.imageFailed"),
+        description: t("profile.imageDescription"),
         tone: "error",
       });
     }
@@ -170,11 +186,11 @@ export default function ProfileScreen() {
   async function handleSaveProfile() {
     try {
       await completeProfile({ nickname: nickname.trim(), avatarUrl });
-      showToast({ title: "Profile saved", tone: "success" });
+      showToast({ title: t("profile.profileSaved"), tone: "success" });
     } catch (error) {
       showToast({
-        title: "Profile could not be saved",
-        description: error instanceof Error ? error.message : "Try again.",
+        title: t("profile.profileFailed"),
+        description: translateError(error, t),
         tone: "error",
       });
     }
@@ -190,14 +206,25 @@ export default function ProfileScreen() {
       setCurrentPassword("");
       setNextPassword("");
       setConfirmPassword("");
-      showToast({ title: "Password changed", tone: "success" });
+      showToast({ title: t("profile.passwordChanged"), tone: "success" });
     } catch (error) {
       showToast({
-        title: "Password could not be changed",
-        description: error instanceof Error ? error.message : "Try again.",
+        title: t("profile.passwordFailed"),
+        description: error instanceof Error ? error.message : t("common.retry"),
         tone: "error",
       });
     }
+  }
+
+  /**
+   * The switch applies immediately — waiting for a save would leave the button
+   * that saves it in the language the reader just left.
+   */
+  function handleChangeLanguage(next: Language) {
+    setLanguage(next);
+    void saveSettings({ ...settings, language: next }).catch(() => {
+      /* The device keeps the choice even if the row cannot be written. */
+    });
   }
 
   async function handleSaveSettings() {
@@ -209,13 +236,13 @@ export default function ProfileScreen() {
         currency,
         calendar,
       });
-      showToast({ title: "Settings saved", tone: "success" });
+      showToast({ title: t("profile.settingsSaved"), tone: "success" });
     } catch (error) {
       const known = error instanceof Error && error.message !== "ATTENDANCE_SAVE_FAILED";
 
       showToast({
-        title: "Settings could not be saved",
-        description: known ? (error as Error).message : "Try again.",
+        title: t("profile.settingsFailed"),
+        description: translateError(error, t),
         tone: "error",
       });
     }
@@ -223,7 +250,7 @@ export default function ProfileScreen() {
 
   return (
     <Screen scroll bottomInset={tabBarHeight} gap={layout.gapDefault}>
-      <PageHeader title="Profile" overline={user?.username} />
+      <PageHeader title={t("profile.title")} overline={user?.username} />
 
       <Card style={{ gap: layout.gapLoose }}>
         <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapLoose }}>
@@ -231,10 +258,10 @@ export default function ProfileScreen() {
 
           <View style={{ flex: 1, gap: layout.gapTight }}>
             <Text role="title3" numberOfLines={1}>
-              {nickname.trim() || "Your account"}
+              {nickname.trim() || t("profile.yourAccount")}
             </Text>
             <Button
-              label="Upload photo"
+              label={t("auth.uploadPhoto")}
               variant="quiet"
               size="sm"
               onPress={pickAvatar}
@@ -244,16 +271,17 @@ export default function ProfileScreen() {
         </View>
 
         <Input
-          label="Nickname"
+          label={t("auth.nickname")}
+          freeText
           autoCapitalize="words"
           value={nickname}
           onChangeText={setNickname}
-          placeholder="Hassan"
-          hint={isProfileIncomplete ? "At least two characters." : undefined}
+          placeholder={t("auth.nicknamePlaceholder")}
+          hint={isProfileIncomplete ? t("auth.nicknameRule") : undefined}
         />
 
         <Button
-          label="Save profile"
+          label={t("auth.saveProfile")}
           full
           size="lg"
           loading={isSavingProfile}
@@ -262,15 +290,32 @@ export default function ProfileScreen() {
         />
       </Card>
 
+      <Card style={{ gap: layout.gapDefault }}>
+        <View style={{ gap: 1 }}>
+          <Text role="title3">{t("language.label")}</Text>
+          <Text role="caption" tone="muted">
+            {t("language.hint")}
+          </Text>
+        </View>
+
+        <SegmentedControl
+          options={languageOptions}
+          value={language}
+          onChange={handleChangeLanguage}
+          size="lg"
+          full
+        />
+      </Card>
+
       <Card style={{ gap: layout.gapTight }}>
-        <Text role="title3">Calculation</Text>
+        <Text role="title3">{t("profile.calculation")}</Text>
 
         <View style={{ gap: layout.gapTight, paddingVertical: layout.padControlY }}>
           <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapDefault }}>
             <Icon glyph={CalendarDays} size={20} color={colors.textMuted} />
             <View style={{ flex: 1, gap: 1 }}>
               <Text role="body" tone="title">
-                Calendar
+                {t("profile.calendar")}
               </Text>
               <Text role="caption" tone="muted">
                 {calendarPreview}
@@ -281,7 +326,7 @@ export default function ProfileScreen() {
           <SegmentedControl options={calendarOptions} value={calendar} onChange={setCalendar} full />
 
           <Text role="caption" tone="muted">
-            Months and weeks are grouped in this calendar. Recorded sessions are not changed.
+            {t("profile.calendarHint")}
           </Text>
         </View>
 
@@ -297,7 +342,7 @@ export default function ProfileScreen() {
         >
           <Icon glyph={Wallet} size={20} color={colors.textMuted} />
           <Text role="body" tone="title" style={{ flex: 1 }}>
-            Currency
+            {t("profile.currency")}
           </Text>
           <SegmentedControl options={currencyOptions} value={currency} onChange={setCurrency} />
         </View>
@@ -307,14 +352,14 @@ export default function ProfileScreen() {
         <View style={{ flexDirection: "row", gap: layout.gapDefault, paddingVertical: layout.padControlY }}>
           <Icon glyph={Coins} size={20} color={colors.textMuted} />
           <Input
-            label="Hourly rate"
+            label={t("profile.hourlyRate")}
             keyboardType="numeric"
             value={hourlyRate}
             onChangeText={setHourlyRate}
-            placeholder="250000"
+            placeholder={t("profile.hourlyRatePlaceholder")}
             trailing={
               <Text role="caption" tone="muted">
-                {currency === "IRR" ? "Toman" : "USD"}
+                {currency === "IRR" ? t("units.toman") : currency}
               </Text>
             }
             containerStyle={{ flex: 1 }}
@@ -326,7 +371,7 @@ export default function ProfileScreen() {
         <View style={{ flexDirection: "row", gap: layout.gapDefault, paddingVertical: layout.padControlY }}>
           <Icon glyph={Target} size={20} color={colors.textMuted} />
           <Input
-            label="Monthly goal"
+            label={t("profile.monthlyGoal")}
             keyboardType="numeric"
             value={monthlyGoalHours}
             onChangeText={setMonthlyGoalHours}
@@ -341,7 +386,7 @@ export default function ProfileScreen() {
         </View>
 
         <Button
-          label="Save settings"
+          label={t("profile.saveSettings")}
           full
           size="lg"
           variant="secondary"
@@ -353,9 +398,9 @@ export default function ProfileScreen() {
 
       <Card style={{ gap: layout.gapDefault }}>
         <View style={{ gap: 1 }}>
-          <Text role="title3">Appearance</Text>
+          <Text role="title3">{t("profile.appearance")}</Text>
           <Text role="caption" tone="muted">
-            System follows your device setting.
+            {t("profile.appearanceHint")}
           </Text>
         </View>
 
@@ -369,61 +414,61 @@ export default function ProfileScreen() {
       </Card>
 
       <Card padded={false} style={{ paddingHorizontal: layout.padCard }}>
-        <Accordion title="Password" titleRole="title3">
+        <Accordion title={t("profile.password")} titleRole="title3">
           <View style={{ gap: layout.gapDefault, paddingBottom: layout.padCard }}>
             <Text role="caption" tone="muted">
-              There is no recovery — a forgotten password cannot be reset.
+              {t("profile.passwordHint")}
             </Text>
 
             <Input
-              label="Current password"
+              label={t("profile.currentPassword")}
               autoComplete="password"
               leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
               onChangeText={setCurrentPassword}
-              placeholder="Current password"
+              placeholder={t("profile.currentPassword")}
               secureTextEntry
               value={currentPassword}
             />
 
             <Input
-              label="New password"
+              label={t("profile.newPassword")}
               autoComplete="new-password"
               leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
               onChangeText={setNextPassword}
-              placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+              placeholder={t("auth.passwordPlaceholder", { count: MIN_PASSWORD_LENGTH })}
               secureTextEntry
               value={nextPassword}
             />
 
             <Input
-              label="Confirm new password"
+              label={t("profile.confirmNewPassword")}
               autoComplete="new-password"
               error={
                 confirmPassword && passwordProblem === "mismatch"
-                  ? "The two passwords do not match."
+                  ? t("auth.passwordsDiffer")
                   : undefined
               }
               leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
               onChangeText={setConfirmPassword}
-              placeholder="Repeat it"
+              placeholder={t("auth.repeatPlaceholder")}
               secureTextEntry
               value={confirmPassword}
             />
 
             {passwordProblem === "tooShort" ? (
               <Text role="caption" tone="accent">
-                {`New password must be at least ${MIN_PASSWORD_LENGTH} characters.`}
+                {t("profile.newPasswordRule", { count: MIN_PASSWORD_LENGTH })}
               </Text>
             ) : null}
 
             {passwordProblem === "unchanged" ? (
               <Text role="caption" tone="accent">
-                Pick a password different from the current one.
+                {t("profile.samePassword")}
               </Text>
             ) : null}
 
             <Button
-              label="Change password"
+              label={t("profile.changePassword")}
               full
               size="lg"
               variant="secondary"
@@ -439,14 +484,14 @@ export default function ProfileScreen() {
 
       <Card style={{ gap: layout.gapDefault }}>
         <View style={{ gap: 1 }}>
-          <Text role="title3">Account</Text>
+          <Text role="title3">{t("profile.account")}</Text>
           <Text role="caption" tone="muted">
-            Each account keeps its own sessions and settings on this device.
+            {t("profile.accountHint")}
           </Text>
         </View>
 
         <Button
-          label="Switch account"
+          label={t("profile.switchAccount")}
           full
           size="lg"
           variant="quiet"
@@ -456,7 +501,7 @@ export default function ProfileScreen() {
         />
 
         <Button
-          label="Sign out"
+          label={t("profile.signOut")}
           full
           size="lg"
           variant="outline"
@@ -467,9 +512,9 @@ export default function ProfileScreen() {
 
       <ConfirmDialog
         visible={switchingAccount}
-        title="Switch account?"
-        description="You will be signed out. Sign in with another account, or create a new one — this account's sessions stay on the device."
-        confirmLabel="Sign out"
+        title={t("profile.switchTitle")}
+        description={t("profile.switchDescription")}
+        confirmLabel={t("profile.signOut")}
         loading={isSavingProfile}
         onConfirm={() => {
           setSwitchingAccount(false);

@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { Building2, ChevronLeft, Laptop, Trash2 } from "lucide-react-native";
 import { dayKey, formatFullDate } from "@omam/calendar";
+import { translateError } from "@omam/i18n";
 import type { WorkSessionCategory } from "@omam/contracts";
 import { getSessionById } from "../../src/lib/db/sessions";
 import {
@@ -28,6 +29,7 @@ import {
   Text,
   layout,
   useColors,
+  useLanguage,
   useToast,
   type SegmentOption,
 } from "../../src/design/taraz";
@@ -41,6 +43,7 @@ export default function SessionEditorScreen() {
   const { user } = useAuth();
   const { calendar, createSession, updateSession, deleteSession, isMutating } = useAttendance();
   const { showToast } = useToast();
+  const { language, t } = useLanguage();
   const colors = useColors();
 
   const isNew = id === NEW_SESSION;
@@ -94,23 +97,23 @@ export default function SessionEditorScreen() {
     () => [
       {
         value: "ONSITE",
-        label: "On-site",
+        label: t("category.ONSITE"),
         icon: (active) => (
           <Icon glyph={Building2} size={16} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
       {
         value: "REMOTE",
-        label: "Remote",
+        label: t("category.REMOTE"),
         icon: (active) => (
           <Icon glyph={Laptop} size={16} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
     ],
-    [colors.textMuted, colors.textTitle],
+    [colors.textMuted, colors.textTitle, t],
   );
 
-  const calendarName = calendar === "JALALI" ? "Shamsi" : "Gregorian";
+  const calendarName = t(calendar === "JALALI" ? "calendarName.JALALI" : "calendarName.GREGORIAN");
 
   /** Today in the active calendar, so the field shows the shape it expects. */
   const datePlaceholder = useMemo(() => dayKey(new Date(), calendar), [calendar]);
@@ -119,8 +122,10 @@ export default function SessionEditorScreen() {
   const dateHint = useMemo(() => {
     const parsed = parseLocalDateTime(dateText, "00:00", calendar);
 
-    return parsed ? formatFullDate(parsed, calendar) : `A ${calendarName} date, as YYYY-MM-DD`;
-  }, [calendar, calendarName, dateText]);
+    return parsed
+      ? formatFullDate(parsed, calendar, language)
+      : t("session.dateHint", { calendar: calendarName });
+  }, [calendar, calendarName, dateText, language, t]);
 
   /**
    * A blank end time means the session is still running. An end earlier than
@@ -131,7 +136,7 @@ export default function SessionEditorScreen() {
     const startAt = parseLocalDateTime(dateText, startText, calendar);
 
     if (!startAt) {
-      return `Enter a ${calendarName} date as YYYY-MM-DD and a start time as HH:MM.`;
+      return t("session.dateError", { calendar: calendarName });
     }
 
     const trimmedEnd = endText.trim();
@@ -146,7 +151,7 @@ export default function SessionEditorScreen() {
     const parsedEnd = parseLocalDateTime(dateText, trimmedEnd, calendar);
 
     if (!parsedEnd) {
-      return "Enter an end time as HH:MM, or leave it empty for a running session.";
+      return t("session.endError");
     }
 
     const crossesMidnight = parsedEnd.getTime() < startAt.getTime();
@@ -161,20 +166,20 @@ export default function SessionEditorScreen() {
       },
       crossesMidnight,
     };
-  }, [calendar, calendarName, category, dateText, endText, note, startText]);
+  }, [calendar, calendarName, category, dateText, endText, note, startText, t]);
 
   const isDraftValid = typeof draft !== "string";
 
   const durationLabel = useMemo(() => {
     if (!isDraftValid) return null;
-    if (!draft.input.endAt) return "Running";
+    if (!draft.input.endAt) return t("status.OPEN");
 
     const minutes = Math.round(
       (new Date(draft.input.endAt).getTime() - new Date(draft.input.startAt).getTime()) / 60000,
     );
 
-    return formatShortMinutes(minutes);
-  }, [draft, isDraftValid]);
+    return formatShortMinutes(minutes, language);
+  }, [draft, isDraftValid, language, t]);
 
   const goBack = useCallback(() => {
     if (router.canGoBack()) {
@@ -200,15 +205,15 @@ export default function SessionEditorScreen() {
       }
 
       showToast({
-        title: isNew ? "Session added" : "Session updated",
+        title: isNew ? t("session.added") : t("session.updated"),
         tone: "success",
       });
       goBack();
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "Try again.";
+      const message = translateError(caught, t);
 
       setError(message);
-      showToast({ title: "Could not save the session", description: message, tone: "error" });
+      showToast({ title: t("session.saveFailed"), description: message, tone: "error" });
     }
   }
 
@@ -216,20 +221,20 @@ export default function SessionEditorScreen() {
     try {
       await deleteSession(id);
       setConfirmingDelete(false);
-      showToast({ title: "Session deleted", tone: "success" });
+      showToast({ title: t("session.deleted"), tone: "success" });
       goBack();
     } catch (caught) {
       setConfirmingDelete(false);
       showToast({
-        title: "Could not delete the session",
-        description: caught instanceof Error ? caught.message : "Try again.",
+        title: t("session.deleteFailed"),
+        description: translateError(caught, t),
         tone: "error",
       });
     }
   }
 
   const back = (
-    <IconButton label="Back" round onPress={goBack}>
+    <IconButton label={t("common.back")} round onPress={goBack}>
       <Icon glyph={ChevronLeft} size={20} color={colors.textTitle} />
     </IconButton>
   );
@@ -237,7 +242,7 @@ export default function SessionEditorScreen() {
   if (isLoading) {
     return (
       <Screen scroll gap={layout.gapDefault}>
-        <PageHeader title="Session" trailing={back} />
+        <PageHeader title={t("session.title")} trailing={back} />
         <Card style={{ gap: layout.gapLoose }}>
           <Skeleton height={44} />
           <Skeleton height={44} />
@@ -250,11 +255,11 @@ export default function SessionEditorScreen() {
   if (notFound) {
     return (
       <Screen gap={layout.gapDefault}>
-        <PageHeader title="Session" trailing={back} />
+        <PageHeader title={t("session.title")} trailing={back} />
         <Card style={{ gap: layout.gapTight }}>
-          <Text role="title3">That session is gone</Text>
+          <Text role="title3">{t("session.goneTitle")}</Text>
           <Text role="bodySm" tone="muted">
-            It may have been deleted on another screen.
+            {t("session.goneHint")}
           </Text>
         </Card>
       </Screen>
@@ -264,14 +269,14 @@ export default function SessionEditorScreen() {
   return (
     <Screen scroll gap={layout.gapDefault}>
       <PageHeader
-        title={isNew ? "New session" : "Edit session"}
+        title={isNew ? t("session.newTitle") : t("session.editTitle")}
         subtitle={durationLabel ?? undefined}
         trailing={back}
       />
 
       <Card style={{ gap: layout.gapLoose }}>
         <Input
-          label={`Date (${calendarName})`}
+          label={t("session.date", { calendar: calendarName })}
           autoCapitalize="none"
           autoCorrect={false}
           hint={dateHint}
@@ -286,7 +291,7 @@ export default function SessionEditorScreen() {
 
         <View style={{ flexDirection: "row", gap: layout.gapDefault }}>
           <Input
-            label="Start"
+            label={t("session.start")}
             autoCapitalize="none"
             autoCorrect={false}
             containerStyle={{ flex: 1 }}
@@ -299,11 +304,11 @@ export default function SessionEditorScreen() {
             value={startText}
           />
           <Input
-            label="End"
+            label={t("session.end")}
             autoCapitalize="none"
             autoCorrect={false}
             containerStyle={{ flex: 1 }}
-            hint={isNew ? "Empty keeps it running" : undefined}
+            hint={isNew ? t("session.endHint") : undefined}
             keyboardType="numbers-and-punctuation"
             onChangeText={(value) => {
               setEndText(value);
@@ -316,7 +321,7 @@ export default function SessionEditorScreen() {
 
         {isDraftValid && draft.crossesMidnight ? (
           <Text role="caption" tone="muted">
-            Ends the next morning — counted as an overnight session.
+            {t("session.overnight")}
           </Text>
         ) : null}
 
@@ -334,11 +339,12 @@ export default function SessionEditorScreen() {
         </View>
 
         <Input
-          label="Note"
+          label={t("session.note")}
+          freeText
           multiline
           numberOfLines={3}
           onChangeText={setNote}
-          placeholder="What did you work on?"
+          placeholder={t("session.notePlaceholder")}
           size="lg"
           value={note}
         />
@@ -350,7 +356,7 @@ export default function SessionEditorScreen() {
         ) : null}
 
         <Button
-          label={isNew ? "Add session" : "Save changes"}
+          label={isNew ? t("session.add") : t("session.saveChanges")}
           full
           size="lg"
           disabled={!isDraftValid}
@@ -361,7 +367,7 @@ export default function SessionEditorScreen() {
 
       {isNew ? null : (
         <Button
-          label="Delete session"
+          label={t("session.deleteSession")}
           full
           size="lg"
           variant="outline"
@@ -372,9 +378,9 @@ export default function SessionEditorScreen() {
 
       <ConfirmDialog
         visible={confirmingDelete}
-        title="Delete this session?"
-        description="The recorded time and note are removed for good."
-        confirmLabel="Delete"
+        title={t("session.deleteTitle")}
+        description={t("session.deleteDescription")}
+        confirmLabel={t("common.delete")}
         destructive
         loading={isMutating}
         onConfirm={handleDelete}

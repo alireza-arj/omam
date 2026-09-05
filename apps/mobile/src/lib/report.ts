@@ -11,6 +11,7 @@ import {
   toParts,
   type CalendarSystem,
 } from "@omam/calendar";
+import type { Language, Translator } from "@omam/i18n";
 import type { SessionDto } from "@omam/contracts";
 import { sessionMinutes } from "./format";
 
@@ -42,11 +43,8 @@ export type ReportTotals = {
 const DAYS_PER_MONTH = 30;
 const WEEKS_PER_MONTH = 30 / 7;
 
-export const reportPeriods: { key: ReportPeriod; label: string }[] = [
-  { key: "DAY", label: "Daily" },
-  { key: "WEEK", label: "Weekly" },
-  { key: "MONTH", label: "Monthly" },
-];
+/** The screen pairs each key with its translated label. */
+export const reportPeriods: ReportPeriod[] = ["DAY", "WEEK", "MONTH"];
 
 function endOfRange(exclusiveEnd: Date) {
   return new Date(exclusiveEnd.getTime() - 1);
@@ -89,21 +87,23 @@ export function formatRangeLabel(
   range: ReportRange,
   offset: number,
   calendar: CalendarSystem,
+  language: Language,
+  t: Translator,
 ) {
   if (period === "DAY") {
-    if (offset === 0) return "Today";
-    if (offset === -1) return "Yesterday";
+    if (offset === 0) return t("report.today");
+    if (offset === -1) return t("report.yesterday");
 
-    return formatDayLabel(range.from, calendar);
+    return formatDayLabel(range.from, calendar, language);
   }
 
   if (period === "WEEK") {
-    if (offset === 0) return "This week";
+    if (offset === 0) return t("report.thisWeek");
 
-    return `${formatShortDayMonth(range.from, calendar)} - ${formatShortDayMonth(range.to, calendar)}`;
+    return `${formatShortDayMonth(range.from, calendar, language)} - ${formatShortDayMonth(range.to, calendar, language)}`;
   }
 
-  return formatMonthLabel(range.from, calendar);
+  return formatMonthLabel(range.from, calendar, language);
 }
 
 export function getPeriodGoalHours(period: ReportPeriod, monthlyGoalHours: number) {
@@ -117,6 +117,7 @@ function buildBuckets(
   period: ReportPeriod,
   range: ReportRange,
   calendar: CalendarSystem,
+  language: Language,
 ): ReportBucket[] {
   if (period === "DAY") {
     return Array.from({ length: 12 }, (_, index) => {
@@ -131,7 +132,7 @@ function buildBuckets(
   }
 
   const buckets: ReportBucket[] = [];
-  const weekdays = shortWeekdayNames(calendar);
+  const weekdays = shortWeekdayNames(calendar, language);
   const cursor = new Date(range.from);
 
   while (cursor.getTime() <= range.to.getTime()) {
@@ -152,8 +153,9 @@ export function summarizeSessions(
   period: ReportPeriod,
   range: ReportRange,
   calendar: CalendarSystem,
+  language: Language,
 ): ReportTotals {
-  const buckets = buildBuckets(period, range, calendar);
+  const buckets = buildBuckets(period, range, calendar, language);
   const bucketIndex = new Map(buckets.map((bucket, index) => [bucket.key, index]));
   const workedDays = new Set<string>();
   const categoryMinutes = { onsite: 0, remote: 0 };
@@ -203,15 +205,20 @@ export type SessionDay = {
   totalMinutes: number;
 };
 
-function formatDayHeading(iso: string, calendar: CalendarSystem) {
+function formatDayHeading(
+  iso: string,
+  calendar: CalendarSystem,
+  language: Language,
+  t: Translator,
+) {
   const day = startOfDay(new Date(iso));
   const today = startOfDay(new Date());
   const distance = Math.round((day.getTime() - today.getTime()) / 86_400_000);
 
-  if (distance === 0) return "Today";
-  if (distance === -1) return "Yesterday";
+  if (distance === 0) return t("report.today");
+  if (distance === -1) return t("report.yesterday");
 
-  return formatDayLabel(day, calendar);
+  return formatDayLabel(day, calendar, language);
 }
 
 /**
@@ -221,6 +228,8 @@ function formatDayHeading(iso: string, calendar: CalendarSystem) {
 export function groupSessionsByDay(
   sessions: SessionDto[],
   calendar: CalendarSystem,
+  language: Language,
+  t: Translator,
 ): SessionDay[] {
   const groups = new Map<string, SessionDto[]>();
 
@@ -239,7 +248,7 @@ export function groupSessionsByDay(
     .sort(([left], [right]) => right.localeCompare(left))
     .map(([key, daySessions]) => ({
       key,
-      label: formatDayHeading(daySessions[0].startAt, calendar),
+      label: formatDayHeading(daySessions[0].startAt, calendar, language, t),
       sessions: daySessions,
       totalMinutes: daySessions.reduce((total, session) => total + sessionMinutes(session), 0),
     }));

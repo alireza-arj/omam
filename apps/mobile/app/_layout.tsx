@@ -12,10 +12,12 @@ import { SyncProvider } from "../src/providers/sync-provider";
 import { DATABASE_NAME, initializeDatabase } from "../src/lib/database";
 import {
   Card,
+  LanguageProvider,
   Text,
   ThemeProvider,
   ToastProvider,
   motion,
+  useLanguage,
   useTarazFonts,
   useTheme,
 } from "../src/design/taraz";
@@ -77,6 +79,7 @@ class RootErrorBoundary extends Component<PropsWithChildren, { error: Error | nu
 
 function RootNavigation() {
   const { colors, isDark } = useTheme();
+  const { direction } = useLanguage();
   const { fontsLoaded, fontError } = useTarazFonts();
 
   if (!fontsLoaded && !fontError) {
@@ -95,7 +98,11 @@ function RootNavigation() {
           <AttendanceProvider>
             {/* Sync sits under Attendance so a pull can refresh what is on screen. */}
             <SyncProvider>
-              <GestureHandlerRootView style={{ flex: 1, direction: "ltr" }}>
+              {/*
+                 * Yoga reads `direction` here and mirrors every row, `start`
+                 * and `end` beneath it — no app restart and no I18nManager.
+                 */}
+              <GestureHandlerRootView style={{ flex: 1, direction }}>
                 <SafeAreaProvider>
                   <StatusBar style={isDark ? "light" : "dark"} />
                   <ToastProvider>
@@ -125,10 +132,12 @@ function RootNavigation() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <RootErrorBoundary>
-        <RootNavigation />
-      </RootErrorBoundary>
-    </ThemeProvider>
+    <LanguageProvider>
+      <ThemeProvider>
+        <RootErrorBoundary>
+          <RootNavigation />
+        </RootErrorBoundary>
+      </ThemeProvider>
+    </LanguageProvider>
   );
 }

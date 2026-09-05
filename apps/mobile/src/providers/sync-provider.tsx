@@ -22,6 +22,7 @@ import {
   writeSyncState,
 } from "../lib/db/sync";
 import { pushAndPull, registerOnServer, resolveServerUrl, signInToServer } from "../lib/sync/client";
+import { useLanguage } from "../design/taraz";
 import { useAttendance } from "./attendance-provider";
 import { useAuth } from "./auth-provider";
 
@@ -81,6 +82,7 @@ export function SyncProvider({ children }: PropsWithChildren) {
   const db = useSQLiteContext();
   const { user } = useAuth();
   const { refresh } = useAttendance();
+  const { t } = useLanguage();
 
   const [status, setStatus] = useState<SyncStatus>(EMPTY);
   const [isReady, setIsReady] = useState(false);
@@ -129,11 +131,11 @@ export function SyncProvider({ children }: PropsWithChildren) {
   const adoptAuth = useCallback(
     async (serverUrl: string, auth: AuthResponseDto) => {
       if (!user) {
-        throw new Error("Sign in on this device first.");
+        throw new Error(t("team.signInFirst"));
       }
 
       if (!auth.membership) {
-        throw new Error("That account is not part of a team yet.");
+        throw new Error(t("team.noTeam"));
       }
 
       await AsyncStorage.setItem(
@@ -151,7 +153,7 @@ export function SyncProvider({ children }: PropsWithChildren) {
 
       await readStatus();
     },
-    [db, readStatus, user],
+    [db, readStatus, t, user],
   );
 
   const runSync = useCallback(async () => {
@@ -167,10 +169,12 @@ export function SyncProvider({ children }: PropsWithChildren) {
     try {
       const state = await readSyncState(db, user.id);
       const sessions = await collectDirty(db, user.id);
-      const response = await pushAndPull(serverUrl, token, {
-        since: state?.cursor ?? null,
-        sessions,
-      });
+      const response = await pushAndPull(
+        serverUrl,
+        token,
+        { since: state?.cursor ?? null, sessions },
+        t,
+      );
 
       await markPushed(db, response.results);
       await applyServerSessions(db, user.id, response.sessions);
@@ -192,7 +196,7 @@ export function SyncProvider({ children }: PropsWithChildren) {
 
       await refresh();
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Sync failed.";
+      const message = cause instanceof Error ? cause.message : t("team.syncFailed");
 
       // A revoked or expired token means the account was suspended or the
       // password was reset; the link is dead and has to be made again.
@@ -207,7 +211,7 @@ export function SyncProvider({ children }: PropsWithChildren) {
       inFlight.current = false;
       setIsSyncing(false);
     }
-  }, [db, readStatus, refresh, user]);
+  }, [db, readStatus, refresh, t, user]);
 
   const signInAndLink = useCallback<SyncContextValue["signInAndLink"]>(
     async (input) => {
@@ -216,13 +220,16 @@ export function SyncProvider({ children }: PropsWithChildren) {
       try {
         const serverUrl = resolveServerUrl(input.serverUrl);
 
-        await adoptAuth(serverUrl, await signInToServer(serverUrl, input.username, input.password));
+        await adoptAuth(
+          serverUrl,
+          await signInToServer(serverUrl, input.username, input.password, t),
+        );
         await runSync();
       } finally {
         setIsLinking(false);
       }
     },
-    [adoptAuth, runSync],
+    [adoptAuth, runSync, t],
   );
 
   const joinWithInvite = useCallback<SyncContextValue["joinWithInvite"]>(
@@ -231,12 +238,16 @@ export function SyncProvider({ children }: PropsWithChildren) {
 
       try {
         const serverUrl = resolveServerUrl(input.serverUrl);
-        const auth = await registerOnServer(serverUrl, {
-          username: input.username,
-          password: input.password,
-          inviteCode: input.inviteCode,
-          nickname: input.nickname,
-        });
+        const auth = await registerOnServer(
+          serverUrl,
+          {
+            username: input.username,
+            password: input.password,
+            inviteCode: input.inviteCode,
+            nickname: input.nickname,
+          },
+          t,
+        );
 
         await adoptAuth(serverUrl, auth);
         await runSync();
@@ -244,7 +255,7 @@ export function SyncProvider({ children }: PropsWithChildren) {
         setIsLinking(false);
       }
     },
-    [adoptAuth, runSync],
+    [adoptAuth, runSync, t],
   );
 
   const unlink = useCallback(async () => {

@@ -10,12 +10,14 @@ function toDto(settings: {
   currency: "IRR" | "USD" | "EUR";
   monthlyGoalHours: number;
   calendar: "JALALI" | "GREGORIAN";
+  language: "en" | "fa";
 }) {
   return {
     hourlyRate: settings.hourlyRate,
     currency: settings.currency,
     monthlyGoalHours: settings.monthlyGoalHours,
     calendar: settings.calendar,
+    language: settings.language,
   };
 }
 

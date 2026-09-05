@@ -16,11 +16,12 @@ import {
   verifyPassword,
 } from "../lib/db/auth";
 import { discardAvatar, isValidAvatarValue, migrateAvatar } from "../lib/avatar";
+import { useLanguage } from "../design/taraz";
 
 const AUTH_STORAGE_KEY = "@omam:loggedIn";
 
 /** Deliberately identical for an unknown username and a wrong password. */
-const INVALID_CREDENTIALS = "Invalid username or password.";
+const INVALID_CREDENTIALS = "INVALID_CREDENTIALS";
 
 type AuthContextValue = {
   user: AuthUserDto | null;
@@ -61,6 +62,7 @@ async function readUser(db: SQLiteDatabase, userId: string): Promise<AuthUserDto
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const db = useSQLiteContext();
+  const { language } = useLanguage();
   const [user, setUser] = useState<AuthUserDto | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
@@ -170,7 +172,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setIsMutating(true);
 
       try {
-        const created = await createUser(db, username, await hashPassword(password));
+        // A new account starts in whatever language the device is already reading.
+        const created = await createUser(db, username, await hashPassword(password), language);
 
         await startSession(created.id);
         await refreshAccountCount();
@@ -178,7 +181,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setIsMutating(false);
       }
     },
-    [db, refreshAccountCount, startSession],
+    [db, language, refreshAccountCount, startSession],
   );
 
   const signOut = useCallback(async () => {
@@ -200,13 +203,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       try {
         if (!user) {
-          throw new Error("Not authenticated.");
+          throw new Error("NOT_AUTHENTICATED");
         }
 
         const nextAvatar = payload.avatarUrl?.trim() || null;
 
         if (nextAvatar && !isValidAvatarValue(nextAvatar)) {
-          throw new Error("Avatar must be a stored image or an HTTP URL.");
+          throw new Error("INVALID_AVATAR");
         }
 
         const previousAvatar = user.avatarUrl;
@@ -232,13 +235,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       try {
         if (!user) {
-          throw new Error("Not authenticated.");
+          throw new Error("NOT_AUTHENTICATED");
         }
 
         const found = await getUserByUsername(db, user.username);
 
         if (!found || !(await verifyPassword(currentPassword, found.passwordHash))) {
-          throw new Error("Current password is incorrect.");
+          throw new Error("WRONG_CURRENT_PASSWORD");
         }
 
         await updateUserPasswordHash(db, user.id, await hashPassword(nextPassword));

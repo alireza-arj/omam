@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   calendarSystemSchema,
   currencySchema,
+  languageSchema,
   membershipStatusSchema,
   orgRoleSchema,
   payTypeSchema,
@@ -13,6 +14,8 @@ export const organizationSchema = z.object({
   slug: z.string(),
   timezone: z.string(),
   calendar: calendarSystemSchema,
+  /** What a new member's account starts in; each person can change their own. */
+  language: languageSchema,
   currency: currencySchema,
   defaultHourlyRate: z.number().nonnegative(),
   monthlyGoalHours: z.number().nonnegative(),
@@ -25,6 +28,7 @@ export const updateOrganizationInputSchema = z.object({
   name: z.string().trim().min(2).max(80).optional(),
   timezone: z.string().trim().min(1).max(64).optional(),
   calendar: calendarSystemSchema.optional(),
+  language: languageSchema.optional(),
   currency: currencySchema.optional(),
   defaultHourlyRate: z.number().nonnegative().optional(),
   monthlyGoalHours: z.number().nonnegative().max(744).optional(),

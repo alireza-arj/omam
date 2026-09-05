@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LANGUAGES } from "@omam/i18n";
 
 /**
  * An absolute instant. Every timestamp crossing the API is ISO-8601 with a
@@ -13,6 +14,12 @@ export const monthKeySchema = z
 
 export const currencySchema = z.enum(["IRR", "USD", "EUR"]);
 export const calendarSystemSchema = z.enum(["JALALI", "GREGORIAN"]);
+
+/**
+ * Lowercase, unlike the other enums here: these values go straight into an
+ * HTML `lang` attribute and a BCP-47 tag. The list lives in `@omam/i18n`.
+ */
+export const languageSchema = z.enum(LANGUAGES);
 export const workSessionCategorySchema = z.enum(["ONSITE", "REMOTE"]);
 export const workSessionStatusSchema = z.enum(["OPEN", "PENDING", "APPROVED", "REJECTED"]);
 export const workSessionSourceSchema = z.enum(["TIMER", "MANUAL", "SYNC", "ADMIN"]);
@@ -34,6 +41,7 @@ export const paginationSchema = z.object({
 
 export type Currency = z.infer<typeof currencySchema>;
 export type CalendarSystemDto = z.infer<typeof calendarSystemSchema>;
+export type LanguageDto = z.infer<typeof languageSchema>;
 export type WorkSessionCategory = z.infer<typeof workSessionCategorySchema>;
 export type WorkSessionStatus = z.infer<typeof workSessionStatusSchema>;
 export type WorkSessionSource = z.infer<typeof workSessionSourceSchema>;

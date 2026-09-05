@@ -69,6 +69,7 @@ export function serializeMembership(
     currency: membership.currency,
     monthlyGoalHours: membership.monthlyGoalHours,
     calendar: membership.organization.calendar,
+    language: membership.organization.language,
     requireApproval: membership.organization.requireApproval,
     jobTitle: membership.jobTitle,
   };
@@ -163,11 +164,19 @@ export async function revokeAllSessionsForUser(userId: string) {
   });
 }
 
-export async function ensureUserDefaultSettings(userId: string, calendar?: "JALALI" | "GREGORIAN") {
+/** Creates the row on first sight, seeded from the team's own defaults. */
+export async function ensureUserDefaultSettings(
+  userId: string,
+  defaults?: { calendar?: "JALALI" | "GREGORIAN"; language?: "en" | "fa" },
+) {
   await prisma.appSettings.upsert({
     where: { userId },
     update: {},
-    create: { userId, ...(calendar ? { calendar } : {}) },
+    create: {
+      userId,
+      ...(defaults?.calendar ? { calendar: defaults.calendar } : {}),
+      ...(defaults?.language ? { language: defaults.language } : {}),
+    },
   });
 }
 

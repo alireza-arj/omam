@@ -8,7 +8,7 @@ import {
   sessionMinutes,
 } from "../lib/format";
 import { useAttendance } from "../providers/attendance-provider";
-import { Badge, Icon, Text, layout, motion, useColors } from "../design/taraz";
+import { Badge, Icon, Text, layout, motion, useColors, useLanguage } from "../design/taraz";
 
 type Props = {
   session: SessionDto;
@@ -21,14 +21,15 @@ type Props = {
 };
 
 /** Approved time needs no label; only what is still open or refused does. */
-const STATUS_LABEL = {
-  PENDING: { label: "Awaiting review", tone: "warning" },
-  REJECTED: { label: "Not approved", tone: "accent" },
+const STATUS_KEY = {
+  PENDING: "status.PENDING",
+  REJECTED: "status.REJECTED",
 } as const;
 
 export function SessionItem({ session, showDate = true, onPress, showStatus }: Props) {
   const colors = useColors();
   const { calendar } = useAttendance();
+  const { language, t } = useLanguage();
   const isRemote = session.category === "REMOTE";
   const isOpen = !session.endAt;
 
@@ -40,15 +41,15 @@ export function SessionItem({ session, showDate = true, onPress, showStatus }: P
         {showDate ? (
           <>
             <Text role="body" tone="title" numberOfLines={1}>
-              {formatDayLabel(session.startAt, calendar)}
+              {formatDayLabel(session.startAt, calendar, language)}
             </Text>
             <Text role="mono" tone="muted" numberOfLines={1}>
-              {formatSessionRange(session)}
+              {formatSessionRange(session, t)}
             </Text>
           </>
         ) : (
           <Text role="mono" tone="title" numberOfLines={1}>
-            {formatSessionRange(session)}
+            {formatSessionRange(session, t)}
           </Text>
         )}
 
@@ -59,17 +60,17 @@ export function SessionItem({ session, showDate = true, onPress, showStatus }: P
         ) : null}
 
         {showStatus && !isOpen && (session.status === "PENDING" || session.status === "REJECTED") ? (
-          <Text role="caption" tone={STATUS_LABEL[session.status].tone === "accent" ? "accent" : "muted"}>
-            {STATUS_LABEL[session.status].label}
+          <Text role="caption" tone={session.status === "REJECTED" ? "accent" : "muted"}>
+            {t(STATUS_KEY[session.status])}
           </Text>
         ) : null}
       </View>
 
       {isOpen ? (
-        <Badge label="Running" tone="accent" />
+        <Badge label={t("status.OPEN")} tone="accent" />
       ) : (
         <Text role="mono" tone="body">
-          {formatShortMinutes(sessionMinutes(session))}
+          {formatShortMinutes(sessionMinutes(session), language)}
         </Text>
       )}
 
@@ -88,7 +89,7 @@ export function SessionItem({ session, showDate = true, onPress, showStatus }: P
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Edit session, ${formatSessionRange(session)}`}
+      accessibilityLabel={`Edit session, ${formatSessionRange(session, t)}`}
       onPress={onPress}
       style={({ pressed }) => ({
         alignItems: "center",

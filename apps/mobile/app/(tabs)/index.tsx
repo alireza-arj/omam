@@ -3,6 +3,7 @@ import { View, useWindowDimensions } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Building2, Laptop, Play, Square } from "lucide-react-native";
 import { formatDayMonth, formatWeekday } from "@omam/calendar";
+import { translateError } from "@omam/i18n";
 import type { WorkSessionCategory } from "@omam/contracts";
 import { SessionDial } from "../../src/components/session-dial";
 import { formatDurationHms, joinMeta } from "../../src/lib/format";
@@ -16,6 +17,7 @@ import {
   layout,
   useColors,
   useTabBarHeight,
+  useLanguage,
   useToast,
   type SegmentOption,
 } from "../../src/design/taraz";
@@ -32,6 +34,7 @@ function formatWallClock(date: Date) {
 export default function TodayScreen() {
   const { summary, calendar, clockIn, clockOut, isMutating } = useAttendance();
   const { showToast } = useToast();
+  const { language, t } = useLanguage();
   const { width } = useWindowDimensions();
   const colors = useColors();
   const tabBarHeight = useTabBarHeight();
@@ -53,7 +56,10 @@ export default function TodayScreen() {
   );
 
   // Plain arithmetic and a name lookup — cheap enough to run every tick.
-  const displayDate = joinMeta(formatWeekday(now, calendar), formatDayMonth(now, calendar));
+  const displayDate = joinMeta(
+    formatWeekday(now, calendar, language),
+    formatDayMonth(now, calendar, language),
+  );
 
   const activeStartAt = summary.activeSession?.startAt ?? optimisticStartAt;
   const activeCategory = summary.activeSession?.category ?? selectedCategory;
@@ -69,20 +75,20 @@ export default function TodayScreen() {
     () => [
       {
         value: "ONSITE",
-        label: "On-site",
+        label: t("category.ONSITE"),
         icon: (active) => (
           <Icon glyph={Building2} size={16} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
       {
         value: "REMOTE",
-        label: "Remote",
+        label: t("category.REMOTE"),
         icon: (active) => (
           <Icon glyph={Laptop} size={16} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
     ],
-    [colors.textMuted, colors.textTitle],
+    [colors.textMuted, colors.textTitle, t],
   );
 
   async function handleToggle() {
@@ -101,14 +107,9 @@ export default function TodayScreen() {
         setOptimisticStartAt(null);
       }
 
-      const known =
-        error instanceof Error &&
-        error.message !== "ATTENDANCE_CLOCKIN_FAILED" &&
-        error.message !== "ATTENDANCE_CLOCKOUT_FAILED";
-
       showToast({
-        title: "Time tracking failed",
-        description: known ? (error as Error).message : "Something went wrong. Try again.",
+        title: t("today.failedTitle"),
+        description: translateError(error, t),
         tone: "error",
       });
     }
@@ -124,7 +125,7 @@ export default function TodayScreen() {
           {timecode}
         </Text>
         <Text role="caption" tone="muted">
-          {isRunning ? "Session running" : "Not tracking"}
+          {isRunning ? t("today.running") : t("today.idle")}
         </Text>
       </View>
 
@@ -145,7 +146,7 @@ export default function TodayScreen() {
         />
 
         <Button
-          label={isMutating ? "Saving" : isRunning ? "Stop" : "Start"}
+          label={isMutating ? t("common.saving") : isRunning ? t("today.stop") : t("today.start")}
           size="lg"
           pill
           loading={isMutating}

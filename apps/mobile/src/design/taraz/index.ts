@@ -10,6 +10,7 @@ export * from "./tokens";
 export { ThemeProvider, useTheme, useColors, useThemeMode } from "./theme";
 export type { ThemeMode } from "./theme";
 export { useTarazFonts, typefaces } from "./fonts";
+export { LanguageProvider, useLanguage, useTranslation } from "./i18n";
 
 export { Accordion } from "./components/accordion";
 export { Avatar } from "./components/avatar";

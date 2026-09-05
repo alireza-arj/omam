@@ -122,19 +122,80 @@ const GREGORIAN_WEEKDAYS = [
 
 const GREGORIAN_WEEKDAYS_SHORT = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
-export function monthNames(calendar: CalendarSystem) {
+/**
+ * The language names are read in.
+ *
+ * Mirrors `Language` in `@omam/i18n`, kept as a local union so this package
+ * stays dependency-free. Adding a language there and not here is a type error
+ * at the call site, not a silent fallback.
+ */
+export type NameLanguage = "en" | "fa";
+
+const JALALI_MONTHS_FA = [
+  "فروردین",
+  "اردیبهشت",
+  "خرداد",
+  "تیر",
+  "مرداد",
+  "شهریور",
+  "مهر",
+  "آبان",
+  "آذر",
+  "دی",
+  "بهمن",
+  "اسفند",
+];
+
+const GREGORIAN_MONTHS_FA = [
+  "ژانویه",
+  "فوریه",
+  "مارس",
+  "آوریل",
+  "مه",
+  "ژوئن",
+  "ژوئیه",
+  "اوت",
+  "سپتامبر",
+  "اکتبر",
+  "نوامبر",
+  "دسامبر",
+];
+
+/** Indexed by `Date.prototype.getDay()`, so position 0 is Sunday. */
+const WEEKDAYS_FA = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"];
+
+const WEEKDAYS_FA_SHORT = ["ی", "د", "س", "چ", "پ", "ج", "ش"];
+
+export function monthNames(calendar: CalendarSystem, language: NameLanguage = "en") {
+  if (language === "fa") {
+    return calendar === "JALALI" ? JALALI_MONTHS_FA : GREGORIAN_MONTHS_FA;
+  }
+
   return calendar === "JALALI" ? JALALI_MONTHS : GREGORIAN_MONTHS;
 }
 
-export function shortMonthNames(calendar: CalendarSystem) {
+/** Persian has no shortened month names in common use; the full ones are short. */
+export function shortMonthNames(calendar: CalendarSystem, language: NameLanguage = "en") {
+  if (language === "fa") {
+    return monthNames(calendar, language);
+  }
+
   return calendar === "JALALI" ? JALALI_MONTHS_SHORT : GREGORIAN_MONTHS_SHORT;
 }
 
-export function weekdayNames(calendar: CalendarSystem) {
+export function weekdayNames(calendar: CalendarSystem, language: NameLanguage = "en") {
+  if (language === "fa") {
+    return WEEKDAYS_FA;
+  }
+
   return calendar === "JALALI" ? JALALI_WEEKDAYS : GREGORIAN_WEEKDAYS;
 }
 
-export function shortWeekdayNames(calendar: CalendarSystem) {
+export function shortWeekdayNames(calendar: CalendarSystem, language: NameLanguage = "en") {
+  if (language === "fa") {
+    return WEEKDAYS_FA_SHORT;
+  }
+
   return calendar === "JALALI" ? JALALI_WEEKDAYS_SHORT : GREGORIAN_WEEKDAYS_SHORT;
 }
 
@@ -346,43 +407,71 @@ export function startOfWeek(date: Date, calendar: CalendarSystem) {
 
 /* ── labels ─────────────────────────────────────────────────────────────── */
 
-/** `10 Shahrivar` */
-export function formatDayMonth(date: Date, calendar: CalendarSystem) {
+/** `10 Shahrivar`, or `10 شهریور` */
+export function formatDayMonth(
+  date: Date,
+  calendar: CalendarSystem,
+  language: NameLanguage = "en",
+) {
   const { month, day } = toParts(date, calendar);
 
-  return `${day} ${monthNames(calendar)[month - 1]}`;
+  return `${day} ${monthNames(calendar, language)[month - 1]}`;
 }
 
 /** `10 Sha` */
-export function formatShortDayMonth(date: Date, calendar: CalendarSystem) {
+export function formatShortDayMonth(
+  date: Date,
+  calendar: CalendarSystem,
+  language: NameLanguage = "en",
+) {
   const { month, day } = toParts(date, calendar);
 
-  return `${day} ${shortMonthNames(calendar)[month - 1]}`;
+  return `${day} ${shortMonthNames(calendar, language)[month - 1]}`;
 }
 
-/** `Shanbe` */
-export function formatWeekday(date: Date, calendar: CalendarSystem) {
-  return weekdayNames(calendar)[date.getDay()];
+/** `Shanbe`, or `شنبه` */
+export function formatWeekday(
+  date: Date,
+  calendar: CalendarSystem,
+  language: NameLanguage = "en",
+) {
+  return weekdayNames(calendar, language)[date.getDay()];
 }
 
 /** `Shanbe, 10 Shahrivar` */
-export function formatDayLabel(date: Date, calendar: CalendarSystem) {
-  return `${formatWeekday(date, calendar)}, ${formatDayMonth(date, calendar)}`;
+export function formatDayLabel(
+  date: Date,
+  calendar: CalendarSystem,
+  language: NameLanguage = "en",
+) {
+  // Persian separates with an Arabic comma, which sits on the baseline the
+  // other way round.
+  const comma = language === "fa" ? "،" : ",";
+
+  return `${formatWeekday(date, calendar, language)}${comma} ${formatDayMonth(date, calendar, language)}`;
 }
 
 /** `Shahrivar 1405`, from either an instant or a `YYYY-MM` key. */
-export function formatMonthLabel(value: Date | string, calendar: CalendarSystem) {
+export function formatMonthLabel(
+  value: Date | string,
+  calendar: CalendarSystem,
+  language: NameLanguage = "en",
+) {
   const { year, month } =
     typeof value === "string"
       ? (parseMonthKey(value) ?? toParts(new Date(), calendar))
       : toParts(value, calendar);
 
-  return `${monthNames(calendar)[month - 1]} ${year}`;
+  return `${monthNames(calendar, language)[month - 1]} ${year}`;
 }
 
 /** `10 Shahrivar 1405`, for placeholders and hints. */
-export function formatFullDate(date: Date, calendar: CalendarSystem) {
+export function formatFullDate(
+  date: Date,
+  calendar: CalendarSystem,
+  language: NameLanguage = "en",
+) {
   const { year } = toParts(date, calendar);
 
-  return `${formatDayMonth(date, calendar)} ${year}`;
+  return `${formatDayMonth(date, calendar, language)} ${year}`;
 }

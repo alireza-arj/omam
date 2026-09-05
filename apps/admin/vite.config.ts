@@ -10,6 +10,7 @@ export default defineConfig({
     alias: {
       "@omam/contracts": `${packages}/contracts/src/index.ts`,
       "@omam/calendar": `${packages}/calendar/src/index.ts`,
+      "@omam/i18n": `${packages}/i18n/src/index.ts`,
     },
   },
   server: {

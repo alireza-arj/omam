@@ -39,6 +39,7 @@ function serializeOrganization(organization: Organization) {
     slug: organization.slug,
     timezone: organization.timezone,
     calendar: organization.calendar,
+    language: organization.language,
     currency: organization.currency,
     defaultHourlyRate: organization.defaultHourlyRate,
     monthlyGoalHours: organization.monthlyGoalHours,

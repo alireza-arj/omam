@@ -109,7 +109,7 @@ async function requireOwnSession(db: SQLiteDatabase, sessionId: string, userId: 
   );
 
   if (!row) {
-    throw new Error("Session not found.");
+    throw new Error("SESSION_NOT_FOUND");
   }
 
   return row;
@@ -124,7 +124,7 @@ export async function clockIn(
 ) {
   const active = await getActiveSession(db, userId);
   if (active) {
-    throw new Error("There is already an active session.");
+    throw new Error("SESSION_ACTIVE");
   }
 
   const id = generateId();
@@ -142,12 +142,12 @@ export async function clockOut(db: SQLiteDatabase, sessionId: string, userId: st
   const session = await requireOwnSession(db, sessionId, userId);
 
   if (session.endAt) {
-    throw new Error("Session is already ended.");
+    throw new Error("SESSION_ALREADY_ENDED");
   }
 
   const endDate = new Date(endAt);
   if (endDate.getTime() < new Date(session.startAt).getTime()) {
-    throw new Error("End time cannot be before start time.");
+    throw new Error("END_BEFORE_START");
   }
 
   await db.runAsync(
@@ -171,7 +171,7 @@ export async function updateSession(
 
   const endDate = endAt ? new Date(endAt) : null;
   if (endDate && endDate.getTime() < new Date(startAt).getTime()) {
-    throw new Error("End time cannot be before start time.");
+    throw new Error("END_BEFORE_START");
   }
 
   await db.runAsync(
@@ -213,14 +213,14 @@ export async function createSession(
   const endDate = endAt ? new Date(endAt) : null;
 
   if (endDate && endDate.getTime() < new Date(startAt).getTime()) {
-    throw new Error("End time cannot be before start time.");
+    throw new Error("END_BEFORE_START");
   }
 
   if (!endAt) {
     const active = await getActiveSession(db, userId);
 
     if (active) {
-      throw new Error("There is already an active session.");
+      throw new Error("SESSION_ACTIVE");
     }
   }
 

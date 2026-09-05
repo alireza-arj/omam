@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 const DATABASE_NAME = "omam.db";
 
 /** Bump when a migration is added below. */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export const DB_SCHEMA = `
   CREATE TABLE IF NOT EXISTS User (
@@ -23,6 +23,7 @@ export const DB_SCHEMA = `
     currency TEXT DEFAULT 'IRR',
     monthlyGoalHours REAL DEFAULT 160,
     calendar TEXT NOT NULL DEFAULT 'JALALI',
+    language TEXT NOT NULL DEFAULT 'en',
     createdAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL
   );
@@ -179,6 +180,12 @@ export async function initializeDatabase(db: SQLiteDatabase) {
   await db.execAsync(
     "CREATE INDEX IF NOT EXISTS WorkSession_dirty ON WorkSession (userId, dirty)",
   );
+
+  // v3 — the interface language. English is the default an existing install
+  // keeps, so nobody's app changes direction under them on an update.
+  if (!(await hasColumn(db, "AppSettings", "language"))) {
+    await db.execAsync("ALTER TABLE AppSettings ADD COLUMN language TEXT NOT NULL DEFAULT 'en'");
+  }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }

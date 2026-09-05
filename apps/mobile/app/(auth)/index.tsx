@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LockKeyhole, UserRound } from "lucide-react-native";
 import { Wordmark } from "../../src/components/wordmark";
 import { useAuth } from "../../src/providers/auth-provider";
+import { translateError } from "@omam/i18n";
 import {
   Button,
   Card,
@@ -13,6 +14,7 @@ import {
   Text,
   layout,
   useColors,
+  useTranslation,
 } from "../../src/design/taraz";
 
 type Mode = "signIn" | "signUp";
@@ -27,6 +29,7 @@ export default function SignInScreen() {
   const { isAuthenticated, isReady, isMutating, signIn, signUp, hasAccounts, needsProfileSetup } =
     useAuth();
   const colors = useColors();
+  const t = useTranslation();
   const [mode, setMode] = useState<Mode | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -64,19 +67,19 @@ export default function SignInScreen() {
     setErrorMessage(null);
 
     if (!isUsernameValid(username)) {
-      setErrorMessage("Username must be 3–32 letters, numbers or underscores.");
+      setErrorMessage(t("auth.usernameRule"));
 
       return;
     }
 
     if (password.length < MIN_PASSWORD_LENGTH) {
-      setErrorMessage(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      setErrorMessage(t("auth.passwordRule", { count: MIN_PASSWORD_LENGTH }));
 
       return;
     }
 
     if (isSignUp && confirmPassword !== password) {
-      setErrorMessage("The two passwords do not match.");
+      setErrorMessage(t("auth.passwordsDiffer"));
 
       return;
     }
@@ -88,9 +91,7 @@ export default function SignInScreen() {
         await signIn(username.trim(), password);
       }
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Something went wrong. Try again.",
-      );
+      setErrorMessage(translateError(error, t));
     }
   }
 
@@ -113,14 +114,14 @@ export default function SignInScreen() {
           <View style={{ gap: layout.gapTight }}>
             <Wordmark size={34} />
             <Text role="title3" tone="muted">
-              {isSignUp ? "Create an account on this device." : "Sign in to continue."}
+              {isSignUp ? t("auth.createTitle") : t("auth.signInTitle")}
             </Text>
           </View>
 
           <View style={{ gap: layout.gapDefault }}>
             <Input
-              label="Username"
-              accessibilityLabel="Username"
+              label={t("auth.username")}
+              accessibilityLabel={t("auth.username")}
               autoCapitalize="none"
               autoComplete="username"
               autoCorrect={false}
@@ -129,13 +130,13 @@ export default function SignInScreen() {
                 setUsername(value);
                 setErrorMessage(null);
               }}
-              placeholder="hassan_dev"
+              placeholder={t("auth.usernamePlaceholder")}
               value={username}
             />
 
             <Input
-              label="Password"
-              accessibilityLabel="Password"
+              label={t("auth.password")}
+              accessibilityLabel={t("auth.password")}
               autoComplete={isSignUp ? "new-password" : "password"}
               leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
               onChangeText={(value) => {
@@ -143,15 +144,15 @@ export default function SignInScreen() {
                 setErrorMessage(null);
               }}
               onSubmitEditing={isSignUp ? undefined : handleSubmit}
-              placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+              placeholder={t("auth.passwordPlaceholder", { count: MIN_PASSWORD_LENGTH })}
               secureTextEntry
               value={password}
             />
 
             {isSignUp ? (
               <Input
-                label="Confirm password"
-                accessibilityLabel="Confirm password"
+                label={t("auth.confirmPassword")}
+                accessibilityLabel={t("auth.confirmPassword")}
                 autoComplete="new-password"
                 leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
                 onChangeText={(value) => {
@@ -159,7 +160,7 @@ export default function SignInScreen() {
                   setErrorMessage(null);
                 }}
                 onSubmitEditing={handleSubmit}
-                placeholder="Repeat it"
+                placeholder={t("auth.repeatPlaceholder")}
                 secureTextEntry
                 value={confirmPassword}
               />
@@ -173,7 +174,7 @@ export default function SignInScreen() {
           ) : null}
 
           <Button
-            label={isSignUp ? "Create account" : "Sign in"}
+            label={isSignUp ? t("auth.createAccount") : t("auth.signIn")}
             full
             size="lg"
             disabled={isInvalid}
@@ -182,7 +183,7 @@ export default function SignInScreen() {
           />
 
           <Button
-            label={isSignUp ? "I already have an account" : "Create a new account"}
+            label={isSignUp ? t("auth.haveAccount") : t("auth.createNew")}
             full
             size="md"
             variant="ghost"
@@ -191,8 +192,7 @@ export default function SignInScreen() {
           />
 
           <Text role="caption" tone="muted">
-            Accounts and their sessions live only on this device. There is no password recovery —
-            keep a note of it somewhere safe.
+            {t("auth.localOnly")}
           </Text>
         </Card>
       </View>

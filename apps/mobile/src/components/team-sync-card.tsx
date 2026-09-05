@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { CloudOff, KeyRound, LockKeyhole, RefreshCw, Server, UserRound } from "lucide-react-native";
 import { formatDayLabel } from "@omam/calendar";
+import { translateError } from "@omam/i18n";
 import { useAttendance } from "../providers/attendance-provider";
 import { useSync } from "../providers/sync-provider";
 import {
@@ -16,20 +17,12 @@ import {
   Text,
   layout,
   useColors,
+  useLanguage,
   useToast,
   type SegmentOption,
 } from "../design/taraz";
 
 type Mode = "signIn" | "join";
-
-const modeOptions: SegmentOption<Mode>[] = [
-  { value: "signIn", label: "I have an account" },
-  { value: "join", label: "I have an invite" },
-];
-
-function errorText(cause: unknown) {
-  return cause instanceof Error ? cause.message : "Could not reach the server.";
-}
 
 /**
  * Links this device to the team server. Everything the app does keeps working
@@ -39,7 +32,15 @@ export function TeamSyncCard() {
   const sync = useSync();
   const { calendar } = useAttendance();
   const { showToast } = useToast();
+  const { language, t } = useLanguage();
   const colors = useColors();
+
+  const modeOptions: SegmentOption<Mode>[] = [
+    { value: "signIn", label: t("team.haveAccount") },
+    { value: "join", label: t("team.haveInvite") },
+  ];
+
+  const errorText = (cause: unknown) => translateError(cause, t, "team.unreachable");
 
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("signIn");
@@ -68,7 +69,7 @@ export function TeamSyncCard() {
       setIsOpen(false);
       setPassword("");
       setInviteCode("");
-      showToast({ title: "Connected to your team.", tone: "success" });
+      showToast({ title: t("team.connected"), tone: "success" });
     } catch (cause) {
       setError(errorText(cause));
     }
@@ -79,8 +80,8 @@ export function TeamSyncCard() {
 
     showToast(
       sync.lastError
-        ? { title: "Sync failed", description: sync.lastError, tone: "error" }
-        : { title: "Up to date.", tone: "success" },
+        ? { title: t("team.syncFailed"), description: sync.lastError, tone: "error" }
+        : { title: t("team.upToDate"), tone: "success" },
     );
   }
 
@@ -88,10 +89,9 @@ export function TeamSyncCard() {
     return (
       <Card style={{ gap: layout.gapDefault }}>
         <View style={{ gap: 1 }}>
-          <Text role="title3">Team</Text>
+          <Text role="title3">{t("team.title")}</Text>
           <Text role="caption" tone="muted">
-            Connect to your team's server so your hours reach your manager. Until you do,
-            everything stays on this device.
+            {t("team.intro")}
           </Text>
         </View>
 
@@ -100,46 +100,46 @@ export function TeamSyncCard() {
             <SegmentedControl options={modeOptions} value={mode} onChange={setMode} full />
 
             <Input
-              label="Server address"
+              label={t("team.serverAddress")}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
               leading={<Icon glyph={Server} size={16} color={colors.textMuted} />}
-              placeholder="https://omam.yourteam.com"
+              placeholder={t("team.serverPlaceholder")}
               value={serverUrl}
               onChangeText={setServerUrl}
             />
 
             <Input
-              label="Username"
+              label={t("auth.username")}
               autoCapitalize="none"
               autoCorrect={false}
               leading={<Icon glyph={UserRound} size={16} color={colors.textMuted} />}
-              placeholder="Your team username"
+              placeholder={t("team.usernamePlaceholder")}
               value={username}
               onChangeText={setUsername}
             />
 
             <Input
-              label="Password"
+              label={t("auth.password")}
               autoCapitalize="none"
               secureTextEntry
               leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
-              placeholder="Password"
+              placeholder={t("auth.password")}
               value={password}
               onChangeText={setPassword}
             />
 
             {mode === "join" ? (
               <Input
-                label="Invite code"
+                label={t("team.inviteCode")}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 leading={<Icon glyph={KeyRound} size={16} color={colors.textMuted} />}
-                placeholder="ABCD-1234"
+                placeholder={t("team.invitePlaceholder")}
                 value={inviteCode}
                 onChangeText={setInviteCode}
-                hint="Your manager sends this from the admin panel."
+                hint={t("team.inviteHint")}
               />
             ) : null}
 
@@ -150,7 +150,7 @@ export function TeamSyncCard() {
             ) : null}
 
             <Button
-              label={mode === "join" ? "Join the team" : "Connect"}
+              label={mode === "join" ? t("team.join") : t("team.connectAction")}
               full
               size="lg"
               variant="primary"
@@ -159,11 +159,17 @@ export function TeamSyncCard() {
               onPress={handleLink}
             />
 
-            <Button label="Cancel" full size="lg" variant="ghost" onPress={() => setIsOpen(false)} />
+            <Button
+              label={t("common.cancel")}
+              full
+              size="lg"
+              variant="ghost"
+              onPress={() => setIsOpen(false)}
+            />
           </View>
         ) : (
           <Button
-            label="Connect to a team"
+            label={t("team.connect")}
             full
             size="lg"
             variant="quiet"
@@ -179,17 +185,17 @@ export function TeamSyncCard() {
       <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapDefault }}>
         <View style={{ flex: 1, gap: 1, minWidth: 0 }}>
           <Text role="title3" numberOfLines={1}>
-            {sync.organizationName ?? "Team"}
+            {sync.organizationName ?? t("team.title")}
           </Text>
           <Text role="caption" tone="muted" numberOfLines={1}>
-            Signed in as {sync.serverUsername}
+            {t("team.signedInAs", { username: sync.serverUsername ?? "" })}
           </Text>
         </View>
 
         {sync.pendingCount > 0 ? (
-          <Badge label={`${sync.pendingCount} to send`} tone="warning" />
+          <Badge label={t("team.toSend", { count: sync.pendingCount })} tone="warning" />
         ) : (
-          <Badge label="Synced" tone="success" />
+          <Badge label={t("team.synced")} tone="success" />
         )}
       </View>
 
@@ -198,14 +204,15 @@ export function TeamSyncCard() {
       <View style={{ gap: 2 }}>
         <Text role="caption" tone="muted">
           {sync.lastSyncAt
-            ? `Last synced ${formatDayLabel(new Date(sync.lastSyncAt), calendar)}`
-            : "Not synced yet"}
+            ? t("team.lastSynced", {
+                when: formatDayLabel(new Date(sync.lastSyncAt), calendar, language),
+              })
+            : t("team.neverSynced")}
         </Text>
 
         {sync.rejectedCount > 0 ? (
           <Text role="caption" tone="accent">
-            {sync.rejectedCount} {sync.rejectedCount === 1 ? "entry was" : "entries were"} refused —
-            that month's payroll is already closed.
+            {t("team.refused", { count: sync.rejectedCount })}
           </Text>
         ) : null}
 
@@ -217,7 +224,7 @@ export function TeamSyncCard() {
       </View>
 
       <Button
-        label="Sync now"
+        label={t("team.syncNow")}
         full
         size="lg"
         variant="quiet"
@@ -227,7 +234,7 @@ export function TeamSyncCard() {
       />
 
       <Button
-        label="Disconnect"
+        label={t("team.disconnect")}
         full
         size="lg"
         variant="outline"
@@ -237,9 +244,9 @@ export function TeamSyncCard() {
 
       <ConfirmDialog
         visible={unlinking}
-        title="Disconnect from the team?"
-        description="Your sessions stay on this device, but they stop reaching your manager. Connecting again sends the whole history back up."
-        confirmLabel="Disconnect"
+        title={t("team.disconnectTitle")}
+        description={t("team.disconnectDescription")}
+        confirmLabel={t("team.disconnect")}
         onConfirm={() => {
           setUnlinking(false);
           void sync.unlink();

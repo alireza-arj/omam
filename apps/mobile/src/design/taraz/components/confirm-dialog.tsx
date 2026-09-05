@@ -1,6 +1,7 @@
 import { Modal, Pressable, View } from "react-native";
 import { Button } from "./button";
 import { Text } from "./text";
+import { useTranslation } from "../i18n";
 import { useTheme } from "../theme";
 import { layout, radius } from "../tokens";
 
@@ -25,14 +26,17 @@ export function ConfirmDialog({
   visible,
   title,
   description,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
+  confirmLabel,
+  cancelLabel,
   destructive = false,
   loading = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
   const { colors, elevation } = useTheme();
+  const t = useTranslation();
+  const confirm = confirmLabel ?? t("common.confirm");
+  const cancel = cancelLabel ?? t("common.cancel");
 
   return (
     <Modal
@@ -43,7 +47,7 @@ export function ConfirmDialog({
       visible={visible}
     >
       <Pressable
-        accessibilityLabel={cancelLabel}
+        accessibilityLabel={cancel}
         accessibilityRole="button"
         onPress={onCancel}
         style={{
@@ -81,7 +85,7 @@ export function ConfirmDialog({
 
           <View style={{ flexDirection: "row", gap: layout.gapDefault }}>
             <Button
-              label={cancelLabel}
+              label={cancel}
               variant="quiet"
               size="lg"
               disabled={loading}
@@ -89,7 +93,7 @@ export function ConfirmDialog({
               style={{ flex: 1 }}
             />
             <Button
-              label={confirmLabel}
+              label={confirm}
               variant={destructive ? "primary" : "secondary"}
               size="lg"
               loading={loading}

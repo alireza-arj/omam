@@ -1,16 +1,17 @@
 import { Redirect, Tabs } from "expo-router";
 import { BarChart3, Timer, UserRound } from "lucide-react-native";
 import { useAuth } from "../../src/providers/auth-provider";
-import { TabBar, useColors, type TabItem } from "../../src/design/taraz";
-
-const items: Record<string, TabItem> = {
-  index: { label: "Today", glyph: Timer },
-  report: { label: "Report", glyph: BarChart3 },
-  profile: { label: "Profile", glyph: UserRound },
-};
+import { TabBar, useColors, useTranslation, type TabItem } from "../../src/design/taraz";
 
 function TabsNavigation() {
   const colors = useColors();
+  const t = useTranslation();
+
+  const items: Record<string, TabItem> = {
+    index: { label: t("tabs.today"), glyph: Timer },
+    report: { label: t("tabs.report"), glyph: BarChart3 },
+    profile: { label: t("tabs.profile"), glyph: UserRound },
+  };
 
   return (
     <Tabs

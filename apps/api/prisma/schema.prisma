@@ -17,6 +17,13 @@ enum CalendarSystem {
   GREGORIAN
 }
 
+/// Lowercase on purpose: these are BCP-47 tags, and they reach an HTML
+/// `lang` attribute unchanged.
+enum AppLanguage {
+  en
+  fa
+}
+
 enum WorkSessionCategory {
   ONSITE
   REMOTE
@@ -72,6 +79,7 @@ model Organization {
   /// with TZ set to this value. See lib/time.ts.
   timezone         String         @default("Asia/Tehran")
   calendar         CalendarSystem @default(JALALI)
+  language         AppLanguage    @default(en)
   currency         Currency       @default(IRR)
   defaultHourlyRate Float         @default(0)
   monthlyGoalHours Float          @default(160)
@@ -139,6 +147,7 @@ model AppSettings {
   currency         Currency       @default(IRR)
   monthlyGoalHours Float          @default(160)
   calendar         CalendarSystem @default(JALALI)
+  language         AppLanguage    @default(en)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 

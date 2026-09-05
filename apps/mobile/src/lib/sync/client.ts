@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import type { Translator } from "@omam/i18n";
 import type { AuthResponseDto, SyncRequestDto, SyncResponseDto } from "@omam/contracts";
 
 /**
@@ -40,6 +41,7 @@ const TIMEOUT_MS = 15_000;
 async function call<T>(
   baseUrl: string,
   path: string,
+  t: Translator,
   options: { method?: string; token?: string | null; body?: unknown } = {},
 ): Promise<T> {
   const controller = new AbortController();
@@ -60,8 +62,8 @@ async function call<T>(
   } catch (cause) {
     throw new SyncError(
       cause instanceof Error && cause.name === "AbortError"
-        ? "The server did not answer in time."
-        : "Could not reach the server. Check the address and your connection.",
+        ? t("team.timedOut")
+        : t("team.unreachable"),
     );
   } finally {
     clearTimeout(timeout);
@@ -73,14 +75,19 @@ async function call<T>(
   if (!response.ok) {
     const detail = payload as { message?: string } | null;
 
-    throw new SyncError(detail?.message ?? "The server rejected the request.", response.status);
+    throw new SyncError(detail?.message ?? t("team.rejected"), response.status);
   }
 
   return payload as T;
 }
 
-export function signInToServer(baseUrl: string, username: string, password: string) {
-  return call<AuthResponseDto>(baseUrl, "/auth/login", {
+export function signInToServer(
+  baseUrl: string,
+  username: string,
+  password: string,
+  t: Translator,
+) {
+  return call<AuthResponseDto>(baseUrl, "/auth/login", t, {
     method: "POST",
     body: { username, password, deviceName: `${Platform.OS} app` },
   });
@@ -89,13 +96,19 @@ export function signInToServer(baseUrl: string, username: string, password: stri
 export function registerOnServer(
   baseUrl: string,
   input: { username: string; password: string; inviteCode: string; nickname?: string },
+  t: Translator,
 ) {
-  return call<AuthResponseDto>(baseUrl, "/auth/register", {
+  return call<AuthResponseDto>(baseUrl, "/auth/register", t, {
     method: "POST",
     body: { ...input, deviceName: `${Platform.OS} app` },
   });
 }
 
-export function pushAndPull(baseUrl: string, token: string, body: SyncRequestDto) {
-  return call<SyncResponseDto>(baseUrl, "/sync", { method: "POST", token, body });
+export function pushAndPull(
+  baseUrl: string,
+  token: string,
+  body: SyncRequestDto,
+  t: Translator,
+) {
+  return call<SyncResponseDto>(baseUrl, "/sync", t, { method: "POST", token, body });
 }

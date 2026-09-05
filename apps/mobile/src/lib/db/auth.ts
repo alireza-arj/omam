@@ -27,7 +27,12 @@ export async function getUserCount(db: SQLiteDatabase) {
   return result?.count ?? 0;
 }
 
-export async function createUser(db: SQLiteDatabase, username: string, passwordHash: string) {
+export async function createUser(
+  db: SQLiteDatabase,
+  username: string,
+  passwordHash: string,
+  language: string,
+) {
   const id = generateId();
   const ts = now();
   const normalized = normalizeUsername(username);
@@ -35,7 +40,7 @@ export async function createUser(db: SQLiteDatabase, username: string, passwordH
   const existing = await getUserByUsername(db, normalized);
 
   if (existing) {
-    throw new Error("That username is already taken on this device.");
+    throw new Error("USERNAME_TAKEN");
   }
 
   await db.runAsync(
@@ -43,7 +48,7 @@ export async function createUser(db: SQLiteDatabase, username: string, passwordH
     [id, normalized, passwordHash, ts, ts],
   );
 
-  await ensureDefaultSettings(db, id);
+  await ensureDefaultSettings(db, id, language);
 
   return (await getUserByUsername(db, normalized))!;
 }
@@ -99,7 +104,7 @@ export async function updateUserProfile(
   return (await getUserById(db, userId))!;
 }
 
-async function ensureDefaultSettings(db: SQLiteDatabase, userId: string) {
+async function ensureDefaultSettings(db: SQLiteDatabase, userId: string, language: string) {
   const existing = await db.getFirstAsync<{ id: string }>("SELECT id FROM AppSettings WHERE userId = ?", [
     userId,
   ]);
@@ -108,7 +113,7 @@ async function ensureDefaultSettings(db: SQLiteDatabase, userId: string) {
   const id = generateId();
   const ts = now();
   await db.runAsync(
-    "INSERT INTO AppSettings (id, userId, hourlyRate, currency, monthlyGoalHours, calendar, createdAt, updatedAt) VALUES (?, ?, 0, 'IRR', 160, 'JALALI', ?, ?)",
-    [id, userId, ts, ts],
+    "INSERT INTO AppSettings (id, userId, hourlyRate, currency, monthlyGoalHours, calendar, language, createdAt, updatedAt) VALUES (?, ?, 0, 'IRR', 160, 'JALALI', ?, ?, ?)",
+    [id, userId, language, ts, ts],
   );
 }

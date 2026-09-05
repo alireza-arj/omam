@@ -6,6 +6,7 @@ import {
   type TextInputProps,
   type StyleProp, type ViewStyle } from "react-native";
 import { Text } from "./text";
+import { useLanguage } from "../i18n";
 import { useTheme } from "../theme";
 import { layout, palette, radius, typeRoles } from "../tokens";
 
@@ -17,6 +18,12 @@ export type InputProps = Omit<TextInputProps, "style"> & {
   leading?: ReactNode;
   trailing?: ReactNode;
   containerStyle?: StyleProp<ViewStyle>;
+  /**
+   * True for a field the reader writes prose into — a name, a note. Those
+   * follow the interface language; a time, a date, a rate or a URL stays
+   * left-to-right whatever the language, because that is how it is typed.
+   */
+  freeText?: boolean;
 };
 
 const HEIGHTS = { sm: layout.controlSm, md: layout.controlMd, lg: layout.controlLg } as const;
@@ -29,10 +36,13 @@ export function Input({
   leading,
   trailing,
   containerStyle,
+  freeText = false,
   ...rest
 }: InputProps) {
   const { colors, elevation } = useTheme();
+  const { isRtl } = useLanguage();
   const [focused, setFocused] = useState(false);
+  const writingDirection = freeText && isRtl ? ("rtl" as const) : ("ltr" as const);
 
   // A multiline field grows instead of clipping to the control height, and its
   // affordances sit at the top rather than centred against three lines of text.
@@ -92,6 +102,8 @@ export function Input({
               minWidth: 0,
               padding: 0,
               ...(multiline ? { textAlignVertical: "top" as const } : null),
+              writingDirection,
+              textAlign: writingDirection === "rtl" ? "right" : "left",
               ...Platform.select({ web: { outlineStyle: "none" } as object }),
             },
           ]}
