@@ -1,10 +1,11 @@
 # Project Guidelines - OMAM
 
 ## Project Overview
-OMAM is a time-tracking / attendance mobile application with a backend API.
-- **Frontend**: React Native + Expo (mobile app)
-- **Backend**: Elysia.js + Prisma + SQLite
-- **Goal**: Simple offline-first attendance and work session tracking with authentication and reporting.
+OMAM is team time tracking: an offline-first mobile app, a manager's web panel, and an API.
+- **Mobile**: React Native + Expo, local SQLite, syncs to the server when linked
+- **Admin panel**: React + Vite in `apps/admin`, for managers and owners only
+- **Backend**: Elysia.js + Prisma + PostgreSQL
+- **Goal**: Everyone tracks their own hours; a manager reviews them and closes each month out as payroll.
 
 ## Core Rules (Must Follow)
 
@@ -21,19 +22,27 @@ OMAM is a time-tracking / attendance mobile application with a backend API.
 
 ### 3. Backend Stack
 - Built with **Elysia.js**.
-- Uses **Prisma** as ORM.
-- Database: **SQLite** (file-based `dev.db`).
+- Uses **Prisma** as ORM with the Postgres driver adapter.
+- Database: **PostgreSQL**, in development and in production alike.
 - All routes, services, and schemas must be in TypeScript.
 - Prisma schema is the single source of truth for data models.
+- Validate every request body with a schema from `@omam/contracts` via `parseInput`; do not hand-roll validation in a route.
+- Deliberate failures are `AppError` (see `lib/errors.ts`); anything else becomes a 500.
 
 ### 4. Database & Prisma
 - Always update `prisma/schema.prisma` when changing data models.
-- Run `npx prisma migrate dev` after schema changes.
+- Run `bun run --cwd apps/api db:migrate` after schema changes and commit the migration.
 - Never use raw SQL directly unless absolutely necessary.
-- SQLite is used for local development; production can switch provider later.
+- Deletes are soft (`deletedAt`), because an offline device cannot see a row that simply vanished.
+
+### 4a. Permissions And Payroll
+- Roles are OWNER > MANAGER > MEMBER, checked with `requireRole`.
+- Payroll counts **approved** time only, at the rate on `Membership` — never the rate a member sets for themselves.
+- A locked payroll month refuses every later edit, from the panel, the app and sync. Do not add a path around it.
 
 ### 5. Design System (Taraz)
-- All UI is built from the **Taraz** design layer in `apps/mobile/src/design/taraz`, a React Native port of the Moview design system.
+- All mobile UI is built from the **Taraz** design layer in `apps/mobile/src/design/taraz`, a React Native port of the Moview design system.
+- The admin panel uses the same tokens ported to CSS variables in `apps/admin/src/styles/taraz.css`. Add a token there rather than inlining a value.
 - Screens must not name a colour, type size, radius, spacing step or duration directly — import components and tokens from `src/design/taraz`.
 - If a value is missing, add it to `tokens.ts`; never inline a hex value or a `fontSize`.
 - Crimson (`accent`) is reserved for actions and active states. Semantics (success/warning/info) are for status only.
@@ -61,12 +70,16 @@ OMAM is a time-tracking / attendance mobile application with a backend API.
 ### 9. Project Workflow Summary
 1. Make changes in TypeScript only.
 2. Update Prisma schema → run migrations when needed.
-3. Test on Expo dev client (`npm run dev` or `expo start`).
-4. Keep backend and frontend in sync with shared contracts (`packages/contracts`).
-5. Prefer local SQLite for development.
+3. Test on Expo dev client (`bun run dev:mobile`) and the panel (`bun run dev:admin`).
+4. Keep all three apps in sync through the shared contracts (`packages/contracts`).
+5. Run `bun run typecheck` and `bun run test:smoke` before shipping.
+
+### 10. Sync
+- The app is offline-first: every screen reads and writes local SQLite, and a linked server is an addition, never a requirement.
+- The local row id is the `clientId` the server keys on, which is what makes a repeated push idempotent.
+- Conflicts go to the newer `updatedAt`, except that a locked payroll month always wins and editing approved time returns it to the review queue.
 
 ## Additional Rules
-- All previous instructions about removing JS files and using SQLite have been applied and must be maintained.
 - Never introduce new JavaScript files in source directories.
 - When adding new features, follow the existing provider + context pattern used in auth and language.
 

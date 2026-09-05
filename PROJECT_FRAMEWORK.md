@@ -2,15 +2,17 @@
 
 ## Goal
 
-OMAM is an offline-first attendance and work-session tracker with a mobile app and a local API.
+OMAM is team time tracking: an offline-first mobile app, an admin panel for managers, and an API that owns the shared record.
 
 ## Required Stack
 
-- Frontend: Expo + React Native in `apps/mobile`
+- Mobile: Expo + React Native in `apps/mobile`
+- Admin panel: React + Vite in `apps/admin`
 - Backend: Elysia.js in `apps/api`
-- ORM: Prisma
-- Database: SQLite with the local development database at `apps/api/dev.db`
+- ORM: Prisma with the Postgres driver adapter
+- Database: PostgreSQL, in development and in production alike
 - Shared contracts: Zod schemas and exported DTO types in `packages/contracts`
+- Calendars: `packages/calendar`, the only place date arithmetic lives
 
 ## TypeScript Rules
 
@@ -27,12 +29,13 @@ OMAM is an offline-first attendance and work-session tracker with a mobile app a
 - Keep auth token handling inside the auth provider and API client.
 - Keep API responses serializable: dates must cross the API as ISO strings.
 
-## SQLite And Prisma
+## PostgreSQL And Prisma
 
 - `apps/api/prisma/schema.prisma` is the single source of truth for data models.
-- SQLite is the development database provider.
+- PostgreSQL is the provider everywhere; migrations are committed and run forward with `prisma migrate deploy`.
 - Update Prisma schema before changing persisted data shapes.
-- After model changes, run Prisma migration/generate commands from `apps/api`.
+- After model changes, run Prisma migration/generate commands from `apps/api` and commit the migration.
+- Run the API with `TZ` set to the team's zone: month boundaries are computed in the host's local time.
 - Do not use raw SQL unless there is a clear reason and Prisma cannot express the operation.
 
 ## Local Network Behavior

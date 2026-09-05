@@ -23,15 +23,20 @@
     "web": "bun run --cwd apps/mobile web",
     "dev:mobile": "bun run --cwd apps/mobile start",
     "dev:api": "bun run --cwd apps/api dev",
-    "build": "bun run build:api && bun run build:mobile",
+    "build": "bun run build:api && bun run build:admin && bun run build:mobile",
     "build:api": "bun run --cwd apps/api build",
     "build:mobile": "bun run --cwd apps/mobile build",
     "build:android": "bun run --cwd apps/mobile build:android",
     "build:android:apk": "bun run --cwd apps/mobile build:android:apk",
     "build:android:aab": "bun run --cwd apps/mobile build:android:aab",
-    "typecheck": "bun run --cwd apps/api typecheck && bun run --cwd apps/mobile typecheck",
+    "typecheck": "bun run --cwd apps/api typecheck && bun run --cwd apps/admin typecheck && bun run --cwd apps/mobile typecheck",
     "db:generate": "bun run --cwd apps/api db:generate",
     "db:push": "bun run --cwd apps/api db:push",
-    "db:migrate": "bun run --cwd apps/api db:migrate"
+    "db:migrate": "bun run --cwd apps/api db:migrate",
+    "dev:admin": "bun run --cwd apps/admin dev",
+    "build:admin": "bun run --cwd apps/admin build",
+    "db:seed": "bun run --cwd apps/api db:seed",
+    "db:deploy": "bun run --cwd apps/api db:deploy",
+    "test:smoke": "bun run --cwd apps/api test:smoke"
   }
 }

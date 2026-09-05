@@ -82,7 +82,14 @@ check("clock out", (await call("POST", `/sessions/${clockIn.json.id}/clock-out`,
 const devUserId = dev.json.user.id;
 const sheet = await call("GET", "/timesheets", { token: ownerToken, query: `?userId=${devUserId}` });
 check("manager sees 3 entries", sheet.json?.entries?.length === 3, sheet.json?.entries?.length);
-check("cross-user isolation", (await call("GET", "/sessions", { token: ownerToken })).json.sessions.length === 0);
+// `/sessions` is the member's own list, so a manager must never see time that
+// belongs to someone else in it.
+const ownerOwnSessions = (await call("GET", "/sessions", { token: ownerToken })).json.sessions;
+check(
+  "cross-user isolation",
+  ownerOwnSessions.every((s: any) => s.userId !== devUserId),
+  ownerOwnSessions.length,
+);
 
 const ids = sheet.json.entries.map((e: any) => e.id);
 const bulk = await call("POST", "/timesheets/bulk-review", { token: ownerToken, body: { sessionIds: ids, action: "APPROVE" } });
