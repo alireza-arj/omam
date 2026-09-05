@@ -793,35 +793,77 @@ table.data td.tight { width: 1%; white-space: nowrap; }
 [dir="rtl"] {
   --font-display: "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
   --font-text: "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Vazirmatn", ui-monospace, monospace;
+  /*
+   * Digits stay in IBM Plex Mono. It has no Persian glyphs, so a word like
+   * «تومان» falls through to Vazirmatn on its own — which keeps the tabular
+   * figures this product is built around instead of trading them for a
+   * proportional face.
+   */
+  --font-mono: "IBM Plex Mono", "Vazirmatn", ui-monospace, monospace;
+
+  /*
+   * Persian carries no capitals and its letterforms are busier, so the small
+   * end of a scale drawn for Latin reads as noise. Each step up by one.
+   */
+  --text-3xs: 11px;
+  --text-2xs: 12px;
+  --text-xs: 13px;
+  --text-sm: 14px;
 }
 
 /**
  * Latin tracking is authored for Latin letterforms. Applied to Arabic script it
- * stretches the joins between letters, so every role that carries tracking
- * drops it here.
+ * stretches the joins between letters, and `uppercase` does nothing at all —
+ * so the small-caps texture the labels rely on has to come from weight and
+ * colour instead.
  */
-[dir="rtl"] body,
+[dir="rtl"] .t-overline,
+[dir="rtl"] table.data th,
+[dir="rtl"] .stat .stat-label,
+[dir="rtl"] .nav-group-label {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+/* Persian ascenders and descenders are taller; the Latin leading crowds them. */
+[dir="rtl"] body {
+  line-height: 1.75;
+}
+
 [dir="rtl"] h1,
 [dir="rtl"] h2,
 [dir="rtl"] h3,
 [dir="rtl"] h4,
-[dir="rtl"] .t-display,
 [dir="rtl"] .t-title1,
 [dir="rtl"] .t-title2,
-[dir="rtl"] .t-title3,
-[dir="rtl"] .t-label,
-[dir="rtl"] .t-overline,
+[dir="rtl"] .t-title3 {
+  line-height: 1.5;
+}
+
+[dir="rtl"] .t-caption {
+  line-height: 1.6;
+}
+
+/**
+ * A monospace space is a full 0.6em, which gapes next to a proportional
+ * Persian unit — `107,100,000     تومان`. The digits keep the mono face; only
+ * the space between them and the word is pulled back to a normal width.
+ */
+[dir="rtl"] .stat .stat-value,
 [dir="rtl"] .t-mono,
 [dir="rtl"] .t-mono-lg,
-[dir="rtl"] .btn,
-[dir="rtl"] .badge,
-[dir="rtl"] table.data th,
-[dir="rtl"] .nav-group-label,
-[dir="rtl"] .stat .stat-label,
-[dir="rtl"] .stat .stat-value,
-[dir="rtl"] .code {
-  letter-spacing: 0;
+[dir="rtl"] table.data .num {
+  word-spacing: -0.35em;
+}
+
+/* The extra leading needs matching room, or rows read tighter than they look. */
+[dir="rtl"] table.data th {
+  padding-block: var(--space-6);
+}
+
+[dir="rtl"] table.data td {
+  padding-block: var(--space-7);
 }
 
 [dir="rtl"] .select {
@@ -829,15 +871,13 @@ table.data td.tight { width: 1%; white-space: nowrap; }
 }
 
 /**
- * A run of digits joined by neutral characters — `09:00 – 17:00` — takes the
- * paragraph's direction and renders reversed. Isolating it keeps the clock
- * reading forwards inside a right-to-left row.
+ * Two number runs joined by a neutral — `09:00 – 17:00` — take the paragraph's
+ * direction, and under RTL the end time renders first. Only that shape needs
+ * pinning: a lone number is unambiguous, and `850,000 تومان` must stay in
+ * reading order with the amount on the right.
  */
-.t-mono,
-.t-mono-lg,
-.numeric,
-.code,
-table.data .num {
+.timecode,
+.code {
   direction: ltr;
   unicode-bidi: isolate;
 }

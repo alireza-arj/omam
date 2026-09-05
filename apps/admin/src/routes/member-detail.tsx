@@ -170,7 +170,7 @@ export function MemberDetailPage() {
                       {report.data.sessions.map((session) => (
                         <tr key={session.id}>
                           <td className="muted">{formatDate(session.startAt, calendar, language)}</td>
-                          <td className="t-mono muted">
+                          <td className="t-mono timecode muted">
                             {formatTime(session.startAt)}
                             {session.endAt
                               ? ` – ${formatTime(session.endAt)}`

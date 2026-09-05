@@ -275,7 +275,8 @@ export const fa: Translations = {
   },
 
   admin: {
-    brand: "اُمام",
+    /** Never translated: it is the product's name, not a word. */
+    brand: "Omam",
     signInTitle: "پنل مدیریت تیم",
     signInSubtitle: "با حساب مدیر یا مالک تیمتان وارد شوید.",
     membersClockIn: "اعضا زمانشان را از اپ موبایل ثبت می‌کنند.",

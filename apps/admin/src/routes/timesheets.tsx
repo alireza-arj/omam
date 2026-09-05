@@ -256,7 +256,7 @@ export function TimesheetsPage() {
                         </div>
                       </td>
                       <td className="muted">{formatDate(entry.startAt, calendar, language)}</td>
-                      <td className="t-mono muted">
+                      <td className="t-mono timecode muted">
                         {formatTime(entry.startAt)}
                         {entry.endAt ? ` – ${formatTime(entry.endAt)}` : ` – ${t("admin.timesheets.running")}`}
                       </td>

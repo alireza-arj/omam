@@ -37,6 +37,22 @@ function check(label: string, ok: boolean, detail?: unknown) {
   else console.log(`  ok    ${label}`);
 }
 
+// A month left locked by an earlier crash would fail every check below.
+const bootstrap = await call("POST", "/auth/login", { body: { username: "owner", password: "changeme123" } });
+
+if (bootstrap.status === 200) {
+  const stale = await call("GET", "/payroll/periods", { token: bootstrap.json.token });
+
+  for (const period of stale.json?.periods ?? []) {
+    if (period.status !== "DRAFT") {
+      await call("PATCH", `/payroll/periods/${period.id}`, {
+        token: bootstrap.json.token,
+        body: { status: "DRAFT" },
+      });
+    }
+  }
+}
+
 const owner = await call("POST", "/auth/login", { body: { username: "owner", password: "changeme123" } });
 check("owner login", owner.status === 200 && !!owner.json.token, owner.json);
 const ownerToken = owner.json.token;
@@ -197,8 +213,26 @@ const lockedPush = await call("POST", "/sync", {
 });
 check("a locked month refuses a pushed row", lockedPush.json?.results?.[0]?.outcome === "rejected", lockedPush.json?.results);
 
-// Hand the month back as a draft so the next run can build payroll again.
-await call("PATCH", `/payroll/periods/${built.json.period.id}`, { token: ownerToken, body: { status: "DRAFT" } });
+/**
+ * Hand the month back as a draft so the next run can build payroll again.
+ *
+ * Looked up rather than remembered, and run even when a check above threw: a
+ * run that dies after locking would otherwise leave the month closed, and
+ * every later run fails at the first thing it tries to record.
+ */
+async function unlockMonth() {
+  const periods = await call("GET", "/payroll/periods", { token: ownerToken });
+  const period = periods.json?.periods?.find((p: any) => p.status !== "DRAFT");
+
+  if (period) {
+    await call("PATCH", `/payroll/periods/${period.id}`, {
+      token: ownerToken,
+      body: { status: "DRAFT" },
+    });
+  }
+}
+
+await unlockMonth();
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

@@ -138,7 +138,9 @@ export function MembersPage() {
                               amount: formatMoney(member.hourlyRate, member.currency, t),
                             })}
                       </td>
-                      <td className="num t-mono muted">{member.monthlyGoalHours}h</td>
+                      <td className="num t-mono muted">
+                        {t("units.hoursShort", { value: member.monthlyGoalHours })}
+                      </td>
                       <td>
                         {member.status === "ACTIVE" ? (
                           <Badge tone="success" dot>
