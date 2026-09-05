@@ -104,8 +104,3 @@ export function useToast() {
 
   return context.show;
 }
-
-/** Turns any thrown value into something worth showing a person. */
-export function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Something went wrong.";
-}

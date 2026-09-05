@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { LANGUAGES, LANGUAGE_LABEL } from "@omam/i18n";
 import type { UpdateOrganizationInputDto } from "@omam/contracts";
 import { api, writeToken } from "../lib/api";
 import { useSession } from "../lib/session";
-import { errorMessage, useToast } from "../lib/ui";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+import { useToast } from "../lib/ui";
 import { PageHeader } from "./layout";
 import { Button, Card, CardHeader, ErrorState, Field, Input, Loading, Select } from "../components/ui";
 
@@ -11,6 +14,7 @@ export function SettingsPage() {
   const { can, refresh } = useSession();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { language, setLanguage, t } = useLanguage();
 
   const [draft, setDraft] = useState<UpdateOrganizationInputDto>({});
   const [currentPassword, setCurrentPassword] = useState("");
@@ -35,11 +39,11 @@ export function SettingsPage() {
   const save = useMutation({
     mutationFn: () => api.updateOrganization(draft),
     onSuccess: async () => {
-      toast("Team settings saved.", "success");
+      toast(t("admin.settings.saved"), "success");
       queryClient.invalidateQueries({ queryKey: ["organization"] });
       await refresh();
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const changePassword = useMutation({
@@ -47,22 +51,22 @@ export function SettingsPage() {
     onSuccess: (result) => {
       // Changing a password revokes every other token, including this one.
       writeToken(result.token);
-      toast("Password changed. Other devices were signed out.", "success");
+      toast(t("admin.settings.changed"), "success");
       setCurrentPassword("");
       setNextPassword("");
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   return (
     <>
-      <PageHeader title="Settings" subtitle="How the team is set up." />
+      <PageHeader title={t("admin.nav.settings")} subtitle={t("admin.settings.subtitle")} />
 
       <div className="page-body">
         {organization.isPending ? <Loading /> : null}
         {organization.isError ? (
           <ErrorState
-            message={errorMessage(organization.error)}
+            message={translateError(organization.error, t)}
             onRetry={() => organization.refetch()}
           />
         ) : null}
@@ -70,19 +74,19 @@ export function SettingsPage() {
         {organization.data ? (
           <Card flush>
             <CardHeader
-              title="Team"
-              subtitle={can("OWNER") ? undefined : "Only an owner can change these."}
+              title={t("admin.settings.team")}
+              subtitle={can("OWNER") ? undefined : t("admin.settings.ownerOnly")}
               actions={
                 can("OWNER") ? (
                   <Button variant="primary" loading={save.isPending} onClick={() => save.mutate()}>
-                    Save changes
+                    {t("admin.settings.saveChanges")}
                   </Button>
                 ) : null
               }
             />
 
             <div className="card-body stack gap-7" style={{ maxWidth: 560 }}>
-              <Field label="Team name">
+              <Field label={t("admin.settings.teamName")}>
                 <Input
                   value={draft.name ?? ""}
                   disabled={!can("OWNER")}
@@ -91,7 +95,7 @@ export function SettingsPage() {
               </Field>
 
               <div className="row gap-6">
-                <Field label="Calendar" hint="Decides where a month starts.">
+                <Field label={t("admin.settings.calendar")} hint={t("admin.settings.calendarHint")}>
                   <Select
                     value={draft.calendar}
                     disabled={!can("OWNER")}
@@ -102,12 +106,12 @@ export function SettingsPage() {
                       })
                     }
                   >
-                    <option value="JALALI">Jalali (Shamsi)</option>
-                    <option value="GREGORIAN">Gregorian</option>
+                    <option value="JALALI">{t("admin.settings.jalali")}</option>
+                    <option value="GREGORIAN">{t("admin.settings.gregorian")}</option>
                   </Select>
                 </Field>
 
-                <Field label="Currency">
+                <Field label={t("admin.settings.currency")}>
                   <Select
                     value={draft.currency}
                     disabled={!can("OWNER")}
@@ -126,8 +130,8 @@ export function SettingsPage() {
               </div>
 
               <Field
-                label="Timezone"
-                hint="Run the API with TZ set to this, so a month ends when the team's day does."
+                label={t("admin.settings.timezone")}
+                hint={t("admin.settings.timezoneHint")}
               >
                 <Input
                   value={draft.timezone ?? ""}
@@ -137,7 +141,7 @@ export function SettingsPage() {
               </Field>
 
               <div className="row gap-6">
-                <Field label="Default hourly rate" hint="Used for a new invite left at zero.">
+                <Field label={t("admin.settings.defaultRate")} hint={t("admin.settings.defaultRateHint")}>
                   <Input
                     type="number"
                     min={0}
@@ -149,7 +153,7 @@ export function SettingsPage() {
                   />
                 </Field>
 
-                <Field label="Monthly goal hours">
+                <Field label={t("admin.settings.monthlyGoalHours")}>
                   <Input
                     type="number"
                     min={0}
@@ -164,8 +168,8 @@ export function SettingsPage() {
               </div>
 
               <Field
-                label="Approval"
-                hint="With approval off, submitted time counts towards pay the moment it is logged."
+                label={t("admin.settings.approval")}
+                hint={t("admin.settings.approvalHint")}
               >
                 <Select
                   value={draft.requireApproval ? "yes" : "no"}
@@ -174,8 +178,8 @@ export function SettingsPage() {
                     setDraft({ ...draft, requireApproval: event.target.value === "yes" })
                   }
                 >
-                  <option value="yes">A manager reviews every entry</option>
-                  <option value="no">Approve automatically</option>
+                  <option value="yes">{t("admin.settings.approvalOn")}</option>
+                  <option value="no">{t("admin.settings.approvalOff")}</option>
                 </Select>
               </Field>
             </div>
@@ -183,9 +187,27 @@ export function SettingsPage() {
         ) : null}
 
         <Card flush>
-          <CardHeader title="Your password" />
+          <CardHeader title={t("language.label")} subtitle={t("language.hint")} />
+          <div className="card-body" style={{ maxWidth: 420 }}>
+            <Field label={t("language.label")}>
+              <Select
+                value={language}
+                onChange={(event) => setLanguage(event.target.value as typeof language)}
+              >
+                {LANGUAGES.map((value) => (
+                  <option key={value} value={value}>
+                    {LANGUAGE_LABEL[value]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        </Card>
+
+        <Card flush>
+          <CardHeader title={t("admin.settings.yourPassword")} />
           <div className="card-body stack gap-7" style={{ maxWidth: 420 }}>
-            <Field label="Current password">
+            <Field label={t("admin.settings.currentPassword")}>
               <Input
                 type="password"
                 value={currentPassword}
@@ -194,7 +216,7 @@ export function SettingsPage() {
               />
             </Field>
 
-            <Field label="New password" hint="At least 6 characters.">
+            <Field label={t("admin.settings.newPassword")} hint={t("admin.settings.newPasswordHint")}>
               <Input
                 type="password"
                 value={nextPassword}
@@ -210,7 +232,7 @@ export function SettingsPage() {
                 disabled={currentPassword.length < 6 || nextPassword.length < 6}
                 onClick={() => changePassword.mutate()}
               >
-                Change password
+                {t("admin.settings.changePassword")}
               </Button>
             </div>
           </div>

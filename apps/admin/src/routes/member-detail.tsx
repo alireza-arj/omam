@@ -3,7 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
-import { errorMessage } from "../lib/ui";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+
 import {
   currentMonth,
   displayName,
@@ -29,6 +31,7 @@ import {
 export function MemberDetailPage() {
   const { userId = "" } = useParams();
   const { calendar } = useSession();
+  const { language, t } = useLanguage();
   const [month, setMonth] = useState(() => currentMonth(calendar));
 
   const report = useQuery({
@@ -42,13 +45,13 @@ export function MemberDetailPage() {
   return (
     <>
       <PageHeader
-        title={member ? displayName(member) : "Member"}
+        title={member ? displayName(member) : t("admin.memberDetail.member")}
         subtitle={member?.jobTitle ?? undefined}
         actions={
           <>
             <MonthPicker month={month} calendar={calendar} onChange={setMonth} />
             <Link className="btn" to="/members">
-              All members
+              {t("admin.memberDetail.allMembers")}
             </Link>
           </>
         }
@@ -57,7 +60,7 @@ export function MemberDetailPage() {
       <div className="page-body">
         {report.isPending ? <Loading /> : null}
         {report.isError ? (
-          <ErrorState message={errorMessage(report.error)} onRetry={() => report.refetch()} />
+          <ErrorState message={translateError(report.error, t)} onRetry={() => report.refetch()} />
         ) : null}
 
         {report.data && member ? (
@@ -71,8 +74,12 @@ export function MemberDetailPage() {
                     @{member.username}
                     {member.employeeCode ? ` · ${member.employeeCode}` : ""} ·{" "}
                     {member.payType === "MONTHLY"
-                      ? `${formatMoney(member.monthlySalary, member.currency)} per month`
-                      : `${formatMoney(member.hourlyRate, member.currency)} per hour`}
+                      ? t("payType.perMonth", {
+                          amount: formatMoney(member.monthlySalary, member.currency, t),
+                        })
+                      : t("payType.perHour", {
+                          amount: formatMoney(member.hourlyRate, member.currency, t),
+                        })}
                   </span>
                 </div>
               </div>
@@ -80,24 +87,28 @@ export function MemberDetailPage() {
               <hr className="divider" style={{ margin: "var(--space-8) 0" }} />
 
               <div className="stat-grid">
-                <Stat label="Approved" value={formatDuration(member.approvedMinutes)} />
+                <Stat label={t("admin.memberDetail.approved")} value={formatDuration(member.approvedMinutes, language)} />
                 <Stat
-                  label="Waiting"
-                  value={formatDuration(member.pendingMinutes)}
-                  hint={member.pendingMinutes ? <Link to="/timesheets">Review</Link> : undefined}
+                  label={t("admin.memberDetail.waiting")}
+                  value={formatDuration(member.pendingMinutes, language)}
+                  hint={
+                    member.pendingMinutes ? (
+                      <Link to="/timesheets">{t("admin.memberDetail.review")}</Link>
+                    ) : undefined
+                  }
                 />
-                <Stat label="Worked days" value={member.workedDays} />
+                <Stat label={t("admin.memberDetail.workedDays")} value={member.workedDays} />
                 <Stat
-                  label="Earned"
-                  value={formatMoney(member.grossAmount, member.currency)}
-                  hint="Approved time only"
+                  label={t("admin.memberDetail.earned")}
+                  value={formatMoney(member.grossAmount, member.currency, t)}
+                  hint={t("admin.memberDetail.approvedOnly")}
                 />
               </div>
 
               {goalMinutes > 0 ? (
                 <div className="stack gap-4" style={{ marginTop: "var(--space-8)" }}>
                   <div className="row between t-caption muted">
-                    <span>Towards {member.monthlyGoalHours}h goal</span>
+                    <span>{t("admin.memberDetail.towardsGoal", { goal: member.monthlyGoalHours })}</span>
                     <span className="t-mono">
                       {Math.round((member.approvedMinutes / goalMinutes) * 100)}%
                     </span>
@@ -109,14 +120,14 @@ export function MemberDetailPage() {
 
             <div className="row gap-7 wrap align-start">
               <Card flush className="grow">
-                <CardHeader title="Approved time per day" />
+                <CardHeader title={t("admin.memberDetail.perDay")} />
                 <div className="card-body">
                   <DayBars days={report.data.days} />
                 </div>
               </Card>
 
               <Card flush style={{ minWidth: 280 }}>
-                <CardHeader title="By project" />
+                <CardHeader title={t("admin.memberDetail.byProject")} />
                 <div className="card-body stack gap-6">
                   {report.data.projects.length ? (
                     report.data.projects.map((project) => (
@@ -124,48 +135,49 @@ export function MemberDetailPage() {
                         <div className="row between">
                           <span className="row gap-4 t-body-sm">
                             <span className="dot" style={{ color: project.color }} aria-hidden />
-                            {project.name}
+                            {/* The API names an untagged bucket in English; the panel says it. */}
+                            {project.projectId ? project.name : t("admin.memberDetail.untagged")}
                           </span>
-                          <span className="t-mono muted">{formatDuration(project.minutes)}</span>
+                          <span className="t-mono muted">{formatDuration(project.minutes, language)}</span>
                         </div>
                         <Progress value={project.minutes / Math.max(1, member.approvedMinutes)} />
                       </div>
                     ))
                   ) : (
-                    <span className="t-body-sm muted">No approved time this month.</span>
+                    <span className="t-body-sm muted">{t("admin.memberDetail.noApproved")}</span>
                   )}
                 </div>
               </Card>
             </div>
 
             <Card flush>
-              <CardHeader title={`${report.data.sessions.length} entries`} />
+              <CardHeader title={t("admin.memberDetail.entries", { count: report.data.sessions.length })} />
               {report.data.sessions.length ? (
                 <div className="table-scroll">
                   <table className="data">
                     <thead>
                       <tr>
-                        <th>Day</th>
-                        <th>Hours</th>
-                        <th className="num">Duration</th>
-                        <th>Where</th>
-                        <th>Project</th>
-                        <th>Note</th>
-                        <th>Status</th>
+                        <th>{t("admin.timesheets.day")}</th>
+                        <th>{t("admin.timesheets.hours")}</th>
+                        <th className="num">{t("admin.timesheets.duration")}</th>
+                        <th>{t("admin.timesheets.where")}</th>
+                        <th>{t("admin.timesheets.project")}</th>
+                        <th>{t("admin.timesheets.note")}</th>
+                        <th>{t("admin.timesheets.status")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {report.data.sessions.map((session) => (
                         <tr key={session.id}>
-                          <td className="muted">{formatDate(session.startAt, calendar)}</td>
+                          <td className="muted">{formatDate(session.startAt, calendar, language)}</td>
                           <td className="t-mono muted">
                             {formatTime(session.startAt)}
-                            {session.endAt ? ` – ${formatTime(session.endAt)}` : " – running"}
+                            {session.endAt
+                              ? ` – ${formatTime(session.endAt)}`
+                              : ` – ${t("admin.timesheets.running")}`}
                           </td>
-                          <td className="num t-mono">{formatDuration(session.durationMinutes)}</td>
-                          <td className="muted">
-                            {session.category === "REMOTE" ? "Remote" : "Onsite"}
-                          </td>
+                          <td className="num t-mono">{formatDuration(session.durationMinutes, language)}</td>
+                          <td className="muted">{t(`category.${session.category}`)}</td>
                           <td>{session.project?.name ?? <span className="faint">—</span>}</td>
                           <td className="muted" style={{ maxWidth: 260 }}>
                             {session.note ?? <span className="faint">—</span>}
@@ -179,7 +191,7 @@ export function MemberDetailPage() {
                   </table>
                 </div>
               ) : (
-                <EmptyState title="No time this month" />
+                <EmptyState title={t("admin.memberDetail.noTime")} />
               )}
             </Card>
           </>

@@ -11,6 +11,7 @@ import type { AuthMembershipDto, AuthUserDto, OrgRole } from "@omam/contracts";
 import { roleAtLeast } from "@omam/contracts";
 import { DEFAULT_CALENDAR, asCalendarSystem, type CalendarSystem } from "@omam/calendar";
 import { api, readToken, writeToken } from "./api";
+import { useLanguage } from "./i18n";
 
 type SessionValue = {
   user: AuthUserDto | null;
@@ -28,6 +29,7 @@ type SessionValue = {
 const SessionContext = createContext<SessionValue | null>(null);
 
 export function SessionProvider({ children }: PropsWithChildren) {
+  const { adoptLanguage } = useLanguage();
   const [user, setUser] = useState<AuthUserDto | null>(null);
   const [membership, setMembership] = useState<AuthMembershipDto | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -45,12 +47,20 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
       setUser(result.user);
       setMembership(result.membership);
+
+      // The account's own language, unless this browser has already been told
+      // otherwise.
+      const settings = await api.settings().catch(() => null);
+
+      if (settings) {
+        adoptLanguage(settings.language);
+      }
     } catch {
       writeToken(null);
       setUser(null);
       setMembership(null);
     }
-  }, []);
+  }, [adoptLanguage]);
 
   useEffect(() => {
     refresh().finally(() => setIsReady(true));
@@ -64,16 +74,17 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
       // The panel is for running the team, not for logging your own hours.
       if (!result.membership || !roleAtLeast(result.membership.role, "MANAGER")) {
-        throw new Error("This panel is for managers and owners.");
+        throw new Error("MANAGERS_ONLY");
       }
 
       writeToken(result.token);
       setUser(result.user);
       setMembership(result.membership);
+      adoptLanguage(result.membership.language);
     } finally {
       setIsSigningIn(false);
     }
-  }, []);
+  }, [adoptLanguage]);
 
   const signOut = useCallback(async () => {
     try {

@@ -37,6 +37,7 @@
     "build:admin": "bun run --cwd apps/admin build",
     "db:seed": "bun run --cwd apps/api db:seed",
     "db:deploy": "bun run --cwd apps/api db:deploy",
-    "test:smoke": "bun run --cwd apps/api test:smoke"
+    "test:smoke": "bun run --cwd apps/api test:smoke",
+    "test": "bun test packages/calendar packages/i18n"
   }
 }

@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PayrollLineDto } from "@omam/contracts";
 import { api, downloadCsv } from "../lib/api";
 import { useSession } from "../lib/session";
-import { errorMessage, useToast } from "../lib/ui";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+import { useToast } from "../lib/ui";
 import { currentMonth, displayName, formatDuration, formatMoney, monthLabel } from "../lib/format";
 import { PageHeader } from "./layout";
 import { MonthPicker } from "../components/controls";
@@ -28,6 +30,7 @@ export function PayrollPage() {
   const { calendar, can } = useSession();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { language, t } = useLanguage();
 
   const [month, setMonth] = useState(() => currentMonth(calendar));
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -59,10 +62,10 @@ export function PayrollPage() {
     mutationFn: () => api.buildPayroll(month, calendar),
     onSuccess: (result) => {
       setSelectedId(result.period.id);
-      toast(`Payroll for ${monthLabel(month, calendar)} is ready to review.`, "success");
+      toast(t("admin.payroll.ready", { month: monthLabel(month, calendar, language) }), "success");
       refresh();
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const setStatus = useMutation({
@@ -70,27 +73,29 @@ export function PayrollPage() {
       api.updatePayrollPeriod(selectedId!, { status }),
     onSuccess: (_result, status) => {
       toast(
-        status === "LOCKED"
-          ? "Locked. The month's time can no longer be edited."
-          : status === "PAID"
-            ? "Marked as paid."
-            : "Reopened as a draft.",
+        t(
+          status === "LOCKED"
+            ? "admin.payroll.locked"
+            : status === "PAID"
+              ? "admin.payroll.markedPaid"
+              : "admin.payroll.reopened",
+        ),
         "success",
       );
       refresh();
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const adjust = useMutation({
     mutationFn: (input: { id: string; adjustment: number; note: string | null }) =>
       api.updatePayrollLine(input.id, { adjustment: input.adjustment, adjustmentNote: input.note }),
     onSuccess: () => {
-      toast("Adjustment saved.", "success");
+      toast(t("admin.payroll.adjustmentSaved"), "success");
       setAdjusting(null);
       refresh();
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const period = detail.data?.period ?? null;
@@ -99,8 +104,8 @@ export function PayrollPage() {
   return (
     <>
       <PageHeader
-        title="Payroll"
-        subtitle="Turn approved hours into what each person is owed."
+        title={t("admin.nav.payroll")}
+        subtitle={t("admin.payroll.subtitle")}
         actions={
           <>
             <MonthPicker month={month} calendar={calendar} onChange={setMonth} />
@@ -111,7 +116,7 @@ export function PayrollPage() {
               disabled={Boolean(periodForMonth) && periodForMonth?.status !== "DRAFT"}
               onClick={() => build.mutate()}
             >
-              {periodForMonth ? "Rebuild draft" : "Build payroll"}
+              {periodForMonth ? t("admin.payroll.rebuild") : t("admin.payroll.build")}
             </Button>
           </>
         }
@@ -119,17 +124,17 @@ export function PayrollPage() {
 
       <div className="page-body">
         {periods.isError ? (
-          <ErrorState message={errorMessage(periods.error)} onRetry={() => periods.refetch()} />
+          <ErrorState message={translateError(periods.error, t)} onRetry={() => periods.refetch()} />
         ) : null}
 
         {!periodForMonth && !periods.isPending ? (
           <Card>
             <EmptyState
-              title={`No payroll run for ${monthLabel(month, calendar)}`}
-              hint="Building a draft totals every approved entry in the month. You can rebuild it as often as you like until you lock it."
+              title={t("admin.payroll.noRun", { month: monthLabel(month, calendar, language) })}
+              hint={t("admin.payroll.noRunHint")}
               action={
                 <Button variant="primary" loading={build.isPending} onClick={() => build.mutate()}>
-                  Build payroll
+                  {t("admin.payroll.build")}
                 </Button>
               }
             />
@@ -144,15 +149,15 @@ export function PayrollPage() {
               <div className="row between wrap gap-7">
                 <div className="stack gap-3">
                   <div className="row gap-5">
-                    <h2>{monthLabel(period.month, period.calendar)}</h2>
+                    <h2>{monthLabel(period.month, period.calendar, language)}</h2>
                     <Badge tone={STATUS_TONE[period.status]} dot>
-                      {period.status.charAt(0) + period.status.slice(1).toLowerCase()}
+                      {t(`admin.payroll.${period.status}`)}
                     </Badge>
                   </div>
                   <span className="t-caption muted">
                     {period.lockedAt && period.lockedByName
-                      ? `Locked by ${period.lockedByName}.`
-                      : "Draft — rebuild it whenever new time is approved."}
+                      ? t("admin.payroll.lockedBy", { name: period.lockedByName })
+                      : t("admin.payroll.draftHint")}
                   </span>
                 </div>
 
@@ -163,10 +168,10 @@ export function PayrollPage() {
                         `/payroll/periods/${period.id}/export.csv`,
                         {},
                         `omam-payroll-${period.month}.csv`,
-                      ).catch((error) => toast(errorMessage(error), "error"))
+                      ).catch((error) => toast(translateError(error, t), "error"))
                     }
                   >
-                    Export CSV
+                    {t("admin.payroll.exportCsv")}
                   </Button>
 
                   {can("OWNER") && isDraft ? (
@@ -175,25 +180,23 @@ export function PayrollPage() {
                       loading={setStatus.isPending}
                       onClick={() => {
                         if (
-                          confirm(
-                            "Lock this month? Nobody will be able to add or change time in it afterwards.",
-                          )
+                          confirm(t("admin.payroll.confirmLock"))
                         ) {
                           setStatus.mutate("LOCKED");
                         }
                       }}
                     >
-                      Lock month
+                      {t("admin.payroll.lockMonth")}
                     </Button>
                   ) : null}
 
                   {can("OWNER") && period.status === "LOCKED" ? (
                     <>
                       <Button variant="outline" onClick={() => setStatus.mutate("DRAFT")}>
-                        Reopen
+                        {t("admin.payroll.reopen")}
                       </Button>
                       <Button variant="primary" onClick={() => setStatus.mutate("PAID")}>
-                        Mark as paid
+                        {t("admin.payroll.markPaid")}
                       </Button>
                     </>
                   ) : null}
@@ -203,20 +206,20 @@ export function PayrollPage() {
               <hr className="divider" style={{ margin: "var(--space-8) 0" }} />
 
               <div className="stat-grid">
-                <Stat label="Gross" value={formatMoney(period.totalGross, period.currency)} />
+                <Stat label={t("admin.payroll.gross")} value={formatMoney(period.totalGross, period.currency, t)} />
                 <Stat
-                  label="Net to pay"
-                  value={formatMoney(period.totalNet, period.currency)}
-                  hint="After adjustments"
+                  label={t("admin.payroll.netToPay")}
+                  value={formatMoney(period.totalNet, period.currency, t)}
+                  hint={t("admin.payroll.afterAdjustments")}
                 />
-                <Stat label="People" value={detail.data.lines.length} />
+                <Stat label={t("admin.payroll.people")} value={detail.data.lines.length} />
               </div>
             </Card>
 
             <Card flush>
               <CardHeader
-                title="Payslips"
-                subtitle={isDraft ? "Adjust a line for a bonus, an advance or a deduction." : undefined}
+                title={t("admin.payroll.payslips")}
+                subtitle={isDraft ? t("admin.payroll.payslipsHint") : undefined}
               />
 
               {detail.data.lines.length ? (
@@ -224,14 +227,14 @@ export function PayrollPage() {
                   <table className="data">
                     <thead>
                       <tr>
-                        <th>Member</th>
-                        <th>Code</th>
-                        <th className="num">Approved</th>
-                        <th className="num">Days</th>
-                        <th className="num">Rate</th>
-                        <th className="num">Gross</th>
-                        <th className="num">Adjustment</th>
-                        <th className="num">Net</th>
+                        <th>{t("admin.timesheets.member")}</th>
+                        <th>{t("admin.members.code")}</th>
+                        <th className="num">{t("admin.payroll.approved")}</th>
+                        <th className="num">{t("admin.payroll.days")}</th>
+                        <th className="num">{t("admin.payroll.rate")}</th>
+                        <th className="num">{t("admin.payroll.gross")}</th>
+                        <th className="num">{t("admin.payroll.adjustment")}</th>
+                        <th className="num">{t("admin.payroll.net")}</th>
                         {isDraft ? <th className="tight" /> : null}
                       </tr>
                     </thead>
@@ -240,14 +243,14 @@ export function PayrollPage() {
                         <tr key={line.id}>
                           <td>{displayName(line)}</td>
                           <td className="t-mono muted">{line.employeeCode ?? "—"}</td>
-                          <td className="num t-mono">{formatDuration(line.approvedMinutes)}</td>
+                          <td className="num t-mono">{formatDuration(line.approvedMinutes, language)}</td>
                           <td className="num t-mono muted">{line.workedDays}</td>
                           <td className="num t-mono muted">
                             {line.payType === "MONTHLY"
-                              ? "Monthly"
-                              : formatMoney(line.hourlyRate, line.currency)}
+                              ? t("admin.payroll.monthly")
+                              : formatMoney(line.hourlyRate, line.currency, t)}
                           </td>
-                          <td className="num t-mono">{formatMoney(line.grossAmount, line.currency)}</td>
+                          <td className="num t-mono">{formatMoney(line.grossAmount, line.currency, t)}</td>
                           <td className="num t-mono">
                             {line.adjustment ? (
                               <span
@@ -255,13 +258,13 @@ export function PayrollPage() {
                                 className={line.adjustment > 0 ? "accent" : "muted"}
                               >
                                 {line.adjustment > 0 ? "+" : ""}
-                                {formatMoney(line.adjustment, line.currency)}
+                                {formatMoney(line.adjustment, line.currency, t)}
                               </span>
                             ) : (
                               <span className="faint">—</span>
                             )}
                           </td>
-                          <td className="num t-mono">{formatMoney(line.netAmount, line.currency)}</td>
+                          <td className="num t-mono">{formatMoney(line.netAmount, line.currency, t)}</td>
                           {isDraft ? (
                             <td className="tight">
                               <Button
@@ -272,7 +275,7 @@ export function PayrollPage() {
                                   setAdjustmentNote(line.adjustmentNote ?? "");
                                 }}
                               >
-                                Adjust
+                                {t("admin.payroll.adjust")}
                               </Button>
                             </td>
                           ) : null}
@@ -283,8 +286,8 @@ export function PayrollPage() {
                 </div>
               ) : (
                 <EmptyState
-                  title="No approved time in this month"
-                  hint="Approve the team's timesheets, then rebuild the draft."
+                  title={t("admin.payroll.noApproved")}
+                  hint={t("admin.payroll.noApprovedHint")}
                 />
               )}
             </Card>
@@ -294,12 +297,12 @@ export function PayrollPage() {
 
       {adjusting ? (
         <Modal
-          title={`Adjust ${displayName(adjusting)}'s pay`}
+          title={t("admin.payroll.adjustTitle", { name: displayName(adjusting) })}
           onClose={() => setAdjusting(null)}
           footer={
             <>
               <Button variant="ghost" onClick={() => setAdjusting(null)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -312,17 +315,19 @@ export function PayrollPage() {
                   })
                 }
               >
-                Save adjustment
+                {t("admin.payroll.saveAdjustment")}
               </Button>
             </>
           }
         >
           <p className="t-body-sm muted">
-            Gross is {formatMoney(adjusting.grossAmount, adjusting.currency)} from{" "}
-            {formatDuration(adjusting.approvedMinutes)} of approved time. A negative number deducts.
+            {t("admin.payroll.adjustIntro", {
+              gross: formatMoney(adjusting.grossAmount, adjusting.currency, t),
+              duration: formatDuration(adjusting.approvedMinutes, language),
+            })}
           </p>
 
-          <Field label={`Adjustment (${adjusting.currency})`}>
+          <Field label={t("admin.payroll.adjustAmount", { currency: adjusting.currency })}>
             <Input
               type="number"
               value={adjustment}
@@ -330,19 +335,19 @@ export function PayrollPage() {
             />
           </Field>
 
-          <Field label="Why">
+          <Field label={t("admin.payroll.adjustWhy")}>
             <Textarea
               value={adjustmentNote}
               onChange={(event) => setAdjustmentNote(event.target.value)}
-              placeholder="Eid bonus"
+              placeholder={t("admin.payroll.adjustPlaceholder")}
               maxLength={240}
             />
           </Field>
 
           <div className="row between t-label">
-            <span className="muted">New net</span>
+            <span className="muted">{t("admin.payroll.newNet")}</span>
             <span className="t-mono">
-              {formatMoney(adjusting.grossAmount + adjustment, adjusting.currency)}
+              {formatMoney(adjusting.grossAmount + adjustment, adjusting.currency, t)}
             </span>
           </div>
         </Modal>

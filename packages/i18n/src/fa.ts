@@ -29,6 +29,10 @@ export const fa: Translations = {
   },
 
   errors: {
+    SESSION_EXPIRED: "نشست شما منقضی شده است. دوباره وارد شوید.",
+    MANAGERS_ONLY: "این پنل فقط برای مدیران و مالکان است.",
+    REQUEST_FAILED: "درخواست انجام نشد.",
+    EXPORT_FAILED: "خروجی گرفته نشد.",
     INVALID_CREDENTIALS: "نام کاربری یا رمز عبور نادرست است.",
     USERNAME_TAKEN: "این نام کاربری روی این دستگاه گرفته شده است.",
     NOT_AUTHENTICATED: "وارد حساب نشده‌اید.",

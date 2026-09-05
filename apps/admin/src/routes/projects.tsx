@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { errorMessage, useToast } from "../lib/ui";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+import { useToast } from "../lib/ui";
 import { PageHeader } from "./layout";
 import {
   Badge,
@@ -21,6 +23,7 @@ const DEFAULT_COLOR = "#B4213C";
 export function ProjectsPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
 
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -38,44 +41,44 @@ export function ProjectsPage() {
   const create = useMutation({
     mutationFn: () => api.createProject({ name: name.trim(), color }),
     onSuccess: () => {
-      toast("Project created.", "success");
+      toast(t("admin.projects.created"), "success");
       setCreating(false);
       setName("");
       setColor(DEFAULT_COLOR);
       refresh();
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const archive = useMutation({
     mutationFn: (input: { id: string; archived: boolean }) =>
       api.updateProject(input.id, { archived: input.archived }),
     onSuccess: () => {
-      toast("Project updated.", "success");
+      toast(t("admin.projects.updated"), "success");
       refresh();
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   return (
     <>
       <PageHeader
-        title="Projects"
-        subtitle="What the team tags their time against."
+        title={t("admin.nav.projects")}
+        subtitle={t("admin.projects.subtitle")}
         actions={
           <Button variant="primary" onClick={() => setCreating(true)}>
-            New project
+            {t("admin.projects.newProject")}
           </Button>
         }
       />
 
       <div className="page-body">
         <Card flush>
-          <CardHeader title={`${projects.data?.projects.length ?? 0} projects`} />
+          <CardHeader title={t("admin.projects.count", { count: projects.data?.projects.length ?? 0 })} />
 
           {projects.isPending ? <Loading /> : null}
           {projects.isError ? (
-            <ErrorState message={errorMessage(projects.error)} onRetry={() => projects.refetch()} />
+            <ErrorState message={translateError(projects.error, t)} onRetry={() => projects.refetch()} />
           ) : null}
 
           {projects.data?.projects.length ? (
@@ -83,8 +86,8 @@ export function ProjectsPage() {
               <table className="data">
                 <thead>
                   <tr>
-                    <th>Project</th>
-                    <th>Status</th>
+                    <th>{t("admin.projects.project")}</th>
+                    <th>{t("admin.projects.status")}</th>
                     <th className="tight" />
                   </tr>
                 </thead>
@@ -99,10 +102,10 @@ export function ProjectsPage() {
                       </td>
                       <td>
                         {project.archived ? (
-                          <Badge>Archived</Badge>
+                          <Badge>{t("admin.projects.archived")}</Badge>
                         ) : (
                           <Badge tone="success" dot>
-                            Active
+                            {t("admin.projects.active")}
                           </Badge>
                         )}
                       </td>
@@ -113,7 +116,7 @@ export function ProjectsPage() {
                             archive.mutate({ id: project.id, archived: !project.archived })
                           }
                         >
-                          {project.archived ? "Restore" : "Archive"}
+                          {project.archived ? t("admin.projects.restore") : t("admin.projects.archive")}
                         </Button>
                       </td>
                     </tr>
@@ -123,8 +126,8 @@ export function ProjectsPage() {
             </div>
           ) : projects.data ? (
             <EmptyState
-              title="No projects yet"
-              hint="Members can still track time without one — projects just make the report sharper."
+              title={t("admin.projects.empty")}
+              hint={t("admin.projects.emptyHint")}
             />
           ) : null}
         </Card>
@@ -132,12 +135,12 @@ export function ProjectsPage() {
 
       {creating ? (
         <Modal
-          title="New project"
+          title={t("admin.projects.newProject")}
           onClose={() => setCreating(false)}
           footer={
             <>
               <Button variant="ghost" onClick={() => setCreating(false)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -145,28 +148,28 @@ export function ProjectsPage() {
                 disabled={!name.trim()}
                 onClick={() => create.mutate()}
               >
-                Create project
+                {t("admin.projects.create")}
               </Button>
             </>
           }
         >
-          <Field label="Name">
+          <Field label={t("admin.projects.name")}>
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Omam API"
+              placeholder={t("admin.projects.namePlaceholder")}
               autoFocus
             />
           </Field>
 
-          <Field label="Colour">
+          <Field label={t("admin.projects.colour")}>
             <div className="row gap-5">
               <input
                 type="color"
                 value={color}
                 onChange={(event) => setColor(event.target.value.toUpperCase())}
                 style={{ width: 44, height: 34, border: "none", background: "none" }}
-                aria-label="Project colour"
+                aria-label={t("admin.projects.colourLabel")}
               />
               <span className="code">{color}</span>
             </div>

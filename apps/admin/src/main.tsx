@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { SessionProvider } from "./lib/session";
+import { LanguageProvider } from "./lib/i18n";
 import { ThemeProvider, ToastProvider } from "./lib/ui";
 import { ApiError } from "./lib/api";
 import "./styles/taraz.css";
@@ -21,16 +22,18 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <SessionProvider>
-          <ToastProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
-          </ToastProvider>
-        </SessionProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <LanguageProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <SessionProvider>
+            <ToastProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </ToastProvider>
+          </SessionProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </LanguageProvider>
   </StrictMode>,
 );

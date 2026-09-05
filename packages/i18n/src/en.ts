@@ -20,6 +20,10 @@ export const en = {
   },
 
   errors: {
+    SESSION_EXPIRED: "Your session has expired. Sign in again.",
+    MANAGERS_ONLY: "This panel is for managers and owners.",
+    REQUEST_FAILED: "The request failed.",
+    EXPORT_FAILED: "The export failed.",
     INVALID_CREDENTIALS: "Invalid username or password.",
     USERNAME_TAKEN: "That username is already taken on this device.",
     NOT_AUTHENTICATED: "You are not signed in.",

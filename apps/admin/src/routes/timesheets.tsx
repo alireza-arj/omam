@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TimesheetEntryDto, WorkSessionStatus } from "@omam/contracts";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
-import { errorMessage, useToast } from "../lib/ui";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+import { useToast } from "../lib/ui";
 import {
   currentMonth,
   displayName,
@@ -36,6 +38,7 @@ export function TimesheetsPage() {
   const { calendar } = useSession();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { language, t } = useLanguage();
 
   const [month, setMonth] = useState(() => currentMonth(calendar));
   const [status, setStatus] = useState<WorkSessionStatus | "ALL">("PENDING");
@@ -69,23 +72,26 @@ export function TimesheetsPage() {
       api.bulkReview({ sessionIds: input.ids, action: input.action, reviewNote: input.note ?? null }),
     onSuccess: (result, input) => {
       toast(
-        `${result.updated} ${result.updated === 1 ? "entry" : "entries"} ${
-          input.action === "APPROVE" ? "approved" : "rejected"
-        }.`,
+        t(
+          input.action === "APPROVE"
+            ? "admin.timesheets.approvedCount"
+            : "admin.timesheets.rejectedCount",
+          { count: result.updated },
+        ),
         "success",
       );
       invalidate();
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => api.deleteTimesheet(id),
     onSuccess: () => {
-      toast("Entry deleted.", "success");
+      toast(t("admin.timesheets.deleted"), "success");
       invalidate();
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const entries = timesheets.data?.entries ?? [];
@@ -112,30 +118,30 @@ export function TimesheetsPage() {
   return (
     <>
       <PageHeader
-        title="Timesheets"
-        subtitle="Review the time your team submitted before it turns into payroll."
+        title={t("admin.nav.timesheets")}
+        subtitle={t("admin.timesheets.subtitle")}
         actions={<MonthPicker month={month} calendar={calendar} onChange={setMonth} />}
       />
 
       <div className="page-body">
         <Card>
           <div className="row gap-6 wrap">
-            <Field label="Status">
+            <Field label={t("admin.timesheets.status")}>
               <Select
                 value={status}
                 onChange={(event) => setStatus(event.target.value as WorkSessionStatus | "ALL")}
               >
                 {STATUSES.map((value) => (
                   <option key={value} value={value}>
-                    {value === "ALL" ? "All" : value.charAt(0) + value.slice(1).toLowerCase()}
+                    {value === "ALL" ? t("admin.timesheets.all") : t(`status.${value}`)}
                   </option>
                 ))}
               </Select>
             </Field>
 
-            <Field label="Member">
+            <Field label={t("admin.timesheets.member")}>
               <Select value={userId} onChange={(event) => setUserId(event.target.value)}>
-                <option value="">Everyone</option>
+                <option value="">{t("admin.timesheets.everyone")}</option>
                 {(members.data?.members ?? []).map((member) => (
                   <option key={member.userId} value={member.userId}>
                     {displayName(member)}
@@ -147,10 +153,14 @@ export function TimesheetsPage() {
             {timesheets.data ? (
               <div className="row gap-5" style={{ marginLeft: "auto" }}>
                 <Badge tone="success">
-                  Approved {formatDuration(timesheets.data.totals.approvedMinutes)}
+                  {t("admin.timesheets.approvedTotal", {
+                    value: formatDuration(timesheets.data.totals.approvedMinutes, language),
+                  })}
                 </Badge>
                 <Badge tone="warning">
-                  Pending {formatDuration(timesheets.data.totals.pendingMinutes)}
+                  {t("admin.timesheets.pendingTotal", {
+                    value: formatDuration(timesheets.data.totals.pendingMinutes, language),
+                  })}
                 </Badge>
               </div>
             ) : null}
@@ -159,8 +169,10 @@ export function TimesheetsPage() {
 
         <Card flush>
           <CardHeader
-            title={`${entries.length} ${entries.length === 1 ? "entry" : "entries"}`}
-            subtitle={selected.size ? `${selected.size} selected` : undefined}
+            title={t("admin.timesheets.entries", { count: entries.length })}
+            subtitle={
+              selected.size ? t("admin.timesheets.selected", { count: selected.size }) : undefined
+            }
             actions={
               selected.size ? (
                 <>
@@ -170,14 +182,14 @@ export function TimesheetsPage() {
                     loading={review.isPending}
                     onClick={() => review.mutate({ ids: [...selected], action: "APPROVE" })}
                   >
-                    Approve selected
+                    {t("admin.timesheets.approveSelected")}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => review.mutate({ ids: [...selected], action: "REJECT" })}
                   >
-                    Reject selected
+                    {t("admin.timesheets.rejectSelected")}
                   </Button>
                 </>
               ) : null
@@ -187,15 +199,15 @@ export function TimesheetsPage() {
           {timesheets.isPending ? <Loading /> : null}
           {timesheets.isError ? (
             <ErrorState
-              message={errorMessage(timesheets.error)}
+              message={translateError(timesheets.error, t)}
               onRetry={() => timesheets.refetch()}
             />
           ) : null}
 
           {timesheets.data && !entries.length ? (
             <EmptyState
-              title="Nothing here"
-              hint="No time matches this month and filter."
+              title={t("admin.timesheets.nothingHere")}
+              hint={t("admin.timesheets.nothingHint")}
             />
           ) : null}
 
@@ -207,21 +219,21 @@ export function TimesheetsPage() {
                     <th className="tight">
                       <input
                         type="checkbox"
-                        aria-label="Select every entry"
+                        aria-label={t("admin.timesheets.selectAll")}
                         checked={allSelected}
                         onChange={() =>
                           setSelected(allSelected ? new Set() : new Set(selectableIds))
                         }
                       />
                     </th>
-                    <th>Member</th>
-                    <th>Day</th>
-                    <th>Hours</th>
-                    <th className="num">Duration</th>
-                    <th>Where</th>
-                    <th>Project</th>
-                    <th>Note</th>
-                    <th>Status</th>
+                    <th>{t("admin.timesheets.member")}</th>
+                    <th>{t("admin.timesheets.day")}</th>
+                    <th>{t("admin.timesheets.hours")}</th>
+                    <th className="num">{t("admin.timesheets.duration")}</th>
+                    <th>{t("admin.timesheets.where")}</th>
+                    <th>{t("admin.timesheets.project")}</th>
+                    <th>{t("admin.timesheets.note")}</th>
+                    <th>{t("admin.timesheets.status")}</th>
                     <th className="tight" />
                   </tr>
                 </thead>
@@ -231,7 +243,7 @@ export function TimesheetsPage() {
                       <td className="tight">
                         <input
                           type="checkbox"
-                          aria-label={`Select ${displayName(entry)}`}
+                          aria-label={t("admin.timesheets.select", { name: displayName(entry) })}
                           disabled={!entry.endAt}
                           checked={selected.has(entry.id)}
                           onChange={() => toggle(entry.id)}
@@ -243,13 +255,13 @@ export function TimesheetsPage() {
                           <Link to={`/members/${entry.userId}`}>{displayName(entry)}</Link>
                         </div>
                       </td>
-                      <td className="muted">{formatDate(entry.startAt, calendar)}</td>
+                      <td className="muted">{formatDate(entry.startAt, calendar, language)}</td>
                       <td className="t-mono muted">
                         {formatTime(entry.startAt)}
-                        {entry.endAt ? ` – ${formatTime(entry.endAt)}` : " – running"}
+                        {entry.endAt ? ` – ${formatTime(entry.endAt)}` : ` – ${t("admin.timesheets.running")}`}
                       </td>
-                      <td className="num t-mono">{formatDuration(entry.durationMinutes)}</td>
-                      <td className="muted">{entry.category === "REMOTE" ? "Remote" : "Onsite"}</td>
+                      <td className="num t-mono">{formatDuration(entry.durationMinutes, language)}</td>
+                      <td className="muted">{t(`category.${entry.category}`)}</td>
                       <td>
                         {entry.project ? (
                           <span className="row gap-3">
@@ -280,7 +292,7 @@ export function TimesheetsPage() {
                                 review.mutate({ ids: [entry.id], action: "APPROVE" })
                               }
                             >
-                              Approve
+                              {t("admin.timesheets.approve")}
                             </Button>
                           ) : null}
                           {entry.endAt && entry.status !== "REJECTED" ? (
@@ -292,19 +304,19 @@ export function TimesheetsPage() {
                                 setRejectNote("");
                               }}
                             >
-                              Reject
+                              {t("admin.timesheets.reject")}
                             </Button>
                           ) : null}
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => {
-                              if (confirm("Delete this entry? It will not count towards payroll.")) {
+                              if (confirm(t("admin.timesheets.confirmDelete"))) {
                                 remove.mutate(entry.id);
                               }
                             }}
                           >
-                            Delete
+                            {t("common.delete")}
                           </Button>
                         </div>
                       </td>
@@ -319,12 +331,12 @@ export function TimesheetsPage() {
 
       {rejecting ? (
         <Modal
-          title={`Reject ${displayName(rejecting)}'s entry`}
+          title={t("admin.timesheets.rejectTitle", { name: displayName(rejecting) })}
           onClose={() => setRejecting(null)}
           footer={
             <>
               <Button variant="ghost" onClick={() => setRejecting(null)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -334,20 +346,19 @@ export function TimesheetsPage() {
                   setRejecting(null);
                 }}
               >
-                Reject entry
+                {t("admin.timesheets.rejectEntry")}
               </Button>
             </>
           }
         >
           <p className="t-body-sm muted">
-            Rejected time is kept on the record but never counts towards pay. Say why, so the member
-            can fix it.
+            {t("admin.timesheets.rejectIntro")}
           </p>
-          <Field label="Reason">
+          <Field label={t("admin.timesheets.reason")}>
             <Textarea
               value={rejectNote}
               onChange={(event) => setRejectNote(event.target.value)}
-              placeholder="Overlaps an entry already submitted."
+              placeholder={t("admin.timesheets.reasonPlaceholder")}
               maxLength={240}
             />
           </Field>

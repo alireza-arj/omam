@@ -18,6 +18,8 @@ import type {
   ProjectDto,
   ProjectsResponseDto,
   SessionUserResponseDto,
+  SettingsDto,
+  UpdateSettingsInputDto,
   TimesheetResponseDto,
   UpdateMemberInputDto,
   UpdateOrganizationInputDto,
@@ -93,7 +95,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   if (response.status === 401) {
     writeToken(null);
-    throw new ApiError(401, "Your session has expired. Sign in again.", SESSION_EXPIRED);
+    throw new ApiError(401, SESSION_EXPIRED, SESSION_EXPIRED);
   }
 
   if (response.status === 204) {
@@ -106,11 +108,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   if (!response.ok) {
     const detail = payload as { message?: string; code?: string } | null;
 
-    throw new ApiError(
-      response.status,
-      detail?.message ?? "The request failed.",
-      detail?.code,
-    );
+    throw new ApiError(response.status, detail?.message ?? "REQUEST_FAILED", detail?.code);
   }
 
   return payload as T;
@@ -124,7 +122,7 @@ export async function downloadCsv(path: string, query: RequestOptions["query"], 
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, "The export failed.");
+    throw new ApiError(response.status, "EXPORT_FAILED");
   }
 
   const blob = await response.blob();
@@ -154,6 +152,10 @@ export const api = {
       method: "POST",
       body: { currentPassword, nextPassword },
     }),
+
+  settings: () => request<SettingsDto>("/settings"),
+  updateSettings: (body: UpdateSettingsInputDto) =>
+    request<SettingsDto>("/settings", { method: "PATCH", body }),
 
   organization: () => request<OrganizationDto>("/team/organization"),
   updateOrganization: (body: UpdateOrganizationInputDto) =>

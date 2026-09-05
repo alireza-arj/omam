@@ -13,6 +13,7 @@ OMAM is team time tracking: an offline-first mobile app, an admin panel for mana
 - Database: PostgreSQL, in development and in production alike
 - Shared contracts: Zod schemas and exported DTO types in `packages/contracts`
 - Calendars: `packages/calendar`, the only place date arithmetic lives
+- Languages: `packages/i18n`, the only place user-facing copy lives
 
 ## TypeScript Rules
 

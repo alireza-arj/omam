@@ -8,6 +8,7 @@ whoever runs the team reviews them and closes the month out as payroll.
 - `apps/api` — Elysia API on PostgreSQL through Prisma
 - `packages/contracts` — Zod schemas and DTO types shared by all three
 - `packages/calendar` — Jalali and Gregorian arithmetic, no dependencies
+- `packages/i18n` — the English and Persian dictionaries
 
 ## How it fits together
 
@@ -25,6 +26,11 @@ paid cannot move afterwards.
 Dates are read in the organization's calendar, Jalali by default. Instants are
 always stored as absolute ISO-8601, so switching calendars changes how a date
 reads and never rewrites data.
+
+Both the app and the panel ship in English and Persian, and Persian lays the
+whole interface out right to left. The language is a per-account setting that
+each person changes for themselves, seeded from the team's own. Digits stay
+Latin in both, so a column of durations still lines up.
 
 ## Run it locally
 
@@ -75,7 +81,8 @@ them alone.
   in, invite, track, review, report, payroll, lock, and an offline device
   syncing through all of it. It makes its own fixtures each run, so it is safe
   to repeat against a development database.
-- `bun test packages/calendar` — the calendar arithmetic
+- `bun run test` — the calendar arithmetic and the dictionaries (every language
+  covers every key, no blank phrases, matching placeholders)
 
 ## Mobile API host
 

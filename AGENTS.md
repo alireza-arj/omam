@@ -48,9 +48,18 @@ OMAM is team time tracking: an offline-first mobile app, a manager's web panel, 
 - Crimson (`accent`) is reserved for actions and active states. Semantics (success/warning/info) are for status only.
 - Copy is sentence case, buttons are verbs, no emoji. See `src/design/taraz/README.md`.
 
+### 5a. Language And Direction
+- The app and the panel ship in **English and Persian**. Every user-facing string comes from `@omam/i18n`; no literal copy in a screen.
+- `en` is the source of truth: its shape types every other dictionary, so a missing key is a build error.
+- Persian is right-to-left. React Native mirrors from the `direction` style on the root; react-native-web and the panel mirror from `dir` on the document. Use logical CSS (`text-align: start`, `padding-inline`, `margin-inline-start`), never `left`/`right`.
+- Numeric type roles stay left-to-right: an RTL base direction reorders the runs in `09:00 – 17:00` and shows the end time first.
+- Digits stay Latin in both languages so tabular columns keep lining up. Durations read `7h 30m` in English and `7:30` in Persian.
+- Vazirmatn is the Persian face; none of the Latin families have Persian glyphs. Latin tracking is dropped under RTL — it stretches Arabic joins.
+- Data layers throw a stable code (`SESSION_ACTIVE`), never a sentence. The screen that catches one calls `translateError`.
+
 ### 6. Dates & Calendars
 - The app reads dates in the **Jalali (Shamsi)** calendar by default; Gregorian is a per-user setting on `AppSettings.calendar`.
-- All conversion, keys, ranges and month/weekday names live in `packages/calendar` (`@omam/calendar`) — dependency-free arithmetic, shared by the API and the app. Do not add a date library and do not use `Intl.DateTimeFormat` for a date; `Intl` is fine for a clock time or a number.
+- All conversion, keys, ranges and month/weekday names live in `packages/calendar` (`@omam/calendar`), in both languages — dependency-free arithmetic, shared by the API and the app. Do not add a date library and do not use `Intl.DateTimeFormat` for a date; `Intl` is fine for a clock time or a number.
 - Instants are always stored as absolute ISO-8601 strings. A calendar only decides how an instant is *read*, so switching calendars never rewrites data.
 - Any function that produces a day key, a month key, a range or a date label takes a `CalendarSystem`. Screens get it from `useAttendance().calendar`.
 - Month and week boundaries are calendar-dependent; day boundaries are not (both break at local midnight).

@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateInviteInputDto } from "@omam/contracts";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
-import { errorMessage, useToast } from "../lib/ui";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+import { useToast } from "../lib/ui";
 import { formatDate, formatMoney } from "../lib/format";
 import { PageHeader } from "./layout";
 import {
@@ -34,6 +36,7 @@ export function InvitesPage() {
   const { calendar, can, membership } = useSession();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { language, t } = useLanguage();
 
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<CreateInviteInputDto>(EMPTY);
@@ -43,60 +46,60 @@ export function InvitesPage() {
   const create = useMutation({
     mutationFn: () => api.createInvite(draft),
     onSuccess: (invite) => {
-      toast(`Invite ${invite.code} created.`, "success");
+      toast(t("admin.invites.created", { code: invite.code }), "success");
       setCreating(false);
       setDraft(EMPTY);
       queryClient.invalidateQueries({ queryKey: ["invites"] });
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const revoke = useMutation({
     mutationFn: (id: string) => api.revokeInvite(id),
     onSuccess: () => {
-      toast("Invite revoked.", "success");
+      toast(t("admin.invites.revokedToast"), "success");
       queryClient.invalidateQueries({ queryKey: ["invites"] });
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   async function copy(code: string) {
     try {
       await navigator.clipboard.writeText(code);
-      toast("Code copied.", "success");
+      toast(t("admin.invites.copied"), "success");
     } catch {
-      toast("Copy the code manually.", "error");
+      toast(t("admin.invites.copyManually"), "error");
     }
   }
 
   function state(invite: { acceptedAt: string | null; revokedAt: string | null; expiresAt: string }) {
-    if (invite.acceptedAt) return { tone: "success" as const, label: "Used" };
-    if (invite.revokedAt) return { tone: "neutral" as const, label: "Revoked" };
+    if (invite.acceptedAt) return { tone: "success" as const, key: "admin.invites.used" as const };
+    if (invite.revokedAt) return { tone: "neutral" as const, key: "admin.invites.revoked" as const };
     if (new Date(invite.expiresAt).getTime() < Date.now())
-      return { tone: "neutral" as const, label: "Expired" };
+      return { tone: "neutral" as const, key: "admin.invites.expired" as const };
 
-    return { tone: "info" as const, label: "Open" };
+    return { tone: "info" as const, key: "admin.invites.open" as const };
   }
 
   return (
     <>
       <PageHeader
-        title="Invites"
-        subtitle="Send someone a code, they sign up in the app and land on your team."
+        title={t("admin.nav.invites")}
+        subtitle={t("admin.invites.subtitle")}
         actions={
           <Button variant="primary" onClick={() => setCreating(true)}>
-            New invite
+            {t("admin.invites.newInvite")}
           </Button>
         }
       />
 
       <div className="page-body">
         <Card flush>
-          <CardHeader title={`${invites.data?.invites.length ?? 0} invites`} />
+          <CardHeader title={t("admin.invites.count", { count: invites.data?.invites.length ?? 0 })} />
 
           {invites.isPending ? <Loading /> : null}
           {invites.isError ? (
-            <ErrorState message={errorMessage(invites.error)} onRetry={() => invites.refetch()} />
+            <ErrorState message={translateError(invites.error, t)} onRetry={() => invites.refetch()} />
           ) : null}
 
           {invites.data?.invites.length ? (
@@ -104,19 +107,19 @@ export function InvitesPage() {
               <table className="data">
                 <thead>
                   <tr>
-                    <th>Code</th>
-                    <th>For</th>
-                    <th>Role</th>
-                    <th>Pay</th>
-                    <th>Expires</th>
-                    <th>Status</th>
+                    <th>{t("admin.invites.code")}</th>
+                    <th>{t("admin.invites.for")}</th>
+                    <th>{t("admin.invites.role")}</th>
+                    <th>{t("admin.invites.pay")}</th>
+                    <th>{t("admin.invites.expires")}</th>
+                    <th>{t("admin.invites.status")}</th>
                     <th className="tight" />
                   </tr>
                 </thead>
                 <tbody>
                   {invites.data.invites.map((invite) => {
                     const status = state(invite);
-                    const open = status.label === "Open";
+                    const open = status.key === "admin.invites.open";
 
                     return (
                       <tr key={invite.id}>
@@ -131,13 +134,17 @@ export function InvitesPage() {
                         </td>
                         <td className="t-mono muted">
                           {invite.payType === "MONTHLY"
-                            ? `${formatMoney(invite.monthlySalary, membership?.currency ?? "IRR")} / month`
-                            : `${formatMoney(invite.hourlyRate, membership?.currency ?? "IRR")} / hour`}
+                            ? t("payType.perMonth", {
+                                amount: formatMoney(invite.monthlySalary, membership?.currency ?? "IRR", t),
+                              })
+                            : t("payType.perHour", {
+                                amount: formatMoney(invite.hourlyRate, membership?.currency ?? "IRR", t),
+                              })}
                         </td>
-                        <td className="muted">{formatDate(invite.expiresAt, calendar)}</td>
+                        <td className="muted">{formatDate(invite.expiresAt, calendar, language)}</td>
                         <td>
                           <Badge tone={status.tone} dot={open}>
-                            {status.label}
+                            {t(status.key)}
                           </Badge>
                         </td>
                         <td className="tight">
@@ -145,14 +152,14 @@ export function InvitesPage() {
                             {open ? (
                               <>
                                 <Button size="sm" onClick={() => copy(invite.code)}>
-                                  Copy
+                                  {t("common.copy")}
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => revoke.mutate(invite.id)}
                                 >
-                                  Revoke
+                                  {t("admin.invites.revoke")}
                                 </Button>
                               </>
                             ) : null}
@@ -166,11 +173,11 @@ export function InvitesPage() {
             </div>
           ) : invites.data ? (
             <EmptyState
-              title="No invites yet"
-              hint="An invite is the only way onto the team, so nobody can sign themselves up."
+              title={t("admin.invites.empty")}
+              hint={t("admin.invites.emptyHint")}
               action={
                 <Button variant="primary" onClick={() => setCreating(true)}>
-                  New invite
+                  {t("admin.invites.newInvite")}
                 </Button>
               }
             />
@@ -180,30 +187,30 @@ export function InvitesPage() {
 
       {creating ? (
         <Modal
-          title="New invite"
+          title={t("admin.invites.newInvite")}
           onClose={() => setCreating(false)}
           footer={
             <>
               <Button variant="ghost" onClick={() => setCreating(false)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button variant="primary" loading={create.isPending} onClick={() => create.mutate()}>
-                Create invite
+                {t("admin.invites.create")}
               </Button>
             </>
           }
         >
-          <Field label="Who is this for" hint="Just a note for you — they never see it.">
+          <Field label={t("admin.invites.whoFor")} hint={t("admin.invites.whoForHint")}>
             <Input
               value={draft.label ?? ""}
               onChange={(event) => setDraft({ ...draft, label: event.target.value || null })}
-              placeholder="Sara, backend"
+              placeholder={t("admin.invites.whoForPlaceholder")}
               autoFocus
             />
           </Field>
 
           <div className="row gap-6">
-            <Field label="Role">
+            <Field label={t("admin.invites.role")}>
               <Select
                 value={draft.role}
                 disabled={!can("OWNER")}
@@ -211,13 +218,13 @@ export function InvitesPage() {
                   setDraft({ ...draft, role: event.target.value as CreateInviteInputDto["role"] })
                 }
               >
-                <option value="MEMBER">Member</option>
-                <option value="MANAGER">Manager</option>
-                <option value="OWNER">Owner</option>
+                <option value="MEMBER">{t("role.MEMBER")}</option>
+                <option value="MANAGER">{t("role.MANAGER")}</option>
+                <option value="OWNER">{t("role.OWNER")}</option>
               </Select>
             </Field>
 
-            <Field label="Pay type">
+            <Field label={t("admin.invites.payType")}>
               <Select
                 value={draft.payType}
                 onChange={(event) =>
@@ -227,14 +234,14 @@ export function InvitesPage() {
                   })
                 }
               >
-                <option value="HOURLY">Hourly</option>
-                <option value="MONTHLY">Fixed monthly</option>
+                <option value="HOURLY">{t("payType.HOURLY")}</option>
+                <option value="MONTHLY">{t("payType.MONTHLY")}</option>
               </Select>
             </Field>
           </div>
 
           {draft.payType === "MONTHLY" ? (
-            <Field label={`Monthly salary (${membership?.currency ?? "IRR"})`}>
+            <Field label={t("admin.invites.monthlySalary", { currency: membership?.currency ?? "IRR" })}>
               <Input
                 type="number"
                 min={0}
@@ -246,8 +253,8 @@ export function InvitesPage() {
             </Field>
           ) : (
             <Field
-              label={`Hourly rate (${membership?.currency ?? "IRR"})`}
-              hint="Leave at zero to use the team default."
+              label={t("admin.invites.hourlyRate", { currency: membership?.currency ?? "IRR" })}
+              hint={t("admin.invites.hourlyRateHint")}
             >
               <Input
                 type="number"
@@ -258,7 +265,7 @@ export function InvitesPage() {
             </Field>
           )}
 
-          <Field label="Expires in (days)">
+          <Field label={t("admin.invites.expiresIn")}>
             <Input
               type="number"
               min={1}

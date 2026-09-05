@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, downloadCsv } from "../lib/api";
 import { useSession } from "../lib/session";
-import { errorMessage, useToast } from "../lib/ui";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+import { useToast } from "../lib/ui";
 import {
   currentMonth,
   displayName,
@@ -30,6 +32,7 @@ import {
 export function ReportPage() {
   const { calendar } = useSession();
   const toast = useToast();
+  const { language, t } = useLanguage();
   const [month, setMonth] = useState(() => currentMonth(calendar));
 
   const report = useQuery({
@@ -40,22 +43,22 @@ export function ReportPage() {
   async function exportCsv() {
     try {
       await downloadCsv("/reports/monthly.csv", { month, calendar }, `omam-${month}.csv`);
-      toast("Export downloaded.", "success");
+      toast(t("admin.report.exported"), "success");
     } catch (error) {
-      toast(errorMessage(error), "error");
+      toast(translateError(error, t), "error");
     }
   }
 
   return (
     <>
       <PageHeader
-        title="Monthly report"
-        subtitle={`Everyone's hours for ${monthLabel(month, calendar)}.`}
+        title={t("admin.nav.report")}
+        subtitle={t("admin.report.subtitle", { month: monthLabel(month, calendar, language) })}
         actions={
           <>
             <MonthPicker month={month} calendar={calendar} onChange={setMonth} />
             <Button variant="primary" onClick={exportCsv}>
-              Export CSV
+              {t("admin.report.exportCsv")}
             </Button>
           </>
         }
@@ -64,7 +67,7 @@ export function ReportPage() {
       <div className="page-body">
         {report.isPending ? <Loading /> : null}
         {report.isError ? (
-          <ErrorState message={errorMessage(report.error)} onRetry={() => report.refetch()} />
+          <ErrorState message={translateError(report.error, t)} onRetry={() => report.refetch()} />
         ) : null}
 
         {report.data ? (
@@ -72,41 +75,43 @@ export function ReportPage() {
             <Card>
               <div className="stat-grid">
                 <Stat
-                  label="Approved"
-                  value={formatDuration(report.data.totals.approvedMinutes)}
-                  hint={`${formatHours(report.data.totals.approvedMinutes)} hours`}
+                  label={t("admin.report.approved")}
+                  value={formatDuration(report.data.totals.approvedMinutes, language)}
+                  hint={t("admin.report.approvedHours", {
+                    value: formatHours(report.data.totals.approvedMinutes),
+                  })}
                 />
                 <Stat
-                  label="Still waiting"
-                  value={formatDuration(report.data.totals.pendingMinutes)}
+                  label={t("admin.report.stillWaiting")}
+                  value={formatDuration(report.data.totals.pendingMinutes, language)}
                   hint={
                     report.data.totals.pendingMinutes > 0 ? (
-                      <Link to="/timesheets">Review before payroll</Link>
+                      <Link to="/timesheets">{t("admin.report.reviewBeforePayroll")}</Link>
                     ) : (
-                      "Everything is reviewed"
+                      t("admin.report.allReviewed")
                     )
                   }
                 />
                 <Stat
-                  label="Payroll total"
-                  value={formatMoney(report.data.totals.grossAmount, report.data.currency)}
+                  label={t("admin.report.payrollTotal")}
+                  value={formatMoney(report.data.totals.grossAmount, report.data.currency, t)}
                   hint={
                     report.data.totals.byCurrency.length > 1
                       ? report.data.totals.byCurrency
                           .filter((entry) => entry.currency !== report.data.currency)
-                          .map((entry) => `+ ${formatMoney(entry.grossAmount, entry.currency)}`)
+                          .map((entry) => `+ ${formatMoney(entry.grossAmount, entry.currency, t)}`)
                           .join(" · ")
                       : undefined
                   }
                 />
-                <Stat label="Members" value={report.data.totals.activeMemberCount} />
+                <Stat label={t("admin.report.members")} value={report.data.totals.activeMemberCount} />
               </div>
             </Card>
 
             <Card flush>
               <CardHeader
-                title="Per member"
-                subtitle="Approved time only. Pending hours never turn into pay."
+                title={t("admin.report.perMember")}
+                subtitle={t("admin.report.perMemberHint")}
               />
 
               {report.data.rows.length ? (
@@ -114,14 +119,14 @@ export function ReportPage() {
                   <table className="data">
                     <thead>
                       <tr>
-                        <th>Member</th>
-                        <th className="num">Approved</th>
-                        <th className="num">Pending</th>
-                        <th className="num">Days</th>
-                        <th style={{ minWidth: 140 }}>Towards goal</th>
-                        <th className="num">Onsite</th>
-                        <th className="num">Remote</th>
-                        <th className="num">Gross</th>
+                        <th>{t("admin.timesheets.member")}</th>
+                        <th className="num">{t("admin.report.approved")}</th>
+                        <th className="num">{t("admin.report.pending")}</th>
+                        <th className="num">{t("admin.report.days")}</th>
+                        <th style={{ minWidth: 140 }}>{t("admin.report.towardsGoal")}</th>
+                        <th className="num">{t("admin.report.onsite")}</th>
+                        <th className="num">{t("admin.report.remote")}</th>
+                        <th className="num">{t("admin.report.gross")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -137,16 +142,18 @@ export function ReportPage() {
                                   <Link to={`/members/${row.userId}`}>{displayName(row)}</Link>
                                   <span className="t-caption faint">
                                     {row.payType === "MONTHLY"
-                                      ? "Fixed monthly"
-                                      : `${formatMoney(row.hourlyRate, row.currency)} / hour`}
+                                      ? t("payType.MONTHLY")
+                                      : t("payType.perHour", {
+                                          amount: formatMoney(row.hourlyRate, row.currency, t),
+                                        })}
                                   </span>
                                 </div>
                               </div>
                             </td>
-                            <td className="num t-mono">{formatDuration(row.approvedMinutes)}</td>
+                            <td className="num t-mono">{formatDuration(row.approvedMinutes, language)}</td>
                             <td className="num t-mono">
                               {row.pendingMinutes ? (
-                                <Badge tone="warning">{formatDuration(row.pendingMinutes)}</Badge>
+                                <Badge tone="warning">{formatDuration(row.pendingMinutes, language)}</Badge>
                               ) : (
                                 <span className="faint">—</span>
                               )}
@@ -157,16 +164,19 @@ export function ReportPage() {
                                 <div className="stack gap-3">
                                   <Progress value={row.approvedMinutes / goalMinutes} />
                                   <span className="t-caption faint">
-                                    {formatHours(row.approvedMinutes)} of {row.monthlyGoalHours}h
+                                    {t("admin.report.ofGoal", {
+                                      value: formatHours(row.approvedMinutes),
+                                      goal: row.monthlyGoalHours,
+                                    })}
                                   </span>
                                 </div>
                               ) : (
-                                <span className="faint">No goal</span>
+                                <span className="faint">{t("admin.report.noGoal")}</span>
                               )}
                             </td>
                             <td className="num t-mono muted">{formatHours(row.onsiteMinutes)}</td>
                             <td className="num t-mono muted">{formatHours(row.remoteMinutes)}</td>
-                            <td className="num t-mono">{formatMoney(row.grossAmount, row.currency)}</td>
+                            <td className="num t-mono">{formatMoney(row.grossAmount, row.currency, t)}</td>
                           </tr>
                         );
                       })}
@@ -174,7 +184,10 @@ export function ReportPage() {
                   </table>
                 </div>
               ) : (
-                <EmptyState title="No members yet" hint="Invite your team to start tracking." />
+                <EmptyState
+                  title={t("admin.report.noMembers")}
+                  hint={t("admin.report.noMembersHint")}
+                />
               )}
             </Card>
           </>

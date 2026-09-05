@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { useLanguage } from "./lib/i18n";
 import { useSession } from "./lib/session";
 import { Loading } from "./components/ui";
 import { Shell } from "./routes/layout";
@@ -16,11 +17,12 @@ import { AuditPage } from "./routes/audit";
 
 export function App() {
   const { user, isReady } = useSession();
+  const { t } = useLanguage();
 
   if (!isReady) {
     return (
       <div className="auth-screen">
-        <Loading label="Starting Omam Admin" />
+        <Loading label={t("admin.starting")} />
       </div>
     );
   }

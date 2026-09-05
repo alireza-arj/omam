@@ -9,6 +9,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { initials } from "../lib/format";
+import { useT } from "../lib/i18n";
 
 /* ── button ──────────────────────────────────────────────────────────────── */
 
@@ -91,17 +92,21 @@ const STATUS_TONE = {
 } as const;
 
 export function StatusBadge({ status }: { status: keyof typeof STATUS_TONE }) {
+  const t = useT();
+
   return (
     <Badge tone={STATUS_TONE[status]} dot>
-      {status.charAt(0) + status.slice(1).toLowerCase()}
+      {t(`status.${status}`)}
     </Badge>
   );
 }
 
 export function RoleBadge({ role }: { role: "OWNER" | "MANAGER" | "MEMBER" }) {
+  const t = useT();
+
   return (
     <Badge tone={role === "OWNER" ? "accent" : role === "MANAGER" ? "info" : "neutral"}>
-      {role.charAt(0) + role.slice(1).toLowerCase()}
+      {t(`role.${role}`)}
     </Badge>
   );
 }
@@ -240,21 +245,25 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: stri
   );
 }
 
-export function Loading({ label = "Loading" }: { label?: string }) {
+export function Loading({ label }: { label?: string }) {
+  const t = useT();
+
   return (
     <div className="empty">
       <span className="spinner" />
-      <span className="t-body-sm muted">{label}</span>
+      <span className="t-body-sm muted">{label ?? t("common.loading")}</span>
     </div>
   );
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const t = useT();
+
   return (
     <div className="empty">
-      <span className="t-title3">That did not load</span>
+      <span className="t-title3">{t("common.notLoaded")}</span>
       <span className="t-body-sm muted">{message}</span>
-      {onRetry ? <Button onClick={onRetry}>Try again</Button> : null}
+      {onRetry ? <Button onClick={onRetry}>{t("common.retry")}</Button> : null}
     </div>
   );
 }

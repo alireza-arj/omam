@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from "react";
 import { useSession } from "../lib/session";
-import { errorMessage, useTheme } from "../lib/ui";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+import { useTheme } from "../lib/ui";
 import { Button, Card, Field, Input } from "../components/ui";
 
 export function LoginPage() {
   const { signIn, isSigningIn } = useSession();
   const { theme, toggle } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +20,7 @@ export function LoginPage() {
     try {
       await signIn(username, password);
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(translateError(cause, t));
     }
   }
 
@@ -25,15 +28,15 @@ export function LoginPage() {
     <div className="auth-screen">
       <Card className="auth-card">
         <div className="stack gap-3">
-          <span className="t-overline accent">Omam</span>
-          <h1>Team admin</h1>
+          <span className="t-overline accent">{t("admin.brand")}</span>
+          <h1>{t("admin.signInTitle")}</h1>
           <p className="t-body-sm muted">
-            Sign in with the manager or owner account for your team.
+            {t("admin.signInSubtitle")}
           </p>
         </div>
 
         <form className="stack gap-6" onSubmit={onSubmit}>
-          <Field label="Username">
+          <Field label={t("auth.username")}>
             <Input
               value={username}
               onChange={(event) => setUsername(event.target.value)}
@@ -43,7 +46,7 @@ export function LoginPage() {
             />
           </Field>
 
-          <Field label="Password" error={error}>
+          <Field label={t("auth.password")} error={error}>
             <Input
               type="password"
               value={password}
@@ -54,16 +57,24 @@ export function LoginPage() {
           </Field>
 
           <Button type="submit" variant="primary" size="lg" block loading={isSigningIn}>
-            Sign in
+            {t("auth.signIn")}
           </Button>
         </form>
 
         <div className="row between">
-          <span className="t-caption faint">Members clock in from the mobile app.</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLanguage(language === "fa" ? "en" : "fa")}
+          >
+            {language === "fa" ? "English" : "فارسی"}
+          </Button>
           <Button variant="ghost" size="sm" onClick={toggle}>
-            {theme === "dark" ? "Light" : "Dark"}
+            {theme === "dark" ? t("profile.themeLight") : t("profile.themeDark")}
           </Button>
         </div>
+
+        <span className="t-caption faint">{t("admin.membersClockIn")}</span>
       </Card>
     </div>
   );

@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
-import { errorMessage } from "../lib/ui";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+
 import {
   currentMonth,
   displayName,
@@ -17,6 +19,7 @@ import { Avatar, Card, CardHeader, EmptyState, ErrorState, Loading, Stat } from 
 
 export function DashboardPage() {
   const { calendar, membership } = useSession();
+  const { language, t } = useLanguage();
   const [month, setMonth] = useState(() => currentMonth(calendar));
 
   const dashboard = useQuery({
@@ -29,7 +32,7 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader
-        title="Overview"
+        title={t("admin.nav.overview")}
         subtitle={membership?.organizationName}
         actions={<MonthPicker month={month} calendar={calendar} onChange={setMonth} />}
       />
@@ -37,7 +40,7 @@ export function DashboardPage() {
       <div className="page-body">
         {dashboard.isPending ? <Loading /> : null}
         {dashboard.isError ? (
-          <ErrorState message={errorMessage(dashboard.error)} onRetry={() => dashboard.refetch()} />
+          <ErrorState message={translateError(dashboard.error, t)} onRetry={() => dashboard.refetch()} />
         ) : null}
 
         {dashboard.data ? (
@@ -45,35 +48,35 @@ export function DashboardPage() {
             <Card>
               <div className="stat-grid">
                 <Stat
-                  label="Approved this month"
-                  value={formatDuration(dashboard.data.monthApprovedMinutes)}
+                  label={t("admin.dashboard.approvedThisMonth")}
+                  value={formatDuration(dashboard.data.monthApprovedMinutes, language)}
                 />
                 <Stat
-                  label="Payroll so far"
-                  value={formatMoney(dashboard.data.monthGrossAmount, dashboard.data.currency)}
-                  hint="Approved time only"
+                  label={t("admin.dashboard.payrollSoFar")}
+                  value={formatMoney(dashboard.data.monthGrossAmount, dashboard.data.currency, t)}
+                  hint={t("admin.dashboard.approvedOnly")}
                 />
                 <Stat
-                  label="Waiting for review"
+                  label={t("admin.dashboard.waiting")}
                   value={dashboard.data.pendingCount}
                   hint={
                     dashboard.data.pendingCount > 0 ? (
-                      <Link to="/timesheets">Review now</Link>
+                      <Link to="/timesheets">{t("admin.dashboard.reviewNow")}</Link>
                     ) : (
-                      "Nothing in the queue"
+                      t("admin.dashboard.queueEmpty")
                     )
                   }
                 />
-                <Stat label="Active members" value={dashboard.data.memberCount} />
+                <Stat label={t("admin.dashboard.activeMembers")} value={dashboard.data.memberCount} />
               </div>
             </Card>
 
             <Card flush>
               <CardHeader
-                title="On the clock"
+                title={t("admin.dashboard.onTheClock")}
                 subtitle={
                   dashboard.data.activeNow.length
-                    ? `${dashboard.data.activeNow.length} running now`
+                    ? t("admin.dashboard.runningNow", { count: dashboard.data.activeNow.length })
                     : undefined
                 }
               />
@@ -82,9 +85,9 @@ export function DashboardPage() {
                   <table className="data">
                     <thead>
                       <tr>
-                        <th>Member</th>
-                        <th>Started</th>
-                        <th className="num">Elapsed</th>
+                        <th>{t("admin.dashboard.member")}</th>
+                        <th>{t("admin.dashboard.started")}</th>
+                        <th className="num">{t("admin.dashboard.elapsed")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -97,19 +100,22 @@ export function DashboardPage() {
                             </div>
                           </td>
                           <td className="muted">{formatTime(entry.startedAt)}</td>
-                          <td className="num t-mono">{formatDuration(entry.minutes)}</td>
+                          <td className="num t-mono">{formatDuration(entry.minutes, language)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               ) : (
-                <EmptyState title="Nobody is clocked in" hint="Timers show up here as they start." />
+                <EmptyState
+                  title={t("admin.dashboard.nobodyClockedIn")}
+                  hint={t("admin.dashboard.nobodyHint")}
+                />
               )}
             </Card>
 
             <Card flush>
-              <CardHeader title="Approved time per day" />
+              <CardHeader title={t("admin.dashboard.perDay")} />
               <div className="card-body">
                 <DayBars days={dashboard.data.trend} />
               </div>

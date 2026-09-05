@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MemberDto, UpdateMemberInputDto } from "@omam/contracts";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
-import { errorMessage, useToast } from "../lib/ui";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+import { useToast } from "../lib/ui";
 import { displayName, formatMoney } from "../lib/format";
 import { PageHeader } from "./layout";
 import {
@@ -28,6 +30,7 @@ export function MembersPage() {
   const { can } = useSession();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
 
   const [editing, setEditing] = useState<MemberDto | null>(null);
   const [draft, setDraft] = useState<Draft>({});
@@ -40,23 +43,23 @@ export function MembersPage() {
     mutationFn: (input: { membershipId: string; body: Draft }) =>
       api.updateMember(input.membershipId, input.body),
     onSuccess: () => {
-      toast("Member updated.", "success");
+      toast(t("admin.members.updated"), "success");
       queryClient.invalidateQueries({ queryKey: ["members"] });
       queryClient.invalidateQueries({ queryKey: ["report"] });
       setEditing(null);
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const resetPassword = useMutation({
     mutationFn: (input: { membershipId: string; password: string }) =>
       api.resetMemberPassword(input.membershipId, input.password),
     onSuccess: () => {
-      toast("Password reset. Every device they signed in on is signed out.", "success");
+      toast(t("admin.members.resetDone"), "success");
       setResetting(null);
       setNextPassword("");
     },
-    onError: (error) => toast(errorMessage(error), "error"),
+    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   function startEdit(member: MemberDto) {
@@ -76,22 +79,22 @@ export function MembersPage() {
   return (
     <>
       <PageHeader
-        title="Members"
-        subtitle="Roles and pay. What is set here is what payroll uses."
+        title={t("admin.nav.members")}
+        subtitle={t("admin.members.subtitle")}
         actions={
           <Link className="btn primary" to="/invites">
-            Invite someone
+            {t("admin.members.inviteSomeone")}
           </Link>
         }
       />
 
       <div className="page-body">
         <Card flush>
-          <CardHeader title={`${members.data?.members.length ?? 0} on the team`} />
+          <CardHeader title={t("admin.members.onTheTeam", { count: members.data?.members.length ?? 0 })} />
 
           {members.isPending ? <Loading /> : null}
           {members.isError ? (
-            <ErrorState message={errorMessage(members.error)} onRetry={() => members.refetch()} />
+            <ErrorState message={translateError(members.error, t)} onRetry={() => members.refetch()} />
           ) : null}
 
           {members.data ? (
@@ -99,12 +102,12 @@ export function MembersPage() {
               <table className="data">
                 <thead>
                   <tr>
-                    <th>Member</th>
-                    <th>Code</th>
-                    <th>Role</th>
-                    <th>Pay</th>
-                    <th className="num">Goal</th>
-                    <th>Status</th>
+                    <th>{t("admin.timesheets.member")}</th>
+                    <th>{t("admin.members.code")}</th>
+                    <th>{t("admin.members.role")}</th>
+                    <th>{t("admin.members.pay")}</th>
+                    <th className="num">{t("admin.members.goal")}</th>
+                    <th>{t("admin.members.status")}</th>
                     <th className="tight" />
                   </tr>
                 </thead>
@@ -128,23 +131,27 @@ export function MembersPage() {
                       </td>
                       <td className="t-mono">
                         {member.payType === "MONTHLY"
-                          ? `${formatMoney(member.monthlySalary, member.currency)} / month`
-                          : `${formatMoney(member.hourlyRate, member.currency)} / hour`}
+                          ? t("payType.perMonth", {
+                              amount: formatMoney(member.monthlySalary, member.currency, t),
+                            })
+                          : t("payType.perHour", {
+                              amount: formatMoney(member.hourlyRate, member.currency, t),
+                            })}
                       </td>
                       <td className="num t-mono muted">{member.monthlyGoalHours}h</td>
                       <td>
                         {member.status === "ACTIVE" ? (
                           <Badge tone="success" dot>
-                            Active
+                            {t("admin.members.active")}
                           </Badge>
                         ) : (
-                          <Badge dot>Suspended</Badge>
+                          <Badge dot>{t("admin.members.suspended")}</Badge>
                         )}
                       </td>
                       <td className="tight">
                         <div className="row gap-3 end">
                           <Button size="sm" onClick={() => startEdit(member)}>
-                            Edit
+                            {t("common.edit")}
                           </Button>
                           <Button
                             size="sm"
@@ -154,7 +161,7 @@ export function MembersPage() {
                               setNextPassword("");
                             }}
                           >
-                            Reset password
+                            {t("admin.members.resetPassword")}
                           </Button>
                         </div>
                       </td>
@@ -169,82 +176,82 @@ export function MembersPage() {
 
       {editing ? (
         <Modal
-          title={`Edit ${displayName(editing)}`}
+          title={t("admin.members.editTitle", { name: displayName(editing) })}
           onClose={() => setEditing(null)}
           footer={
             <>
               <Button variant="ghost" onClick={() => setEditing(null)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="primary"
                 loading={save.isPending}
                 onClick={() => save.mutate({ membershipId: editing.membershipId, body: draft })}
               >
-                Save changes
+                {t("admin.members.saveChanges")}
               </Button>
             </>
           }
         >
           <div className="stack gap-6">
-            <Field label="Job title">
+            <Field label={t("admin.members.jobTitle")}>
               <Input
                 value={draft.jobTitle ?? ""}
                 onChange={(event) => setDraft({ ...draft, jobTitle: event.target.value || null })}
-                placeholder="Backend engineer"
+                placeholder={t("admin.members.jobTitlePlaceholder")}
               />
             </Field>
 
-            <Field label="Employee code" hint="Shows up in the payroll export.">
+            <Field label={t("admin.members.employeeCode")} hint={t("admin.members.employeeCodeHint")}>
               <Input
                 value={draft.employeeCode ?? ""}
                 onChange={(event) =>
                   setDraft({ ...draft, employeeCode: event.target.value || null })
                 }
-                placeholder="004"
+                placeholder={t("admin.members.employeeCodePlaceholder")}
               />
             </Field>
 
             <div className="row gap-6">
-              <Field label="Role">
+              <Field label={t("admin.members.role")}>
                 <Select
                   value={draft.role}
                   disabled={!can("OWNER")}
                   onChange={(event) => setDraft({ ...draft, role: event.target.value as Draft["role"] })}
                 >
-                  <option value="MEMBER">Member</option>
-                  <option value="MANAGER">Manager</option>
-                  <option value="OWNER">Owner</option>
+                  <option value="MEMBER">{t("role.MEMBER")}</option>
+                  <option value="MANAGER">{t("role.MANAGER")}</option>
+                  <option value="OWNER">{t("role.OWNER")}</option>
                 </Select>
               </Field>
 
-              <Field label="Status">
+              <Field label={t("admin.members.status")}>
                 <Select
                   value={draft.status}
                   onChange={(event) =>
                     setDraft({ ...draft, status: event.target.value as Draft["status"] })
                   }
                 >
-                  <option value="ACTIVE">Active</option>
-                  <option value="SUSPENDED">Suspended</option>
+                  <option value="ACTIVE">{t("admin.members.active")}</option>
+                  <option value="SUSPENDED">{t("admin.members.suspended")}</option>
                 </Select>
               </Field>
             </div>
 
-            <Field label="Pay type">
+            <Field label={t("admin.invites.payType")}>
               <Select
                 value={draft.payType}
                 onChange={(event) =>
                   setDraft({ ...draft, payType: event.target.value as Draft["payType"] })
                 }
               >
-                <option value="HOURLY">Hourly</option>
-                <option value="MONTHLY">Fixed monthly</option>
+                <option value="HOURLY">{t("payType.HOURLY")}</option>
+                <option value="MONTHLY">{t("payType.MONTHLY")}</option>
               </Select>
             </Field>
 
             {draft.payType === "MONTHLY" ? (
-              <Field label={`Monthly salary (${editing.currency})`}>
+              <Field label={t("admin.members.monthlySalary", { currency: editing.currency })}>
                 <Input
                   type="number"
                   min={0}
@@ -256,8 +263,8 @@ export function MembersPage() {
               </Field>
             ) : (
               <Field
-                label={`Hourly rate (${editing.currency})`}
-                hint="Payroll multiplies this by approved hours."
+                label={t("admin.members.hourlyRate", { currency: editing.currency })}
+                hint={t("admin.members.hourlyRateHint")}
               >
                 <Input
                   type="number"
@@ -268,7 +275,7 @@ export function MembersPage() {
               </Field>
             )}
 
-            <Field label="Monthly goal hours">
+            <Field label={t("admin.members.monthlyGoalHours")}>
               <Input
                 type="number"
                 min={0}
@@ -285,12 +292,12 @@ export function MembersPage() {
 
       {resetting ? (
         <Modal
-          title={`Reset password for ${displayName(resetting)}`}
+          title={t("admin.members.resetTitle", { name: displayName(resetting) })}
           onClose={() => setResetting(null)}
           footer={
             <>
               <Button variant="ghost" onClick={() => setResetting(null)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -303,16 +310,15 @@ export function MembersPage() {
                   })
                 }
               >
-                Reset password
+                {t("admin.members.resetPassword")}
               </Button>
             </>
           }
         >
           <p className="t-body-sm muted">
-            Give them the new password yourself, and ask them to change it. This signs them out of
-            every device.
+            {t("admin.members.resetIntro")}
           </p>
-          <Field label="New password" hint="At least 6 characters.">
+          <Field label={t("admin.members.newPassword")} hint={t("admin.members.newPasswordHint")}>
             <Input
               type="text"
               value={nextPassword}
