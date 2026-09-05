@@ -23,6 +23,8 @@ const defaultSettings: SettingsDto = {
 
 const defaultSummary: SummaryDto = {
   totalMinutes: 0,
+  approvedMinutes: 0,
+  pendingMinutes: 0,
   totalIncome: 0,
   activeSession: null,
   workedDays: 0,

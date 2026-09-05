@@ -14,7 +14,9 @@ import {
   Wallet,
 } from "lucide-react-native";
 import { formatFullDate, type CalendarSystem } from "@omam/calendar";
+import type { Currency } from "@omam/contracts";
 import { persistPickedAvatar, supportsAvatarFiles } from "../../src/lib/avatar";
+import { TeamSyncCard } from "../../src/components/team-sync-card";
 import { useAttendance } from "../../src/providers/attendance-provider";
 import { useAuth } from "../../src/providers/auth-provider";
 import {
@@ -41,11 +43,12 @@ import {
 
 const MIN_PASSWORD_LENGTH = 6;
 
-type Currency = "IRR" | "USD";
+
 
 const currencyOptions: SegmentOption<Currency>[] = [
   { value: "IRR", label: "IRR" },
   { value: "USD", label: "USD" },
+  { value: "EUR", label: "EUR" },
 ];
 
 const calendarOptions: SegmentOption<CalendarSystem>[] = [
@@ -431,6 +434,8 @@ export default function ProfileScreen() {
           </View>
         </Accordion>
       </Card>
+
+      <TeamSyncCard />
 
       <Card style={{ gap: layout.gapDefault }}>
         <View style={{ gap: 1 }}>

@@ -8,6 +8,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AttendanceProvider } from "../src/providers/attendance-provider";
 import { AuthProvider } from "../src/providers/auth-provider";
+import { SyncProvider } from "../src/providers/sync-provider";
 import { DATABASE_NAME, initializeDatabase } from "../src/lib/database";
 import {
   Card,
@@ -92,26 +93,29 @@ function RootNavigation() {
            * `refresh()` reaches both tabs.
            */}
           <AttendanceProvider>
-            <GestureHandlerRootView style={{ flex: 1, direction: "ltr" }}>
-              <SafeAreaProvider>
-                <StatusBar style={isDark ? "light" : "dark"} />
-                <ToastProvider>
-                  <Stack
-                    screenOptions={{
-                      headerShown: false,
-                      animation: "fade",
-                      animationTypeForReplace: "push",
-                      animationDuration: motion.durFast,
-                      contentStyle: { backgroundColor: colors.surfaceApp },
-                    }}
-                  >
-                    <Stack.Screen name="(auth)" />
-                    <Stack.Screen name="(tabs)" />
-                    <Stack.Screen name="session/[id]" options={{ animation: "slide_from_right" }} />
-                  </Stack>
-                </ToastProvider>
-              </SafeAreaProvider>
-            </GestureHandlerRootView>
+            {/* Sync sits under Attendance so a pull can refresh what is on screen. */}
+            <SyncProvider>
+              <GestureHandlerRootView style={{ flex: 1, direction: "ltr" }}>
+                <SafeAreaProvider>
+                  <StatusBar style={isDark ? "light" : "dark"} />
+                  <ToastProvider>
+                    <Stack
+                      screenOptions={{
+                        headerShown: false,
+                        animation: "fade",
+                        animationTypeForReplace: "push",
+                        animationDuration: motion.durFast,
+                        contentStyle: { backgroundColor: colors.surfaceApp },
+                      }}
+                    >
+                      <Stack.Screen name="(auth)" />
+                      <Stack.Screen name="(tabs)" />
+                      <Stack.Screen name="session/[id]" options={{ animation: "slide_from_right" }} />
+                    </Stack>
+                  </ToastProvider>
+                </SafeAreaProvider>
+              </GestureHandlerRootView>
+            </SyncProvider>
           </AttendanceProvider>
         </AuthProvider>
       </SQLiteProvider>

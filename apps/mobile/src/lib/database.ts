@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 const DATABASE_NAME = "omam.db";
 
 /** Bump when a migration is added below. */
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export const DB_SCHEMA = `
   CREATE TABLE IF NOT EXISTS User (
@@ -36,9 +36,44 @@ export const DB_SCHEMA = `
     category TEXT NOT NULL DEFAULT 'ONSITE',
     note TEXT,
     createdAt TEXT NOT NULL,
-    updatedAt TEXT NOT NULL
+    updatedAt TEXT NOT NULL,
+    remoteId TEXT,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    source TEXT NOT NULL DEFAULT 'TIMER',
+    reviewNote TEXT,
+    projectId TEXT,
+    projectName TEXT,
+    projectColor TEXT,
+    dirty INTEGER NOT NULL DEFAULT 1,
+    deletedAt TEXT,
+    syncedAt TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS SyncState (
+    userId TEXT PRIMARY KEY NOT NULL,
+    serverUserId TEXT,
+    serverUsername TEXT,
+    organizationName TEXT,
+    requireApproval INTEGER NOT NULL DEFAULT 1,
+    cursor TEXT,
+    lastSyncAt TEXT,
+    lastError TEXT
   );
 `;
+
+/** Columns added by the team-sync migration, with the SQL to add each one. */
+const SYNC_COLUMNS: [column: string, definition: string][] = [
+  ["remoteId", "TEXT"],
+  ["status", "TEXT NOT NULL DEFAULT 'PENDING'"],
+  ["source", "TEXT NOT NULL DEFAULT 'TIMER'"],
+  ["reviewNote", "TEXT"],
+  ["projectId", "TEXT"],
+  ["projectName", "TEXT"],
+  ["projectColor", "TEXT"],
+  ["dirty", "INTEGER NOT NULL DEFAULT 1"],
+  ["deletedAt", "TEXT"],
+  ["syncedAt", "TEXT"],
+];
 
 /** Absolute instant: a date, a time and a zone. Anything else is legacy. */
 const ABSOLUTE_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -132,6 +167,18 @@ export async function initializeDatabase(db: SQLiteDatabase) {
 
   await normalizeLegacyTimestamps(db);
   await backfillDurations(db);
+
+  // v2 — team sync. Every existing row starts dirty so that linking an account
+  // pushes the history already on the device rather than stranding it.
+  for (const [column, definition] of SYNC_COLUMNS) {
+    if (!(await hasColumn(db, "WorkSession", column))) {
+      await db.execAsync(`ALTER TABLE WorkSession ADD COLUMN ${column} ${definition}`);
+    }
+  }
+
+  await db.execAsync(
+    "CREATE INDEX IF NOT EXISTS WorkSession_dirty ON WorkSession (userId, dirty)",
+  );
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }

@@ -1,6 +1,11 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import { dayKey, monthRange, type CalendarSystem } from "@omam/calendar";
-import type { SessionDto, WorkSessionCategory } from "@omam/contracts";
+import type {
+  SessionDto,
+  WorkSessionCategory,
+  WorkSessionSource,
+  WorkSessionStatus,
+} from "@omam/contracts";
 import { generateId } from "./id";
 
 function now() {
@@ -11,7 +16,7 @@ function calculateSessionMinutes(startAt: string, endAt: string): number {
   return Math.max(0, Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60000));
 }
 
-type SessionRow = {
+export type SessionRow = {
   id: string;
   userId: string;
   startAt: string;
@@ -21,23 +26,53 @@ type SessionRow = {
   note: string | null;
   createdAt: string;
   updatedAt: string;
+  remoteId: string | null;
+  status: WorkSessionStatus;
+  source: WorkSessionSource;
+  reviewNote: string | null;
+  projectId: string | null;
+  projectName: string | null;
+  projectColor: string | null;
+  dirty: number;
+  deletedAt: string | null;
+  syncedAt: string | null;
 };
 
-function toSessionDto(row: SessionRow): SessionDto {
+/**
+ * The local row id doubles as the `clientId` the server keys a pushed session
+ * on, which is what makes a repeated push idempotent.
+ */
+export function toSessionDto(row: SessionRow): SessionDto {
   return {
     id: row.id,
+    userId: row.userId,
+    clientId: row.id,
     startAt: row.startAt,
     endAt: row.endAt,
     durationMinutes: row.durationMinutes,
     category: row.category,
+    status: row.status,
+    source: row.source,
     note: row.note,
+    reviewNote: row.reviewNote,
+    project: row.projectId
+      ? {
+          id: row.projectId,
+          name: row.projectName ?? "Project",
+          color: row.projectColor ?? "#B4213C",
+        }
+      : null,
+    approvedAt: null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 }
 
+/** Deleted rows stay until the server has seen the deletion. */
+const LIVE = "deletedAt IS NULL";
+
 export async function getSessions(db: SQLiteDatabase, userId: string, from?: string, to?: string) {
-  let query = "SELECT * FROM WorkSession WHERE userId = ?";
+  let query = `SELECT * FROM WorkSession WHERE userId = ? AND ${LIVE}`;
   const params: (string | number)[] = [userId];
 
   if (from) {
@@ -57,10 +92,27 @@ export async function getSessions(db: SQLiteDatabase, userId: string, from?: str
 
 export async function getActiveSession(db: SQLiteDatabase, userId: string) {
   const row = await db.getFirstAsync<SessionRow>(
-    "SELECT * FROM WorkSession WHERE userId = ? AND endAt IS NULL ORDER BY startAt DESC",
+    `SELECT * FROM WorkSession WHERE userId = ? AND endAt IS NULL AND ${LIVE} ORDER BY startAt DESC`,
     [userId],
   );
   return row ? toSessionDto(row) : null;
+}
+
+async function readSession(db: SQLiteDatabase, id: string) {
+  return (await db.getFirstAsync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [id]))!;
+}
+
+async function requireOwnSession(db: SQLiteDatabase, sessionId: string, userId: string) {
+  const row = await db.getFirstAsync<SessionRow>(
+    `SELECT * FROM WorkSession WHERE id = ? AND userId = ? AND ${LIVE}`,
+    [sessionId, userId],
+  );
+
+  if (!row) {
+    throw new Error("Session not found.");
+  }
+
+  return row;
 }
 
 export async function clockIn(
@@ -79,23 +131,15 @@ export async function clockIn(
   const ts = now();
 
   await db.runAsync(
-    "INSERT INTO WorkSession (id, userId, startAt, durationMinutes, category, note, createdAt, updatedAt) VALUES (?, ?, ?, 0, ?, ?, ?, ?)",
+    "INSERT INTO WorkSession (id, userId, startAt, durationMinutes, category, note, createdAt, updatedAt, status, source, dirty) VALUES (?, ?, ?, 0, ?, ?, ?, ?, 'OPEN', 'TIMER', 1)",
     [id, userId, startAt, category, note ?? null, ts, ts],
   );
 
-  const row = await db.getFirstAsync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [id]);
-  return toSessionDto(row!);
+  return toSessionDto(await readSession(db, id));
 }
 
 export async function clockOut(db: SQLiteDatabase, sessionId: string, userId: string, endAt: string) {
-  const session = await db.getFirstAsync<SessionRow>(
-    "SELECT * FROM WorkSession WHERE id = ? AND userId = ?",
-    [sessionId, userId],
-  );
-
-  if (!session) {
-    throw new Error("Session not found.");
-  }
+  const session = await requireOwnSession(db, sessionId, userId);
 
   if (session.endAt) {
     throw new Error("Session is already ended.");
@@ -106,16 +150,12 @@ export async function clockOut(db: SQLiteDatabase, sessionId: string, userId: st
     throw new Error("End time cannot be before start time.");
   }
 
-  const durationMinutes = calculateSessionMinutes(session.startAt, endAt);
-  const ts = now();
-
   await db.runAsync(
-    "UPDATE WorkSession SET endAt = ?, durationMinutes = ?, updatedAt = ? WHERE id = ?",
-    [endAt, durationMinutes, ts, sessionId],
+    "UPDATE WorkSession SET endAt = ?, durationMinutes = ?, updatedAt = ?, status = 'PENDING', dirty = 1 WHERE id = ?",
+    [endAt, calculateSessionMinutes(session.startAt, endAt), now(), sessionId],
   );
 
-  const row = await db.getFirstAsync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [sessionId]);
-  return toSessionDto(row!);
+  return toSessionDto(await readSession(db, sessionId));
 }
 
 export async function updateSession(
@@ -127,35 +167,35 @@ export async function updateSession(
   category: WorkSessionCategory,
   note: string | null,
 ) {
-  const session = await db.getFirstAsync<SessionRow>(
-    "SELECT * FROM WorkSession WHERE id = ? AND userId = ?",
-    [sessionId, userId],
-  );
-
-  if (!session) {
-    throw new Error("Session not found.");
-  }
+  const session = await requireOwnSession(db, sessionId, userId);
 
   const endDate = endAt ? new Date(endAt) : null;
   if (endDate && endDate.getTime() < new Date(startAt).getTime()) {
     throw new Error("End time cannot be before start time.");
   }
 
-  const durationMinutes = endDate ? calculateSessionMinutes(startAt, endAt!) : 0;
-  const ts = now();
-
   await db.runAsync(
-    "UPDATE WorkSession SET startAt = ?, endAt = ?, durationMinutes = ?, category = ?, note = ?, updatedAt = ? WHERE id = ?",
-    [startAt, endAt, durationMinutes, category, note, ts, sessionId],
+    "UPDATE WorkSession SET startAt = ?, endAt = ?, durationMinutes = ?, category = ?, note = ?, updatedAt = ?, status = ?, dirty = 1 WHERE id = ?",
+    [
+      startAt,
+      endAt,
+      endDate ? calculateSessionMinutes(startAt, endAt!) : 0,
+      category,
+      note,
+      now(),
+      // An edit puts approved time back in the queue; the server applies the
+      // same rule, so the two agree without a round trip.
+      endAt ? "PENDING" : "OPEN",
+      sessionId,
+    ],
   );
 
-  const row = await db.getFirstAsync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [sessionId]);
-  return toSessionDto(row!);
+  return toSessionDto(await readSession(db, sessionId));
 }
 
 export async function getSessionById(db: SQLiteDatabase, sessionId: string, userId: string) {
   const row = await db.getFirstAsync<SessionRow>(
-    "SELECT * FROM WorkSession WHERE id = ? AND userId = ?",
+    `SELECT * FROM WorkSession WHERE id = ? AND userId = ? AND ${LIVE}`,
     [sessionId, userId],
   );
 
@@ -186,26 +226,44 @@ export async function createSession(
 
   const id = generateId();
   const ts = now();
-  const durationMinutes = endAt ? calculateSessionMinutes(startAt, endAt) : 0;
 
   await db.runAsync(
-    "INSERT INTO WorkSession (id, userId, startAt, endAt, durationMinutes, category, note, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [id, userId, startAt, endAt, durationMinutes, category, note, ts, ts],
+    "INSERT INTO WorkSession (id, userId, startAt, endAt, durationMinutes, category, note, createdAt, updatedAt, status, source, dirty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'MANUAL', 1)",
+    [
+      id,
+      userId,
+      startAt,
+      endAt,
+      endAt ? calculateSessionMinutes(startAt, endAt) : 0,
+      category,
+      note,
+      ts,
+      ts,
+      endAt ? "PENDING" : "OPEN",
+    ],
   );
 
-  const row = await db.getFirstAsync<SessionRow>("SELECT * FROM WorkSession WHERE id = ?", [id]);
-  return toSessionDto(row!);
+  return toSessionDto(await readSession(db, id));
 }
 
+/**
+ * Soft delete. A row removed outright would be invisible to the sync, which
+ * would then pull the server's copy straight back onto the device.
+ */
 export async function deleteSession(db: SQLiteDatabase, sessionId: string, userId: string) {
-  const result = await db.runAsync("DELETE FROM WorkSession WHERE id = ? AND userId = ?", [
-    sessionId,
-    userId,
-  ]);
+  const session = await requireOwnSession(db, sessionId, userId);
+  const ts = now();
 
-  if (!result.changes) {
-    throw new Error("Session not found.");
+  // A row the server has never seen has nothing to tell it about.
+  if (!session.remoteId && !session.syncedAt) {
+    await db.runAsync("DELETE FROM WorkSession WHERE id = ?", [sessionId]);
+    return;
   }
+
+  await db.runAsync(
+    "UPDATE WorkSession SET deletedAt = ?, updatedAt = ?, dirty = 1 WHERE id = ?",
+    [ts, ts, sessionId],
+  );
 }
 
 export async function getMonthlySummary(
@@ -215,6 +273,8 @@ export async function getMonthlySummary(
   calendar: CalendarSystem,
 ): Promise<{
   totalMinutes: number;
+  approvedMinutes: number;
+  pendingMinutes: number;
   totalIncome: number;
   activeSession: SessionDto | null;
   workedDays: number;
@@ -226,7 +286,7 @@ export async function getMonthlySummary(
   const range = monthRange(month, calendar);
 
   const sessions = await db.getAllAsync<SessionRow>(
-    "SELECT * FROM WorkSession WHERE userId = ? AND startAt >= ? AND startAt <= ?",
+    `SELECT * FROM WorkSession WHERE userId = ? AND startAt >= ? AND startAt <= ? AND ${LIVE}`,
     [userId, range.from.toISOString(), range.to.toISOString()],
   );
 
@@ -238,6 +298,8 @@ export async function getMonthlySummary(
   const activeSession = await getActiveSession(db, userId);
 
   let totalMinutes = 0;
+  let approvedMinutes = 0;
+  let pendingMinutes = 0;
   const categoryMinutes = {
     onsite: 0,
     remote: 0,
@@ -245,23 +307,40 @@ export async function getMonthlySummary(
   const workedDaysSet = new Set<string>();
 
   for (const session of sessions) {
-    if (session.endAt) {
-      const minutes = session.durationMinutes || calculateSessionMinutes(session.startAt, session.endAt);
-      totalMinutes += minutes;
-
-      if (session.category === "REMOTE") {
-        categoryMinutes.remote += minutes;
-      } else {
-        categoryMinutes.onsite += minutes;
-      }
+    if (session.status === "REJECTED") {
+      continue;
     }
+
     workedDaysSet.add(dayKey(new Date(session.startAt), calendar));
+
+    if (!session.endAt) {
+      continue;
+    }
+
+    const minutes =
+      session.durationMinutes || calculateSessionMinutes(session.startAt, session.endAt);
+
+    totalMinutes += minutes;
+
+    if (session.status === "APPROVED") {
+      approvedMinutes += minutes;
+    } else {
+      pendingMinutes += minutes;
+    }
+
+    if (session.category === "REMOTE") {
+      categoryMinutes.remote += minutes;
+    } else {
+      categoryMinutes.onsite += minutes;
+    }
   }
 
   const hourlyRate = settings?.hourlyRate ?? 0;
 
   return {
     totalMinutes,
+    approvedMinutes,
+    pendingMinutes,
     totalIncome: Number(((totalMinutes / 60) * hourlyRate).toFixed(2)),
     activeSession,
     workedDays: workedDaysSet.size,

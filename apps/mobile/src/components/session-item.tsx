@@ -16,9 +16,17 @@ type Props = {
   showDate?: boolean;
   /** Opens the session editor. Adds a chevron and a press state when set. */
   onPress?: () => void;
+  /** Shows where the entry stands with the manager. Only set once a team is linked. */
+  showStatus?: boolean;
 };
 
-export function SessionItem({ session, showDate = true, onPress }: Props) {
+/** Approved time needs no label; only what is still open or refused does. */
+const STATUS_LABEL = {
+  PENDING: { label: "Awaiting review", tone: "warning" },
+  REJECTED: { label: "Not approved", tone: "accent" },
+} as const;
+
+export function SessionItem({ session, showDate = true, onPress, showStatus }: Props) {
   const colors = useColors();
   const { calendar } = useAttendance();
   const isRemote = session.category === "REMOTE";
@@ -47,6 +55,12 @@ export function SessionItem({ session, showDate = true, onPress }: Props) {
         {session.note ? (
           <Text role="caption" tone="muted" numberOfLines={1}>
             {session.note}
+          </Text>
+        ) : null}
+
+        {showStatus && !isOpen && (session.status === "PENDING" || session.status === "REJECTED") ? (
+          <Text role="caption" tone={STATUS_LABEL[session.status].tone === "accent" ? "accent" : "muted"}>
+            {STATUS_LABEL[session.status].label}
           </Text>
         ) : null}
       </View>
