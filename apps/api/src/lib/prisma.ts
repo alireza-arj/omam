@@ -1,5 +1,5 @@
 import "./load-env";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
 declare global {
@@ -7,22 +7,19 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-const databaseUrl = process.env.DATABASE_URL ?? "file:./dev.db";
+const databaseUrl = process.env.DATABASE_URL;
 
-const createPrismaClient = () => {
-  const adapter = new PrismaLibSql({
-    url: databaseUrl,
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is not set. Copy apps/api/.env.example to .env.");
+}
+
+const createPrismaClient = () =>
+  new PrismaClient({
+    adapter: new PrismaPg({ connectionString: databaseUrl }),
+    log: process.env.NODE_ENV === "production" ? ["warn", "error"] : ["warn", "error"],
   });
 
-  return new PrismaClient({
-    adapter,
-    log: ["warn", "error"],
-  });
-};
-
-export const prisma =
-  globalThis.prisma ??
-  createPrismaClient();
+export const prisma = globalThis.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
   globalThis.prisma = prisma;

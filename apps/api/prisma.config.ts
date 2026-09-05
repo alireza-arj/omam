@@ -3,7 +3,10 @@ import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
+  migrations: {
+    seed: "bun run prisma/seed.ts",
+  },
   datasource: {
-    url: process.env.DATABASE_URL ?? "file:./dev.db",
+    url: process.env.DATABASE_URL ?? "postgresql://postgres@localhost:5432/omam",
   },
 });

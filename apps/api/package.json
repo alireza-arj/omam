@@ -4,15 +4,16 @@
   "type": "module",
   "dependencies": {
     "@elysiajs/cors": "*",
-    "@libsql/client": "^0.17.3",
     "@omam/calendar": "workspace:*",
     "@omam/contracts": "workspace:*",
-    "@prisma/adapter-libsql": "^7.8.0",
+    "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "*",
     "dotenv": "^17.4.2",
-    "elysia": "*"
+    "elysia": "*",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
+    "@types/pg": "^8.23.1",
     "prisma": "*",
     "typescript": "*"
   },
@@ -24,6 +25,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "bun run prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset",
+    "db:deploy": "prisma migrate deploy",
+    "test:smoke": "bun run tests/smoke.ts"
   }
 }

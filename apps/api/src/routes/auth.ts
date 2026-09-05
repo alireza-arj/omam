@@ -1,176 +1,206 @@
-import { Elysia, status, t } from "elysia";
-import { completeProfileInputSchema, loginInputSchema } from "@omam/contracts";
+import { Elysia } from "elysia";
+import {
+  changePasswordInputSchema,
+  completeProfileInputSchema,
+  loginInputSchema,
+  registerInputSchema,
+} from "@omam/contracts";
 import { prisma } from "../lib/prisma";
 import {
-  authenticateByBearerToken,
   createAuthSession,
   ensureUserDefaultSettings,
   hashPassword,
   normalizeUsername,
   parseBearerToken,
+  revokeAllSessionsForUser,
   revokeAuthSession,
+  serializeMembership,
+  serializeUser,
   verifyPassword,
 } from "../lib/auth";
+import { authenticated } from "../lib/context";
+import { AppError, conflict, invalid, parseInput, unauthorized } from "../lib/errors";
+import { recordAudit } from "../lib/audit";
 
-function toAuthPayload(user: {
-  id: string;
-  username: string;
-  nickname: string | null;
-  avatarUrl: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  return {
-    id: user.id,
-    username: user.username,
-    nickname: user.nickname,
-    avatarUrl: user.avatarUrl,
-    createdAt: user.createdAt.toISOString(),
-    updatedAt: user.updatedAt.toISOString(),
-  };
+/** Identical for an unknown username and a wrong password, on purpose. */
+const INVALID_CREDENTIALS = "Invalid username or password.";
+
+async function loadMembership(userId: string) {
+  return prisma.membership.findFirst({
+    where: { userId, status: "ACTIVE" },
+    include: { organization: true },
+    orderBy: { createdAt: "asc" },
+  });
 }
 
-function needsProfileSetup(user: { nickname: string | null }) {
-  return !user.nickname?.trim();
+function needsProfileSetup(nickname: string | null) {
+  return !nickname?.trim();
 }
 
 export const authRoutes = new Elysia({ prefix: "/auth" })
-  .post(
-    "/login",
-    async ({ body }) => {
-      const payload = loginInputSchema.parse(body);
-      const username = normalizeUsername(payload.username);
+  .post("/login", async ({ body }) => {
+    const payload = parseInput(loginInputSchema, body);
+    const username = normalizeUsername(payload.username);
+    const user = await prisma.user.findUnique({ where: { username } });
 
-      const userCount = await prisma.user.count();
-      let user = await prisma.user.findUnique({
-        where: {
-          username,
-        },
-      });
-
-      if (!user && userCount === 0) {
-        user = await prisma.user.create({
-          data: {
-            username,
-            passwordHash: await hashPassword(payload.password),
-          },
-        });
-
-        await ensureUserDefaultSettings(user.id);
-      }
-
-      if (!user) {
-        return status(401, {
-          message: "Invalid username or password.",
-        });
-      }
-
-      const isValid = await verifyPassword(payload.password, user.passwordHash);
-
-      if (!isValid) {
-        return status(401, {
-          message: "Invalid username or password.",
-        });
-      }
-
-      await ensureUserDefaultSettings(user.id);
-      const token = await createAuthSession(user.id);
-
-      return {
-        token,
-        user: toAuthPayload(user),
-        needsProfileSetup: needsProfileSetup(user),
-      };
-    },
-    {
-      body: t.Object({
-        username: t.String({ minLength: 3, maxLength: 32 }),
-        password: t.String({ minLength: 6, maxLength: 72 }),
-      }),
-    },
-  )
-  .get("/me", async ({ headers }) => {
-    const token = parseBearerToken(headers.authorization);
-
-    if (!token) {
-      return status(401, {
-        message: "Unauthorized.",
-      });
+    if (!user || !(await verifyPassword(payload.password, user.passwordHash))) {
+      throw unauthorized(INVALID_CREDENTIALS);
     }
 
-    const auth = await authenticateByBearerToken(token);
+    const membership = await loadMembership(user.id);
 
-    if (!auth) {
-      return status(401, {
-        message: "Unauthorized.",
-      });
-    }
+    await ensureUserDefaultSettings(user.id, membership?.organization.calendar);
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+
+    const token = await createAuthSession(user.id, payload.deviceName);
 
     return {
-      user: auth.user,
-      needsProfileSetup: needsProfileSetup(auth.user),
+      token,
+      user: serializeUser(user),
+      membership: membership ? serializeMembership(membership) : null,
+      needsProfileSetup: needsProfileSetup(user.nickname),
     };
   })
-  .patch(
-    "/profile",
-    async ({ headers, body }) => {
-      const token = parseBearerToken(headers.authorization);
 
-      if (!token) {
-        return status(401, {
-          message: "Unauthorized.",
-        });
-      }
+  /** Joining a team always goes through a manager-issued invite code. */
+  .post("/register", async ({ body }) => {
+    const payload = parseInput(registerInputSchema, body);
+    const username = normalizeUsername(payload.username);
+    const code = payload.inviteCode.trim().toUpperCase();
 
-      const auth = await authenticateByBearerToken(token);
+    const invite = await prisma.invite.findUnique({
+      where: { code },
+      include: { organization: true },
+    });
 
-      if (!auth) {
-        return status(401, {
-          message: "Unauthorized.",
-        });
-      }
+    if (!invite || invite.revokedAt || invite.acceptedAt) {
+      throw invalid("That invite code is not valid.");
+    }
 
-      const payload = completeProfileInputSchema.parse(body);
-      const nextAvatar = payload.avatarUrl?.trim() || null;
-      const isDataAvatar = nextAvatar ? nextAvatar.startsWith("data:image/") : false;
-      const isHttpAvatar = nextAvatar ? /^https?:\/\//i.test(nextAvatar) : false;
+    if (invite.expiresAt.getTime() <= Date.now()) {
+      throw invalid("That invite code has expired.");
+    }
 
-      if (nextAvatar && !isDataAvatar && !isHttpAvatar) {
-        return status(400, {
-          message: "Avatar must be a valid image data URL or HTTP URL.",
-        });
-      }
+    if (await prisma.user.findUnique({ where: { username } })) {
+      throw conflict("That username is already taken.", "USERNAME_TAKEN");
+    }
 
-      const updated = await prisma.user.update({
-        where: {
-          id: auth.user.id,
-        },
+    const passwordHash = await hashPassword(payload.password);
+
+    const user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
         data: {
-          nickname: payload.nickname.trim(),
-          avatarUrl: nextAvatar,
+          username,
+          passwordHash,
+          nickname: payload.nickname?.trim() || null,
+          lastLoginAt: new Date(),
         },
       });
 
-      return {
-        user: toAuthPayload(updated),
-        needsProfileSetup: needsProfileSetup(updated),
-      };
-    },
-    {
-      body: t.Object({
-        nickname: t.String({ minLength: 2, maxLength: 32 }),
-        avatarUrl: t.Optional(t.Nullable(t.String({ maxLength: 600000 }))),
-      }),
-    },
-  )
-  .post("/logout", async ({ headers }) => {
-    const token = parseBearerToken(headers.authorization);
+      await tx.membership.create({
+        data: {
+          organizationId: invite.organizationId,
+          userId: created.id,
+          role: invite.role,
+          payType: invite.payType,
+          hourlyRate: invite.hourlyRate || invite.organization.defaultHourlyRate,
+          monthlySalary: invite.monthlySalary,
+          currency: invite.organization.currency,
+          monthlyGoalHours: invite.organization.monthlyGoalHours,
+        },
+      });
 
-    if (!token) {
-      return status(204);
+      await tx.appSettings.create({
+        data: {
+          userId: created.id,
+          calendar: invite.organization.calendar,
+          currency: invite.organization.currency,
+          monthlyGoalHours: invite.organization.monthlyGoalHours,
+        },
+      });
+
+      await tx.invite.update({
+        where: { id: invite.id },
+        data: { acceptedAt: new Date(), acceptedById: created.id },
+      });
+
+      return created;
+    });
+
+    await recordAudit({
+      organizationId: invite.organizationId,
+      actorId: user.id,
+      action: "member.joined",
+      targetType: "user",
+      targetId: user.id,
+      metadata: { username, role: invite.role, inviteId: invite.id },
+    });
+
+    const membership = await loadMembership(user.id);
+    const token = await createAuthSession(user.id, payload.deviceName);
+
+    return {
+      token,
+      user: serializeUser(user),
+      membership: membership ? serializeMembership(membership) : null,
+      needsProfileSetup: needsProfileSetup(user.nickname),
+    };
+  })
+
+  .use(authenticated)
+
+  .get("/me", ({ principal }) => ({
+    user: serializeUser(principal.user),
+    membership: principal.membership ? serializeMembership(principal.membership) : null,
+    needsProfileSetup: needsProfileSetup(principal.user.nickname),
+  }))
+
+  .patch("/profile", async ({ principal, body }) => {
+    const payload = parseInput(completeProfileInputSchema, body);
+    const nextAvatar = payload.avatarUrl?.trim() || null;
+
+    if (nextAvatar && !/^(data:image\/|https?:\/\/)/i.test(nextAvatar)) {
+      throw invalid("Avatar must be an image data URL or an HTTP URL.");
     }
 
-    await revokeAuthSession(token);
+    const updated = await prisma.user.update({
+      where: { id: principal.user.id },
+      data: { nickname: payload.nickname.trim(), avatarUrl: nextAvatar },
+    });
 
-    return status(204);
+    return {
+      user: serializeUser(updated),
+      membership: principal.membership ? serializeMembership(principal.membership) : null,
+      needsProfileSetup: needsProfileSetup(updated.nickname),
+    };
+  })
+
+  .post("/change-password", async ({ principal, body }) => {
+    const payload = parseInput(changePasswordInputSchema, body);
+
+    if (!(await verifyPassword(payload.currentPassword, principal.user.passwordHash))) {
+      throw new AppError(422, "Current password is incorrect.", "WRONG_PASSWORD");
+    }
+
+    await prisma.user.update({
+      where: { id: principal.user.id },
+      data: { passwordHash: await hashPassword(payload.nextPassword) },
+    });
+
+    // Every other device holds a token minted against the old password.
+    await revokeAllSessionsForUser(principal.user.id);
+
+    return { token: await createAuthSession(principal.user.id, "password-change") };
+  })
+
+  .post("/logout", async ({ headers, set }) => {
+    const token = parseBearerToken(headers.authorization);
+
+    if (token) {
+      await revokeAuthSession(token);
+    }
+
+    set.status = 204;
+
+    return null;
   });

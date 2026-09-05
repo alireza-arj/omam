@@ -3,12 +3,13 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 enum Currency {
   IRR
   USD
+  EUR
 }
 
 enum CalendarSystem {
@@ -21,27 +22,107 @@ enum WorkSessionCategory {
   REMOTE
 }
 
+/// Rank inside one organization. Every permission check reduces to this.
+enum OrgRole {
+  OWNER
+  MANAGER
+  MEMBER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+/// A session is OPEN while the timer runs. Once it ends it becomes PENDING and
+/// waits for a manager, unless the organization has approval turned off, in
+/// which case it lands on APPROVED directly. Payroll only counts APPROVED.
+enum WorkSessionStatus {
+  OPEN
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum WorkSessionSource {
+  TIMER
+  MANUAL
+  SYNC
+  ADMIN
+}
+
+/// How a member is paid. HOURLY multiplies approved hours by the rate;
+/// MONTHLY pays a fixed salary and treats hours as attendance only.
+enum PayType {
+  HOURLY
+  MONTHLY
+}
+
+enum PayrollStatus {
+  DRAFT
+  LOCKED
+  PAID
+}
+
+model Organization {
+  id               String         @id @default(cuid())
+  name             String
+  slug             String         @unique
+  /// Informational: the API reads dates in the host's local zone, so deploy it
+  /// with TZ set to this value. See lib/time.ts.
+  timezone         String         @default("Asia/Tehran")
+  calendar         CalendarSystem @default(JALALI)
+  currency         Currency       @default(IRR)
+  defaultHourlyRate Float         @default(0)
+  monthlyGoalHours Float          @default(160)
+  /// When false, a finished session is approved the moment it is closed.
+  requireApproval  Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  memberships Membership[]
+  invites     Invite[]
+  projects    Project[]
+  sessions    WorkSession[]
+  periods     PayrollPeriod[]
+  auditLogs   AuditLog[]
+}
+
 model User {
-  id           String       @id @default(cuid())
-  username     String       @unique
+  id           String    @id @default(cuid())
+  username     String    @unique
+  email        String?   @unique
   passwordHash String
   nickname     String?
   avatarUrl    String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  settings     AppSettings?
-  sessions     WorkSession[]
-  authSessions AuthSession[]
+  /// Reserved for the operator of the deployment; bypasses org role checks.
+  isSuperAdmin Boolean   @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  settings        AppSettings?
+  memberships     Membership[]
+  sessions        WorkSession[]
+  authSessions    AuthSession[]
+  payrollLines    PayrollLine[]
+  approvedSessions WorkSession[]  @relation("SessionApprover")
+  createdInvites  Invite[]        @relation("InviteCreator")
+  acceptedInvites Invite[]        @relation("InviteAcceptor")
+  lockedPeriods   PayrollPeriod[] @relation("PeriodLocker")
+  auditLogs       AuditLog[]
 }
 
 model AuthSession {
-  id        String    @id @default(cuid())
-  userId    String
-  tokenHash String    @unique
-  expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  deviceName String?
+  lastUsedAt DateTime?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -49,33 +130,189 @@ model AuthSession {
   @@index([expiresAt])
 }
 
+/// Personal display preferences. Pay is never read from here — payroll uses
+/// the rate on Membership, which only a manager can change.
 model AppSettings {
-  id               String   @id @default(cuid())
-  userId           String   @unique
-  hourlyRate       Float    @default(0)
-  currency         Currency @default(IRR)
-  monthlyGoalHours Float    @default(160)
+  id               String         @id @default(cuid())
+  userId           String         @unique
+  hourlyRate       Float          @default(0)
+  currency         Currency       @default(IRR)
+  monthlyGoalHours Float          @default(160)
   calendar         CalendarSystem @default(JALALI)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model Membership {
+  id               String           @id @default(cuid())
+  organizationId   String
+  userId           String
+  role             OrgRole          @default(MEMBER)
+  status           MembershipStatus @default(ACTIVE)
+  employeeCode     String?
+  jobTitle         String?
+  payType          PayType          @default(HOURLY)
+  hourlyRate       Float            @default(0)
+  monthlySalary    Float            @default(0)
+  currency         Currency         @default(IRR)
+  monthlyGoalHours Float            @default(160)
+  joinedAt         DateTime         @default(now())
+  leftAt           DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payrollLines PayrollLine[]
+
+  @@unique([organizationId, userId])
+  @@unique([organizationId, employeeCode])
+  @@index([organizationId, status])
+}
+
+model Invite {
+  id             String    @id @default(cuid())
+  organizationId String
+  code           String    @unique
+  role           OrgRole   @default(MEMBER)
+  label          String?
+  payType        PayType   @default(HOURLY)
+  hourlyRate     Float     @default(0)
+  monthlySalary  Float     @default(0)
+  createdById    String
+  acceptedById   String?
+  acceptedAt     DateTime?
+  revokedAt      DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  acceptedBy   User?        @relation("InviteAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  color          String   @default("#B4213C")
+  archived       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions     WorkSession[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, archived])
+}
+
 model WorkSession {
-  id              String   @id @default(cuid())
+  id              String              @id @default(cuid())
+  organizationId  String
   userId          String
+  projectId       String?
+  /// The id the mobile app assigned locally. Makes a push idempotent: the same
+  /// offline row can be sent any number of times without duplicating.
+  clientId        String?
   startAt         DateTime
   endAt           DateTime?
-  durationMinutes Int      @default(0)
+  durationMinutes Int                 @default(0)
   category        WorkSessionCategory @default(ONSITE)
+  status          WorkSessionStatus   @default(OPEN)
+  source          WorkSessionSource   @default(TIMER)
   note            String?
+  reviewNote      String?
+  approvedById    String?
+  approvedAt      DateTime?
+  /// Soft delete. A hard delete would be invisible to an offline client, which
+  /// would then push the row straight back on its next sync.
+  deletedAt       DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  approvedBy   User?        @relation("SessionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, clientId])
+  @@index([organizationId, startAt])
+  @@index([userId, startAt])
+  @@index([organizationId, status])
+  @@index([updatedAt])
+}
+
+/// One payroll run for one organization and one month key, read in the
+/// organization's calendar — `1405-06` is a Shamsi month, not a Gregorian one.
+model PayrollPeriod {
+  id             String         @id @default(cuid())
+  organizationId String
+  month          String
+  calendar       CalendarSystem @default(JALALI)
+  from           DateTime
+  to             DateTime
+  status         PayrollStatus  @default(DRAFT)
+  note           String?
+  lockedById     String?
+  lockedAt       DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lockedBy     User?         @relation("PeriodLocker", fields: [lockedById], references: [id], onDelete: SetNull)
+  lines        PayrollLine[]
+
+  @@unique([organizationId, month])
+  @@index([organizationId, status])
+}
+
+/// A member's frozen numbers for one period. Written when the period is locked
+/// so a later rate change never rewrites a month that was already paid.
+model PayrollLine {
+  id              String   @id @default(cuid())
+  periodId        String
+  userId          String
+  membershipId    String?
+  approvedMinutes Int      @default(0)
+  pendingMinutes  Int      @default(0)
+  workedDays      Int      @default(0)
+  payType         PayType  @default(HOURLY)
+  hourlyRate      Float    @default(0)
+  monthlySalary   Float    @default(0)
+  currency        Currency @default(IRR)
+  grossAmount     Float    @default(0)
+  adjustment      Float    @default(0)
+  adjustmentNote  String?
+  netAmount       Float    @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period     PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membership Membership?   @relation(fields: [membershipId], references: [id], onDelete: SetNull)
 
-  @@index([userId])
-  @@index([startAt])
-  @@index([endAt])
+  @@unique([periodId, userId])
+  @@index([periodId])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorId        String?
+  action         String
+  targetType     String
+  targetId       String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
 }

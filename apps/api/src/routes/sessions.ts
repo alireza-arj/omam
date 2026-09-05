@@ -1,368 +1,342 @@
-import { Elysia, status, t } from "elysia";
+import { Elysia } from "elysia";
+import { asCalendarSystem } from "@omam/calendar";
 import {
   clockInInputSchema,
   clockOutInputSchema,
+  createSessionInputSchema,
+  sessionListQuerySchema,
+  summaryQuerySchema,
   updateSessionInputSchema,
-  type WorkSessionCategory,
 } from "@omam/contracts";
+import type { Organization, WorkSession } from "@prisma/client";
 import { prisma } from "../lib/prisma";
-import {
-  calculateSessionMinutes,
-  endOfMonth,
-  localDayKey,
-  normalizeMonth,
-  startOfMonth,
-} from "../lib/time";
-import { asCalendarSystem } from "@omam/calendar";
-import { authenticateByBearerToken, parseBearerToken } from "../lib/auth";
+import { authenticated } from "../lib/context";
+import { requireOrganization } from "../lib/auth";
+import { conflict, invalid, notFound, parseInput } from "../lib/errors";
+import { serializeSession } from "../lib/serialize";
+import { calculateSessionMinutes, hoursFromMinutes, localDayKey, monthWindow } from "../lib/time";
+import { isMonthLocked } from "../lib/payroll";
 
-function serializeSession(session: {
-  id: string;
-  startAt: Date;
-  endAt: Date | null;
-  durationMinutes: number;
-  category: WorkSessionCategory;
-  note: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  return {
-    ...session,
-    startAt: session.startAt.toISOString(),
-    endAt: session.endAt?.toISOString() ?? null,
-    createdAt: session.createdAt.toISOString(),
-    updatedAt: session.updatedAt.toISOString(),
-  };
+const includeProject = { project: true } as const;
+
+/** Where a finished session lands: straight to approved, or into the queue. */
+function statusAfterClose(organization: Organization) {
+  return organization.requireApproval ? ("PENDING" as const) : ("APPROVED" as const);
 }
 
-async function requireUserId(authorizationHeader: string | undefined) {
-  const token = parseBearerToken(authorizationHeader);
+/**
+ * A session inside a locked payroll month is history — editing it would change
+ * a total that has already been paid out.
+ */
+async function assertMonthEditable(organizationId: string, ...dates: (Date | null)[]) {
+  for (const date of dates) {
+    if (!date) continue;
 
-  if (!token) {
-    return null;
+    const lockedMonth = await isMonthLocked(organizationId, date);
+
+    if (lockedMonth) {
+      throw conflict(
+        `Payroll for ${lockedMonth} is closed, so that time cannot be changed.`,
+        "PAYROLL_LOCKED",
+      );
+    }
+  }
+}
+
+async function assertProjectBelongs(organizationId: string, projectId: string | null | undefined) {
+  if (!projectId) return null;
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, organizationId },
+    select: { id: true },
+  });
+
+  if (!project) {
+    throw invalid("That project does not belong to this organization.");
   }
 
-  const auth = await authenticateByBearerToken(token);
+  return project.id;
+}
 
-  if (!auth) {
-    return null;
+function assertOrder(startAt: Date, endAt: Date | null) {
+  if (endAt && endAt.getTime() < startAt.getTime()) {
+    throw invalid("The end time cannot be before the start time.");
+  }
+}
+
+async function ownSession(userId: string, id: string) {
+  const session = await prisma.workSession.findFirst({
+    where: { id, userId, deletedAt: null },
+    include: includeProject,
+  });
+
+  if (!session) {
+    throw notFound("Session not found.");
   }
 
-  return auth.user.id;
+  return session;
+}
+
+/** Editing approved time sends it back through review. */
+function reviewResetFor(organization: Organization, session: WorkSession) {
+  if (session.status !== "APPROVED" || !organization.requireApproval) {
+    return {};
+  }
+
+  return { status: "PENDING" as const, approvedAt: null, approvedById: null, reviewNote: null };
 }
 
 export const sessionRoutes = new Elysia({ prefix: "/sessions" })
-  .get(
-    "/",
-    async ({ query, headers }) => {
-      const userId = await requireUserId(headers.authorization);
+  .use(authenticated)
 
-      if (!userId) {
-        return status(401, {
-          message: "Unauthorized.",
-        });
-      }
+  .get("/", async ({ principal, query }) => {
+    const organization = requireOrganization(principal);
+    const filters = parseInput(sessionListQuerySchema, query);
 
-      const from = query.from ? new Date(query.from) : undefined;
-      const to = query.to ? new Date(query.to) : undefined;
-      const startAtFilter =
-        from || to
+    const sessions = await prisma.workSession.findMany({
+      where: {
+        userId: principal.user.id,
+        organizationId: organization.id,
+        deletedAt: null,
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.projectId ? { projectId: filters.projectId } : {}),
+        ...(filters.from || filters.to
           ? {
-              ...(from ? { gte: from } : {}),
-              ...(to ? { lte: to } : {}),
+              startAt: {
+                ...(filters.from ? { gte: new Date(filters.from) } : {}),
+                ...(filters.to ? { lte: new Date(filters.to) } : {}),
+              },
             }
-          : undefined;
+          : {}),
+      },
+      include: includeProject,
+      orderBy: { startAt: "desc" },
+    });
 
-      const sessions = await prisma.workSession.findMany({
+    return { sessions: sessions.map(serializeSession) };
+  })
+
+  .post("/clock-in", async ({ principal, body }) => {
+    const organization = requireOrganization(principal);
+    const payload = parseInput(clockInInputSchema, body);
+
+    const active = await prisma.workSession.findFirst({
+      where: { userId: principal.user.id, endAt: null, deletedAt: null },
+    });
+
+    if (active) {
+      throw conflict("There is already an active session.", "SESSION_ACTIVE");
+    }
+
+    const startAt = new Date(payload.startAt);
+
+    await assertMonthEditable(organization.id, startAt);
+
+    const session = await prisma.workSession.create({
+      data: {
+        organizationId: organization.id,
+        userId: principal.user.id,
+        projectId: await assertProjectBelongs(organization.id, payload.projectId),
+        startAt,
+        category: payload.category,
+        note: payload.note ?? null,
+        status: "OPEN",
+        source: "TIMER",
+      },
+      include: includeProject,
+    });
+
+    return serializeSession(session);
+  })
+
+  .post("/:id/clock-out", async ({ principal, params, body }) => {
+    const organization = requireOrganization(principal);
+    const payload = parseInput(clockOutInputSchema, body);
+    const session = await ownSession(principal.user.id, params.id);
+
+    if (session.endAt) {
+      throw conflict("That session is already closed.", "SESSION_CLOSED");
+    }
+
+    const endAt = new Date(payload.endAt);
+
+    assertOrder(session.startAt, endAt);
+    await assertMonthEditable(organization.id, session.startAt, endAt);
+
+    const updated = await prisma.workSession.update({
+      where: { id: session.id },
+      data: {
+        endAt,
+        durationMinutes: calculateSessionMinutes({ startAt: session.startAt, endAt }),
+        status: statusAfterClose(organization),
+        ...(organization.requireApproval ? {} : { approvedAt: new Date() }),
+      },
+      include: includeProject,
+    });
+
+    return serializeSession(updated);
+  })
+
+  .post("/", async ({ principal, body }) => {
+    const organization = requireOrganization(principal);
+    const payload = parseInput(createSessionInputSchema, body);
+    const startAt = new Date(payload.startAt);
+    const endAt = payload.endAt ? new Date(payload.endAt) : null;
+
+    assertOrder(startAt, endAt);
+    await assertMonthEditable(organization.id, startAt, endAt);
+
+    if (!endAt) {
+      const active = await prisma.workSession.findFirst({
+        where: { userId: principal.user.id, endAt: null, deletedAt: null },
+      });
+
+      if (active) {
+        throw conflict("There is already an active session.", "SESSION_ACTIVE");
+      }
+    }
+
+    const session = await prisma.workSession.create({
+      data: {
+        organizationId: organization.id,
+        userId: principal.user.id,
+        projectId: await assertProjectBelongs(organization.id, payload.projectId),
+        startAt,
+        endAt,
+        durationMinutes: endAt ? calculateSessionMinutes({ startAt, endAt }) : 0,
+        category: payload.category,
+        note: payload.note ?? null,
+        source: "MANUAL",
+        status: endAt ? statusAfterClose(organization) : "OPEN",
+        ...(endAt && !organization.requireApproval ? { approvedAt: new Date() } : {}),
+      },
+      include: includeProject,
+    });
+
+    return serializeSession(session);
+  })
+
+  .patch("/:id", async ({ principal, params, body }) => {
+    const organization = requireOrganization(principal);
+    const payload = parseInput(updateSessionInputSchema, body);
+    const session = await ownSession(principal.user.id, params.id);
+    const startAt = new Date(payload.startAt);
+    const endAt = payload.endAt ? new Date(payload.endAt) : null;
+
+    assertOrder(startAt, endAt);
+    await assertMonthEditable(organization.id, session.startAt, startAt, endAt);
+
+    const updated = await prisma.workSession.update({
+      where: { id: session.id },
+      data: {
+        startAt,
+        endAt,
+        durationMinutes: endAt ? calculateSessionMinutes({ startAt, endAt }) : 0,
+        category: payload.category,
+        note: payload.note ?? null,
+        projectId: await assertProjectBelongs(organization.id, payload.projectId),
+        ...(endAt ? {} : { status: "OPEN" as const, approvedAt: null, approvedById: null }),
+        ...(endAt ? reviewResetFor(organization, session) : {}),
+      },
+      include: includeProject,
+    });
+
+    return serializeSession(updated);
+  })
+
+  .delete("/:id", async ({ principal, params, set }) => {
+    const organization = requireOrganization(principal);
+    const session = await ownSession(principal.user.id, params.id);
+
+    await assertMonthEditable(organization.id, session.startAt);
+
+    // Soft delete: a hard one is invisible to an offline device, which would
+    // push the row straight back on its next sync.
+    await prisma.workSession.update({
+      where: { id: session.id },
+      data: { deletedAt: new Date() },
+    });
+
+    set.status = 204;
+
+    return null;
+  })
+
+  .get("/summary", async ({ principal, query }) => {
+    const organization = requireOrganization(principal);
+    const filters = parseInput(summaryQuerySchema, query);
+    const settings = await prisma.appSettings.findUnique({
+      where: { userId: principal.user.id },
+    });
+
+    const calendar = asCalendarSystem(
+      filters.calendar ?? settings?.calendar ?? organization.calendar,
+    );
+    const window = monthWindow(filters.month, calendar);
+
+    const [sessions, activeSession] = await Promise.all([
+      prisma.workSession.findMany({
         where: {
-          userId,
-          ...(startAtFilter
-            ? {
-                startAt: startAtFilter,
-              }
-            : {}),
+          userId: principal.user.id,
+          deletedAt: null,
+          startAt: { gte: window.from, lte: window.to },
         },
-        orderBy: {
-          startAt: "desc",
-        },
-      });
-
-      return {
-        sessions: sessions.map(serializeSession),
-      };
-    },
-    {
-      query: t.Object({
-        from: t.Optional(t.String()),
-        to: t.Optional(t.String()),
+        include: includeProject,
       }),
-    },
-  )
-  .post(
-    "/clock-in",
-    async ({ body, headers }) => {
-      const userId = await requireUserId(headers.authorization);
-
-      if (!userId) {
-        return status(401, {
-          message: "Unauthorized.",
-        });
-      }
-
-      const activeSession = await prisma.workSession.findFirst({
-        where: {
-          userId,
-          endAt: null,
-        },
-      });
-
-      if (activeSession) {
-        return status(409, {
-          message: "There is already an active session.",
-        });
-      }
-
-      const payload = clockInInputSchema.parse(body);
-
-      const session = await prisma.workSession.create({
-        data: {
-          userId,
-          startAt: new Date(payload.startAt),
-          durationMinutes: 0,
-          category: payload.category,
-          note: payload.note ?? null,
-        },
-      });
-
-      return serializeSession(session);
-    },
-    {
-      body: t.Object({
-        startAt: t.String(),
-        category: t.Optional(t.Union([t.Literal("ONSITE"), t.Literal("REMOTE")])),
-        note: t.Optional(t.Nullable(t.String())),
+      prisma.workSession.findFirst({
+        where: { userId: principal.user.id, endAt: null, deletedAt: null },
+        include: includeProject,
+        orderBy: { startAt: "desc" },
       }),
-    },
-  )
-  .post(
-    "/:id/clock-out",
-    async ({ body, params, headers }) => {
-      const userId = await requireUserId(headers.authorization);
+    ]);
 
-      if (!userId) {
-        return status(401, {
-          message: "Unauthorized.",
-        });
+    const categoryMinutes = { onsite: 0, remote: 0 };
+    const workedDays = new Set<string>();
+    let totalMinutes = 0;
+    let approvedMinutes = 0;
+    let pendingMinutes = 0;
+
+    for (const session of sessions) {
+      if (session.status === "REJECTED") {
+        continue;
       }
 
-      const payload = clockOutInputSchema.parse(body);
-      const session = await prisma.workSession.findFirst({
-        where: {
-          id: params.id,
-          userId,
-        },
-      });
+      workedDays.add(localDayKey(session.startAt, calendar));
 
-      if (!session) {
-        return status(404, {
-          message: "Session not found.",
-        });
+      if (!session.endAt) {
+        continue;
       }
 
-      if (session.endAt) {
-        return status(409, {
-          message: "Session is already ended.",
-        });
+      totalMinutes += session.durationMinutes;
+
+      if (session.status === "APPROVED") {
+        approvedMinutes += session.durationMinutes;
+      } else {
+        pendingMinutes += session.durationMinutes;
       }
 
-      const endAt = new Date(payload.endAt);
-      if (endAt.getTime() < session.startAt.getTime()) {
-        return status(422, {
-          message: "endAt cannot be before startAt.",
-        });
+      if (session.category === "REMOTE") {
+        categoryMinutes.remote += session.durationMinutes;
+      } else {
+        categoryMinutes.onsite += session.durationMinutes;
       }
+    }
 
-      const updated = await prisma.workSession.update({
-        where: {
-          id: params.id,
-        },
-        data: {
-          endAt,
-          durationMinutes: calculateSessionMinutes({
-            startAt: session.startAt,
-            endAt,
-          }),
-        },
-      });
+    // The member's own rate drives the figure they see; payroll uses the rate
+    // the manager set on the membership, which may differ.
+    const hourlyRate = settings?.hourlyRate ?? 0;
 
-      return serializeSession(updated);
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-      body: t.Object({
-        endAt: t.String(),
-      }),
-    },
-  )
-  .patch(
-    "/:id",
-    async ({ body, params, headers }) => {
-      const userId = await requireUserId(headers.authorization);
-
-      if (!userId) {
-        return status(401, {
-          message: "Unauthorized.",
-        });
-      }
-
-      const payload = updateSessionInputSchema.parse(body);
-
-      const session = await prisma.workSession.findFirst({
-        where: {
-          id: params.id,
-          userId,
-        },
-      });
-
-      if (!session) {
-        return status(404, {
-          message: "Session not found.",
-        });
-      }
-
-      const startAt = new Date(payload.startAt);
-      const endAt = payload.endAt ? new Date(payload.endAt) : null;
-
-      if (endAt && endAt.getTime() < startAt.getTime()) {
-        return status(422, {
-          message: "endAt cannot be before startAt.",
-        });
-      }
-
-      const updated = await prisma.workSession.update({
-        where: {
-          id: params.id,
-        },
-        data: {
-          startAt,
-          endAt,
-          durationMinutes: endAt
-            ? calculateSessionMinutes({
-                startAt,
-                endAt,
-              })
-            : 0,
-          category: payload.category,
-          note: payload.note,
-        },
-      });
-
-      return serializeSession(updated);
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-      body: t.Object({
-        startAt: t.String(),
-        endAt: t.Nullable(t.String()),
-        category: t.Optional(t.Union([t.Literal("ONSITE"), t.Literal("REMOTE")])),
-        note: t.Nullable(t.String()),
-      }),
-    },
-  )
-  .get(
-    "/summary",
-    async ({ query, headers }) => {
-      const userId = await requireUserId(headers.authorization);
-
-      if (!userId) {
-        return status(401, {
-          message: "Unauthorized.",
-        });
-      }
-
-      // Settings decide the calendar, and the calendar decides where the month
-      // starts, so they have to be read before the range is built.
-      const settings = await prisma.appSettings.findUnique({
-        where: {
-          userId,
-        },
-      });
-
-      const calendar = asCalendarSystem(query.calendar ?? settings?.calendar);
-      const month = normalizeMonth(query.month, calendar);
-      const from = startOfMonth(month, calendar);
-      const to = endOfMonth(month, calendar);
-
-      const [sessions, activeSession] = await Promise.all([
-        prisma.workSession.findMany({
-          where: {
-            userId,
-            startAt: {
-              gte: from,
-              lte: to,
-            },
-          },
-        }),
-        prisma.workSession.findFirst({
-          where: {
-            userId,
-            endAt: null,
-          },
-          orderBy: {
-            startAt: "desc",
-          },
-        }),
-      ]);
-
-      const categoryMinutes = {
-        onsite: 0,
-        remote: 0,
-      };
-
-      const totalMinutes = sessions.reduce((sum, session) => {
-        if (!session.endAt) {
-          return sum;
-        }
-
-        const minutes =
-          session.durationMinutes ||
-          calculateSessionMinutes({
-            startAt: session.startAt,
-            endAt: session.endAt,
-          });
-
-        if (session.category === "REMOTE") {
-          categoryMinutes.remote += minutes;
-        } else {
-          categoryMinutes.onsite += minutes;
-        }
-
-        return sum + minutes;
-      }, 0);
-      const workedDays = new Set(sessions.map((session) => localDayKey(session.startAt, calendar)))
-        .size;
-      const hourlyRate = settings?.hourlyRate ?? 0;
-
-      return {
-        month,
-        calendar,
-        summary: {
-          totalMinutes,
-          totalIncome: Number(((totalMinutes / 60) * hourlyRate).toFixed(2)),
-          activeSession: activeSession ? serializeSession(activeSession) : null,
-          workedDays,
-          categoryMinutes,
-        },
-      };
-    },
-    {
-      query: t.Object({
-        month: t.Optional(t.String()),
-        calendar: t.Optional(t.Union([t.Literal("JALALI"), t.Literal("GREGORIAN")])),
-      }),
-    },
-  );
+    return {
+      month: window.month,
+      calendar,
+      summary: {
+        totalMinutes,
+        approvedMinutes,
+        pendingMinutes,
+        totalIncome: Number((hoursFromMinutes(totalMinutes) * hourlyRate).toFixed(2)),
+        activeSession: activeSession ? serializeSession(activeSession) : null,
+        workedDays: workedDays.size,
+        categoryMinutes,
+      },
+    };
+  });
