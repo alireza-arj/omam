@@ -41,14 +41,10 @@ enum MembershipStatus {
   SUSPENDED
 }
 
-/// A session is OPEN while the timer runs. Once it ends it becomes PENDING and
-/// waits for a manager, unless the organization has approval turned off, in
-/// which case it lands on APPROVED directly. Payroll only counts APPROVED.
+/// A session is OPEN while running and COMPLETED once it has an end time.
 enum WorkSessionStatus {
   OPEN
-  PENDING
-  APPROVED
-  REJECTED
+  COMPLETED
 }
 
 enum WorkSessionSource {
@@ -58,7 +54,7 @@ enum WorkSessionSource {
   ADMIN
 }
 
-/// How a member is paid. HOURLY multiplies approved hours by the rate;
+/// How a member is paid. HOURLY multiplies completed hours by the rate;
 /// MONTHLY pays a fixed salary and treats hours as attendance only.
 enum PayType {
   HOURLY
@@ -72,6 +68,7 @@ enum PayrollStatus {
 }
 
 model Organization {
+  requireApproval Boolean @default(true) @ignore
   id               String         @id @default(cuid())
   name             String
   slug             String         @unique
@@ -83,8 +80,6 @@ model Organization {
   currency         Currency       @default(IRR)
   defaultHourlyRate Float         @default(0)
   monthlyGoalHours Float          @default(160)
-  /// When false, a finished session is approved the moment it is closed.
-  requireApproval  Boolean        @default(true)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
@@ -97,6 +92,7 @@ model Organization {
 }
 
 model User {
+  approvedSessions WorkSession[] @relation("SessionApprover") @ignore
   id           String    @id @default(cuid())
   username     String    @unique
   email        String?   @unique
@@ -114,7 +110,6 @@ model User {
   sessions        WorkSession[]
   authSessions    AuthSession[]
   payrollLines    PayrollLine[]
-  approvedSessions WorkSession[]  @relation("SessionApprover")
   createdInvites  Invite[]        @relation("InviteCreator")
   acceptedInvites Invite[]        @relation("InviteAcceptor")
   lockedPeriods   PayrollPeriod[] @relation("PeriodLocker")
@@ -222,6 +217,11 @@ model Project {
 }
 
 model WorkSession {
+  legacyReviewStatus String? @ignore
+  reviewNote String? @ignore
+  approvedById String? @ignore
+  approvedAt DateTime? @ignore
+  approvedBy User? @relation("SessionApprover", fields: [approvedById], references: [id], onDelete: SetNull) @ignore
   id              String              @id @default(cuid())
   organizationId  String
   userId          String
@@ -236,9 +236,6 @@ model WorkSession {
   status          WorkSessionStatus   @default(OPEN)
   source          WorkSessionSource   @default(TIMER)
   note            String?
-  reviewNote      String?
-  approvedById    String?
-  approvedAt      DateTime?
   /// Soft delete. A hard delete would be invisible to an offline client, which
   /// would then push the row straight back on its next sync.
   deletedAt       DateTime?
@@ -248,7 +245,6 @@ model WorkSession {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  approvedBy   User?        @relation("SessionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
 
   @@unique([userId, clientId])
   @@index([organizationId, startAt])
@@ -284,12 +280,12 @@ model PayrollPeriod {
 /// A member's frozen numbers for one period. Written when the period is locked
 /// so a later rate change never rewrites a month that was already paid.
 model PayrollLine {
+  pendingMinutes Int @default(0) @ignore
   id              String   @id @default(cuid())
   periodId        String
   userId          String
   membershipId    String?
-  approvedMinutes Int      @default(0)
-  pendingMinutes  Int      @default(0)
+  completedMinutes Int      @default(0)
   workedDays      Int      @default(0)
   payType         PayType  @default(HOURLY)
   hourlyRate      Float    @default(0)
