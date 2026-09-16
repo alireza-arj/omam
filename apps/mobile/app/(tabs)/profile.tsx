@@ -277,9 +277,6 @@ export default function ProfileScreen() {
 
           <SegmentedControl options={calendarOptions} value={calendar} onChange={setCalendar} full />
 
-          <Text role="caption" tone="muted">
-            Months and weeks are grouped in this calendar. Recorded sessions are not changed.
-          </Text>
         </View>
 
         <Divider inset={30} />

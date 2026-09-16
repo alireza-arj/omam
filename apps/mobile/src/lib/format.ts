@@ -20,9 +20,23 @@ export function formatCurrency(value: number, currency: Currency) {
       style: "currency",
       currency: "USD",
       maximumFractionDigits: 0,
+      notation: "compact",
     }).format(value);
   }
-  return `${formatNumber(Math.round(value))} Toman`;
+
+  const abs = Math.abs(Math.round(value));
+
+  if (abs >= 1_000_000) {
+    const compact = Math.round((value / 1_000_000) * 10) / 10;
+    return `${formatNumber(compact)}M`;
+  }
+
+  if (abs >= 1_000) {
+    const compact = Math.round((value / 1_000) * 10) / 10;
+    return `${formatNumber(compact)}K`;
+  }
+
+  return `${formatNumber(Math.round(value))}`;
 }
 
 export function formatMinutes(totalMinutes: number) {
