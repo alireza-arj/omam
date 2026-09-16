@@ -13,6 +13,7 @@ import {
   LogIn,
   LogOut,
   Plus,
+  Target,
   Wallet,
 } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
@@ -138,6 +139,18 @@ export default function ReportScreen() {
   const categoryTotal = totals.categoryMinutes.onsite + totals.categoryMinutes.remote;
   const onsiteShare = categoryTotal ? totals.categoryMinutes.onsite / categoryTotal : 0;
   const averageMinutes = totals.workedDays ? Math.round(totals.totalMinutes / totals.workedDays) : 0;
+
+  const requiredPerDayMinutes = useMemo(() => {
+    if (period !== "MONTH" || offset !== 0 || goalHours <= 0) return null;
+    const remainingGoalMinutes = goalHours * 60 - totals.totalMinutes;
+    if (remainingGoalMinutes <= 0) return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const monthEnd = new Date(range.to);
+    monthEnd.setHours(0, 0, 0, 0);
+    const remainingDays = Math.max(1, Math.round((monthEnd.getTime() - today.getTime()) / 86_400_000) + 1);
+    return Math.ceil(remainingGoalMinutes / remainingDays);
+  }, [goalHours, offset, period, range.to, totals.totalMinutes]);
 
   function changePeriod(next: ReportPeriod) {
     setPeriod(next);
@@ -308,6 +321,25 @@ export default function ReportScreen() {
           }
         />
         <Divider inset={30} />
+        {requiredPerDayMinutes !== null && (
+          <>
+            <ListRow
+              label="Required per day"
+              hint={
+                requiredPerDayMinutes === 0
+                  ? "Goal reached"
+                  : "To reach monthly goal"
+              }
+              leading={<Icon glyph={Target} size={20} color={colors.fillAccent} />}
+              trailing={
+                <Text role="mono" tone={requiredPerDayMinutes === 0 ? "accent" : "body"}>
+                  {requiredPerDayMinutes === 0 ? "Done" : formatShortMinutes(requiredPerDayMinutes)}
+                </Text>
+              }
+            />
+            <Divider inset={30} />
+          </>
+        )}
         <ListRow
           label="Last check-in"
           leading={<Icon glyph={LogIn} size={20} color={colors.textMuted} />}
