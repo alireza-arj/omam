@@ -10,8 +10,6 @@ import {
   Clock3,
   Laptop,
   ListChecks,
-  LogIn,
-  LogOut,
   Plus,
   Target,
   Wallet,
@@ -20,7 +18,7 @@ import type { LucideIcon } from "lucide-react-native";
 import type { SessionDto } from "@omam/contracts";
 import { SessionItem } from "../../src/components/session-item";
 import { getSessions } from "../../src/lib/db/sessions";
-import { formatClock, formatCurrency, formatShortMinutes, joinMeta } from "../../src/lib/format";
+import { formatCurrency, formatShortMinutes, joinMeta } from "../../src/lib/format";
 import {
   formatRangeLabel,
   getPeriodGoalHours,
@@ -117,7 +115,6 @@ export default function ReportScreen() {
     () => groupSessionsByDay(sortedSessions, calendar),
     [calendar, sortedSessions],
   );
-  const latestSession = sortedSessions[0];
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), []);
 
   const goalHours = getPeriodGoalHours(period, settings.monthlyGoalHours);
@@ -320,9 +317,9 @@ export default function ReportScreen() {
             </Text>
           }
         />
-        <Divider inset={30} />
         {requiredPerDayMinutes !== null && (
           <>
+            <Divider inset={30} />
             <ListRow
               label="Required per day"
               hint={
@@ -337,32 +334,8 @@ export default function ReportScreen() {
                 </Text>
               }
             />
-            <Divider inset={30} />
           </>
         )}
-        <ListRow
-          label="Last check-in"
-          leading={<Icon glyph={LogIn} size={20} color={colors.textMuted} />}
-          trailing={
-            <Text role="mono" tone="body">
-              {latestSession ? formatClock(latestSession.startAt) : "--:--"}
-            </Text>
-          }
-        />
-        <Divider inset={30} />
-        <ListRow
-          label="Last check-out"
-          leading={<Icon glyph={LogOut} size={20} color={colors.textMuted} />}
-          trailing={
-            <Text role="mono" tone={latestSession && !latestSession.endAt ? "accent" : "body"}>
-              {latestSession?.endAt
-                ? formatClock(latestSession.endAt)
-                : latestSession
-                  ? "Running"
-                  : "--:--"}
-            </Text>
-          }
-        />
       </Card>
 
       <Card padded={false}>
