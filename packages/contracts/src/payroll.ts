@@ -13,8 +13,7 @@ export const payrollLineSchema = z.object({
   username: z.string(),
   nickname: z.string().nullable(),
   employeeCode: z.string().nullable(),
-  approvedMinutes: z.number().nonnegative(),
-  pendingMinutes: z.number().nonnegative(),
+  completedMinutes: z.number().nonnegative(),
   workedDays: z.number().nonnegative(),
   payType: payTypeSchema,
   hourlyRate: z.number().nonnegative(),
@@ -53,7 +52,7 @@ export const payrollPeriodsResponseSchema = z.object({
 });
 
 /**
- * Builds (or rebuilds) a DRAFT period from the approved sessions of the month.
+ * Builds (or rebuilds) a DRAFT period from the completed sessions of the month.
  * A LOCKED period is never recomputed — its numbers are the record of what was
  * paid, so a later rate change must not reach back into it.
  */

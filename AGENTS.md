@@ -5,7 +5,7 @@ OMAM is team time tracking: an offline-first mobile app, a manager's web panel, 
 - **Mobile**: React Native + Expo, local SQLite, syncs to the server when linked
 - **Admin panel**: React + Vite in `apps/admin`, for managers and owners only
 - **Backend**: Elysia.js + Prisma + PostgreSQL
-- **Goal**: Everyone tracks their own hours; a manager reviews them and closes each month out as payroll.
+- **Goal**: Everyone tracks their own hours; a manager manages the team and closes each month out as payroll. No manager approval is required for time entries.
 
 ## Core Rules (Must Follow)
 
@@ -37,7 +37,7 @@ OMAM is team time tracking: an offline-first mobile app, a manager's web panel, 
 
 ### 4a. Permissions And Payroll
 - Roles are OWNER > MANAGER > MEMBER, checked with `requireRole`.
-- Payroll counts **approved** time only, at the rate on `Membership` — never the rate a member sets for themselves.
+- Payroll counts all **completed, non-deleted** time directly, without approval, at the rate on `Membership` — never the rate a member sets for themselves.
 - A locked payroll month refuses every later edit, from the panel, the app and sync. Do not add a path around it.
 
 ### 5. Design System (Taraz)
@@ -86,7 +86,7 @@ OMAM is team time tracking: an offline-first mobile app, a manager's web panel, 
 ### 10. Sync
 - The app is offline-first: every screen reads and writes local SQLite, and a linked server is an addition, never a requirement.
 - The local row id is the `clientId` the server keys on, which is what makes a repeated push idempotent.
-- Conflicts go to the newer `updatedAt`, except that a locked payroll month always wins and editing approved time returns it to the review queue.
+- Conflicts go to the newer `updatedAt`, except that a locked payroll month always wins. Sessions are OPEN while running and COMPLETED once ended; edits never enter a review queue. Legacy approval columns are retained only for historical preservation and ignored by Prisma; do not restore approval behavior.
 
 ## Additional Rules
 - Never introduce new JavaScript files in source directories.

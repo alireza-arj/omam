@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
-import { BlurView } from "expo-blur";
+import { GlassView } from "heroui-native/glass-view";
 import { useTheme } from "../theme";
 import { blur } from "../tokens";
 
@@ -21,10 +21,9 @@ export function Glass({ children, weight = "regular", strong = false, style }: G
 
   return (
     <View style={[styles.root, style]}>
-      <BlurView
+      <GlassView
         intensity={blur[weight]}
         tint={colors.blurTint}
-        experimentalBlurMethod="dimezisBlurView"
         style={StyleSheet.absoluteFill}
       />
       <View

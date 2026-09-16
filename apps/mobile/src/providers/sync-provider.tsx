@@ -147,7 +147,6 @@ export function SyncProvider({ children }: PropsWithChildren) {
         serverUserId: auth.user.id,
         serverUsername: auth.user.username,
         organizationName: auth.membership.organizationName,
-        requireApproval: auth.membership.requireApproval ? 1 : 0,
         lastError: null,
       });
 
@@ -183,7 +182,6 @@ export function SyncProvider({ children }: PropsWithChildren) {
         cursor: response.serverTime,
         lastSyncAt: new Date().toISOString(),
         organizationName: response.organization?.name ?? null,
-        requireApproval: response.organization?.requireApproval ? 1 : 0,
         lastError: null,
       });
 

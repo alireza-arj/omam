@@ -1,3 +1,5 @@
+import { Card, EmptyState, ErrorState, Loading, Table, TableScroll } from "../components/ui";
+import { Pagination } from "../components/collection";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -6,8 +8,8 @@ import { translateError } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
 
 import { formatDate, formatTime } from "../lib/format";
+import { auditAction, auditDetails } from "../lib/audit";
 import { PageHeader } from "./layout";
-import { Button, Card, CardHeader, EmptyState, ErrorState, Loading } from "../components/ui";
 
 const PAGE_SIZE = 50;
 
@@ -26,67 +28,64 @@ export function AuditPage() {
 
   return (
     <>
-      <PageHeader title={t("admin.nav.audit")} subtitle={t("admin.audit.subtitle")} />
+      <PageHeader title={t("admin.nav.audit")} />
 
       <div className="page-body">
         <Card flush>
-          <CardHeader
-            title={t("admin.audit.count", { count: audit.data?.total ?? 0 })}
-            actions={
-              pageCount > 1 ? (
-                <>
-                  <Button size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                    {t("admin.audit.newer")}
-                  </Button>
-                  <span className="t-caption muted">
-                    {page} / {pageCount}
-                  </span>
-                  <Button size="sm" disabled={page >= pageCount} onClick={() => setPage(page + 1)}>
-                    {t("admin.audit.older")}
-                  </Button>
-                </>
-              ) : null
-            }
-          />
-
           {audit.isPending ? <Loading /> : null}
           {audit.isError ? (
             <ErrorState message={translateError(audit.error, t)} onRetry={() => audit.refetch()} />
           ) : null}
 
           {audit.data?.entries.length ? (
-            <div className="table-scroll">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>{t("admin.audit.when")}</th>
-                    <th>{t("admin.audit.who")}</th>
-                    <th>{t("admin.audit.action")}</th>
-                    <th>{t("admin.audit.details")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {audit.data.entries.map((entry) => (
-                    <tr key={entry.id}>
-                      <td className="muted" style={{ whiteSpace: "nowrap" }}>
-                        {formatDate(entry.createdAt, calendar, language)} · {formatTime(entry.createdAt)}
-                      </td>
-                      <td>{entry.actorName ?? <span className="faint">{t("admin.audit.system")}</span>}</td>
-                      <td>
-                        <span className="code">{entry.action}</span>
-                      </td>
-                      <td className="t-caption muted" style={{ maxWidth: 420 }}>
-                        {entry.metadata && Object.keys(entry.metadata as object).length
-                          ? JSON.stringify(entry.metadata)
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TableScroll>
+              <Table>
+                <Table.Content aria-label={t("common.records")} className="omam-data">
+                  <Table.Header>
+                    <Table.Column isRowHeader>{t("admin.audit.when")}</Table.Column>
+                    <Table.Column>{t("admin.audit.who")}</Table.Column>
+                    <Table.Column>{t("admin.audit.action")}</Table.Column>
+                    <Table.Column>{t("admin.audit.details")}</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {audit.data.entries.map((entry) => (
+                      <Table.Row id={entry.id} key={entry.id}>
+                        <Table.Cell className="muted nowrap">
+                          {formatDate(entry.createdAt, calendar, language)} · {formatTime(entry.createdAt)}
+                        </Table.Cell>
+                        <Table.Cell>
+                          {entry.actorName ?? <span className="faint">{t("admin.audit.system")}</span>}
+                        </Table.Cell>
+                        <Table.Cell>{auditAction(entry.action, t)}</Table.Cell>
+                        <Table.Cell className="t-caption">
+                          <dl className="audit-details">
+                            {auditDetails(entry.metadata, language, t).map((detail) => (
+                              <div key={detail.key}>
+                                <dt>{detail.label}:</dt>
+                                <dd>
+                                  <bdi>{detail.value}</bdi>
+                                </dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table>
+            </TableScroll>
           ) : audit.data ? (
             <EmptyState title={t("admin.audit.empty")} />
+          ) : null}
+          {audit.data ? (
+            <Pagination
+              page={page}
+              pageCount={pageCount}
+              pageSize={PAGE_SIZE}
+              total={audit.data.total}
+              setPage={setPage}
+            />
           ) : null}
         </Card>
       </div>

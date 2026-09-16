@@ -27,7 +27,7 @@ export const syncPushResultSchema = z.object({
   /**
    * `applied` — the server took the client's version.
    * `skipped` — the server's copy is newer and the client should adopt it.
-   * `rejected` — the row is locked by approval or payroll and cannot change.
+   * `rejected` — the row is locked by payroll and cannot change.
    */
   outcome: z.enum(["applied", "skipped", "rejected"]),
   reason: z.string().nullable(),
@@ -50,7 +50,6 @@ export const syncResponseSchema = z.object({
     .object({
       id: z.string(),
       name: z.string(),
-      requireApproval: z.boolean(),
     })
     .nullable(),
 });

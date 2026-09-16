@@ -1,4 +1,15 @@
-import { useState } from "react";
+import {
+  Avatar,
+  Card,
+  CardHeader,
+  EmptyState,
+  ErrorState,
+  Loading,
+  Stat,
+  Table,
+  TableScroll,
+} from "../components/ui";
+import { useReportMonth, reportLink } from "../lib/report-month";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -6,21 +17,14 @@ import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
 
-import {
-  currentMonth,
-  displayName,
-  formatDuration,
-  formatMoney,
-  formatTime,
-} from "../lib/format";
+import { displayName, formatDuration, formatMoney, formatTime } from "../lib/format";
 import { PageHeader } from "./layout";
 import { DayBars, MonthPicker } from "../components/controls";
-import { Avatar, Card, CardHeader, EmptyState, ErrorState, Loading, Stat } from "../components/ui";
 
 export function DashboardPage() {
-  const { calendar, membership } = useSession();
+  const { calendar } = useSession();
   const { language, t } = useLanguage();
-  const [month, setMonth] = useState(() => currentMonth(calendar));
+  const [month, setMonth] = useReportMonth(calendar);
 
   const dashboard = useQuery({
     queryKey: ["dashboard", month, calendar],
@@ -33,7 +37,6 @@ export function DashboardPage() {
     <>
       <PageHeader
         title={t("admin.nav.overview")}
-        subtitle={membership?.organizationName}
         actions={<MonthPicker month={month} calendar={calendar} onChange={setMonth} />}
       />
 
@@ -45,27 +48,15 @@ export function DashboardPage() {
 
         {dashboard.data ? (
           <>
-            <Card>
+            <Card className="summary-card">
               <div className="stat-grid">
                 <Stat
-                  label={t("admin.dashboard.approvedThisMonth")}
-                  value={formatDuration(dashboard.data.monthApprovedMinutes, language)}
+                  label={t("admin.dashboard.completedThisMonth")}
+                  value={formatDuration(dashboard.data.monthCompletedMinutes, language)}
                 />
                 <Stat
                   label={t("admin.dashboard.payrollSoFar")}
                   value={formatMoney(dashboard.data.monthGrossAmount, dashboard.data.currency, t)}
-                  hint={t("admin.dashboard.approvedOnly")}
-                />
-                <Stat
-                  label={t("admin.dashboard.waiting")}
-                  value={dashboard.data.pendingCount}
-                  hint={
-                    dashboard.data.pendingCount > 0 ? (
-                      <Link to="/timesheets">{t("admin.dashboard.reviewNow")}</Link>
-                    ) : (
-                      t("admin.dashboard.queueEmpty")
-                    )
-                  }
                 />
                 <Stat label={t("admin.dashboard.activeMembers")} value={dashboard.data.memberCount} />
               </div>
@@ -81,36 +72,37 @@ export function DashboardPage() {
                 }
               />
               {dashboard.data.activeNow.length ? (
-                <div className="table-scroll">
-                  <table className="data">
-                    <thead>
-                      <tr>
-                        <th>{t("admin.dashboard.member")}</th>
-                        <th>{t("admin.dashboard.started")}</th>
-                        <th className="num">{t("admin.dashboard.elapsed")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dashboard.data.activeNow.map((entry) => (
-                        <tr key={entry.userId}>
-                          <td>
-                            <div className="row gap-5">
-                              <Avatar name={displayName(entry)} src={entry.avatarUrl} size="sm" />
-                              <Link to={`/members/${entry.userId}`}>{displayName(entry)}</Link>
-                            </div>
-                          </td>
-                          <td className="muted">{formatTime(entry.startedAt)}</td>
-                          <td className="num t-mono">{formatDuration(entry.minutes, language)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <TableScroll>
+                  <Table>
+                    <Table.Content aria-label={t("common.records")} className="omam-data">
+                      <Table.Header>
+                        <Table.Column isRowHeader>{t("admin.dashboard.member")}</Table.Column>
+                        <Table.Column>{t("admin.dashboard.started")}</Table.Column>
+                        <Table.Column className="num">{t("admin.dashboard.elapsed")}</Table.Column>
+                      </Table.Header>
+                      <Table.Body>
+                        {dashboard.data.activeNow.map((entry) => (
+                          <Table.Row id={entry.userId} key={entry.userId}>
+                            <Table.Cell>
+                              <div className="row gap-5">
+                                <Avatar name={displayName(entry)} src={entry.avatarUrl} size="sm" />
+                                <Link to={reportLink(`/members/${entry.userId}`, month, calendar)}>
+                                  {displayName(entry)}
+                                </Link>
+                              </div>
+                            </Table.Cell>
+                            <Table.Cell className="muted">{formatTime(entry.startedAt)}</Table.Cell>
+                            <Table.Cell className="num t-mono">
+                              {formatDuration(entry.minutes, language)}
+                            </Table.Cell>
+                          </Table.Row>
+                        ))}
+                      </Table.Body>
+                    </Table.Content>
+                  </Table>
+                </TableScroll>
               ) : (
-                <EmptyState
-                  title={t("admin.dashboard.nobodyClockedIn")}
-                  hint={t("admin.dashboard.nobodyHint")}
-                />
+                <EmptyState title={t("admin.dashboard.nobodyClockedIn")} />
               )}
             </Card>
 

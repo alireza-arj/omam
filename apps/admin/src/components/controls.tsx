@@ -14,34 +14,35 @@ export function MonthPicker({
   calendar: CalendarSystem;
   onChange: (month: string) => void;
 }) {
-  const { language, t } = useLanguage();
+  const { language, isRtl, t } = useLanguage();
   const thisMonth = currentMonth(calendar);
 
   return (
-    <div className="row gap-4">
-      <Button
-        variant="outline"
-        size="sm"
-        aria-label={t("admin.month.previous")}
-        onClick={() => onChange(shiftMonth(month, -1, calendar))}
-      >
-        {/* The arrow points the way the reader is going, not the way the page runs. */}
-        &#8592;
-      </Button>
-      <span className="t-title3" style={{ minWidth: 160, textAlign: "center" }}>
-        {monthLabel(month, calendar, language)}
-      </span>
-      <Button
-        variant="outline"
-        size="sm"
-        aria-label={t("admin.month.next")}
-        disabled={month >= thisMonth}
-        onClick={() => onChange(shiftMonth(month, 1, calendar))}
-      >
-        &#8594;
-      </Button>
+    <div className="month-picker">
+      <div className="month-navigation">
+        <Button
+          variant="ghost"
+          className="icon"
+          aria-label={t("admin.month.previous")}
+          onClick={() => onChange(shiftMonth(month, -1, calendar))}
+        >
+          <span aria-hidden>{isRtl ? "→" : "←"}</span>
+        </Button>
+        <span className="month-label" aria-live="polite">
+          {monthLabel(month, calendar, language)}
+        </span>
+        <Button
+          variant="ghost"
+          className="icon"
+          aria-label={t("admin.month.next")}
+          disabled={month >= thisMonth}
+          onClick={() => onChange(shiftMonth(month, 1, calendar))}
+        >
+          <span aria-hidden>{isRtl ? "←" : "→"}</span>
+        </Button>
+      </div>
       {month === thisMonth ? null : (
-        <Button variant="ghost" size="sm" onClick={() => onChange(thisMonth)}>
+        <Button variant="ghost" onClick={() => onChange(thisMonth)}>
           {t("admin.month.thisMonth")}
         </Button>
       )}
@@ -50,7 +51,7 @@ export function MonthPicker({
 }
 
 /**
- * One bar per day of the month. Days with no approved time keep their slot, so
+ * One bar per day of the month. Days with no completed time keep their slot, so
  * the shape of the month reads correctly instead of collapsing.
  */
 export function DayBars({ days }: { days: DailyBucketDto[] }) {

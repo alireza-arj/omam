@@ -327,7 +327,7 @@ export default function SessionEditorScreen() {
 
         <View style={{ gap: layout.gapTight }}>
           <Text role="label" tone="body">
-            Category
+            {t("session.category")}
           </Text>
           <SegmentedControl
             options={categoryOptions}

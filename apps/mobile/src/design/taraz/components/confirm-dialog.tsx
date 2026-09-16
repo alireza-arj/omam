@@ -1,9 +1,8 @@
-import { Modal, Pressable, View } from "react-native";
+import { Modal, Platform, StyleSheet, View } from "react-native";
+import { Dialog } from "heroui-native/dialog";
 import { Button } from "./button";
-import { Text } from "./text";
-import { useTranslation } from "../i18n";
-import { useTheme } from "../theme";
-import { layout, radius } from "../tokens";
+import { useLanguage } from "../i18n";
+import { layout, typeRolesByLanguage } from "../tokens";
 
 export type ConfirmDialogProps = {
   visible: boolean;
@@ -11,98 +10,45 @@ export type ConfirmDialogProps = {
   description?: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  /** Crimson confirm, for anything that destroys data. */
   destructive?: boolean;
   loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 };
 
-/**
- * `Alert.alert` with buttons never renders on web, so a confirmation there
- * silently did nothing. This is a real modal — same behaviour everywhere.
- */
 export function ConfirmDialog({
-  visible,
-  title,
-  description,
-  confirmLabel,
-  cancelLabel,
-  destructive = false,
-  loading = false,
-  onConfirm,
-  onCancel,
+  visible, title, description, confirmLabel, cancelLabel,
+  destructive = false, loading = false, onConfirm, onCancel,
 }: ConfirmDialogProps) {
-  const { colors, elevation } = useTheme();
-  const t = useTranslation();
-  const confirm = confirmLabel ?? t("common.confirm");
-  const cancel = cancelLabel ?? t("common.cancel");
+  const { t, language, direction } = useLanguage();
+  const roles = typeRolesByLanguage[language];
+  const cancel = () => { if (!loading) onCancel(); };
+  const content = (
+    <>
+      <Dialog.Overlay isCloseOnPress={!loading} style={StyleSheet.absoluteFill} />
+      <Dialog.Content
+        isSwipeable={!loading && Platform.OS !== "web"}
+        style={{ direction, gap: layout.gapLoose, maxWidth: layout.dialogMaxWidth, width: "100%", alignSelf: "center" }}
+      >
+        <Dialog.Title style={roles.title2}>{title}</Dialog.Title>
+        {description ? <Dialog.Description style={roles.bodySm}>{description}</Dialog.Description> : null}
+        <View style={{ flexDirection: "row", gap: layout.gapDefault }}>
+          <Button label={cancelLabel ?? t("common.cancel")} variant="quiet" size="lg" disabled={loading} onPress={cancel} style={{ flex: 1 }} />
+          <Button label={confirmLabel ?? t("common.confirm")} variant={destructive ? "primary" : "secondary"} size="lg" loading={loading} onPress={onConfirm} style={{ flex: 1 }} />
+        </View>
+      </Dialog.Content>
+    </>
+  );
 
   return (
-    <Modal
-      animationType="fade"
-      onRequestClose={onCancel}
-      statusBarTranslucent
-      transparent
-      visible={visible}
-    >
-      <Pressable
-        accessibilityLabel={cancel}
-        accessibilityRole="button"
-        onPress={onCancel}
-        style={{
-          alignItems: "center",
-          backgroundColor: colors.surfaceScrim,
-          flex: 1,
-          justifyContent: "center",
-          padding: layout.padPage,
-        }}
-      >
-        {/* Swallows the press so a tap inside the card does not dismiss it. */}
-        <Pressable
-          accessibilityViewIsModal
-          onPress={() => undefined}
-          style={[
-            {
-              backgroundColor: colors.surfaceCard,
-              borderRadius: radius.sheet,
-              gap: layout.gapLoose,
-              maxWidth: 420,
-              padding: layout.padSection,
-              width: "100%",
-            },
-            elevation(4),
-          ]}
-        >
-          <View style={{ gap: layout.gapTight }}>
-            <Text role="title2">{title}</Text>
-            {description ? (
-              <Text role="bodySm" tone="muted">
-                {description}
-              </Text>
-            ) : null}
+    <Dialog isOpen={visible} onOpenChange={(open) => { if (!open) cancel(); }}>
+      {Platform.OS === "web" ? (
+        <Modal visible={visible} transparent onRequestClose={cancel}>
+          <View style={{ flex: 1, justifyContent: "center", padding: layout.padPage, direction }}>
+            {content}
           </View>
-
-          <View style={{ flexDirection: "row", gap: layout.gapDefault }}>
-            <Button
-              label={cancel}
-              variant="quiet"
-              size="lg"
-              disabled={loading}
-              onPress={onCancel}
-              style={{ flex: 1 }}
-            />
-            <Button
-              label={confirm}
-              variant={destructive ? "primary" : "secondary"}
-              size="lg"
-              loading={loading}
-              onPress={onConfirm}
-              style={{ flex: 1 }}
-            />
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </Modal>
+      ) : <Dialog.Portal>{content}</Dialog.Portal>}
+    </Dialog>
   );
 }

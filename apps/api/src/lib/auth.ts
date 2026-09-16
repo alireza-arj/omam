@@ -70,7 +70,6 @@ export function serializeMembership(
     monthlyGoalHours: membership.monthlyGoalHours,
     calendar: membership.organization.calendar,
     language: membership.organization.language,
-    requireApproval: membership.organization.requireApproval,
     jobTitle: membership.jobTitle,
   };
 }

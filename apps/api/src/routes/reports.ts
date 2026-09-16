@@ -33,20 +33,17 @@ export const reportRoutes = new Elysia({ prefix: "/reports" })
     const window = monthWindow(filters.month, calendar);
     const report = await buildMonthlyReport(organization.id, window.month, calendar);
 
-    const [running, pendingCount, monthSessions] = await Promise.all([
+    const [running, monthSessions] = await Promise.all([
       prisma.workSession.findMany({
         where: { organizationId: organization.id, endAt: null, deletedAt: null },
         include: { user: true },
         orderBy: { startAt: "asc" },
       }),
-      prisma.workSession.count({
-        where: { organizationId: organization.id, deletedAt: null, status: "PENDING" },
-      }),
       prisma.workSession.findMany({
         where: {
           organizationId: organization.id,
           deletedAt: null,
-          status: "APPROVED",
+          status: "COMPLETED",
           startAt: { gte: window.from, lte: window.to },
         },
         select: { startAt: true, durationMinutes: true },
@@ -67,9 +64,8 @@ export const reportRoutes = new Elysia({ prefix: "/reports" })
       month: window.month,
       calendar,
       currency: organization.currency,
-      pendingCount,
       memberCount: report.totals.activeMemberCount,
-      monthApprovedMinutes: report.totals.approvedMinutes,
+      monthCompletedMinutes: report.totals.completedMinutes,
       monthGrossAmount: report.totals.grossAmount,
       activeNow: running.map((session) => ({
         userId: session.userId,
@@ -111,9 +107,8 @@ export const reportRoutes = new Elysia({ prefix: "/reports" })
         "Pay type",
         "Rate",
         "Currency",
-        "Approved hours",
-        "Approved time",
-        "Pending hours",
+        "Completed hours",
+        "Completed time",
         "Worked days",
         "Onsite hours",
         "Remote hours",
@@ -127,9 +122,8 @@ export const reportRoutes = new Elysia({ prefix: "/reports" })
         row.payType,
         row.payType === "MONTHLY" ? row.monthlySalary : row.hourlyRate,
         row.currency,
-        hoursFromMinutes(row.approvedMinutes),
-        formatDuration(row.approvedMinutes),
-        hoursFromMinutes(row.pendingMinutes),
+        hoursFromMinutes(row.completedMinutes),
+        formatDuration(row.completedMinutes),
         row.workedDays,
         hoursFromMinutes(row.onsiteMinutes),
         hoursFromMinutes(row.remoteMinutes),
@@ -175,9 +169,7 @@ export const reportRoutes = new Elysia({ prefix: "/reports" })
     const buckets = emptyDayBuckets(window.from, window.to, calendar);
     const projects = new Map<string, { projectId: string | null; name: string; color: string; minutes: number }>();
 
-    let approvedMinutes = 0;
-    let pendingMinutes = 0;
-    let rejectedMinutes = 0;
+    let completedMinutes = 0;
     let onsiteMinutes = 0;
     let remoteMinutes = 0;
     const workedDays = new Set<string>();
@@ -185,15 +177,10 @@ export const reportRoutes = new Elysia({ prefix: "/reports" })
     for (const session of sessions) {
       const key = localDayKey(session.startAt, calendar);
 
-      if (session.status === "REJECTED") {
-        rejectedMinutes += session.durationMinutes;
-        continue;
-      }
-
       workedDays.add(key);
 
-      if (session.status === "APPROVED") {
-        approvedMinutes += session.durationMinutes;
+      if (session.status === "COMPLETED") {
+        completedMinutes += session.durationMinutes;
         buckets.set(key, (buckets.get(key) ?? 0) + session.durationMinutes);
 
         if (session.category === "REMOTE") remoteMinutes += session.durationMinutes;
@@ -209,8 +196,6 @@ export const reportRoutes = new Elysia({ prefix: "/reports" })
 
         entry.minutes += session.durationMinutes;
         projects.set(projectKey, entry);
-      } else {
-        pendingMinutes += session.durationMinutes;
       }
     }
 
@@ -230,13 +215,11 @@ export const reportRoutes = new Elysia({ prefix: "/reports" })
         monthlySalary: membership.monthlySalary,
         currency: membership.currency,
         monthlyGoalHours: membership.monthlyGoalHours,
-        approvedMinutes,
-        pendingMinutes,
-        rejectedMinutes,
+        completedMinutes,
         workedDays: workedDays.size,
         onsiteMinutes,
         remoteMinutes,
-        grossAmount: grossFor(membership, approvedMinutes),
+        grossAmount: grossFor(membership, completedMinutes),
       },
       days: [...buckets.entries()].map(([day, minutes]) => ({ day, minutes })),
       projects: [...projects.values()].sort((a, b) => b.minutes - a.minutes),

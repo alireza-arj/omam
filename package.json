@@ -38,6 +38,6 @@
     "db:seed": "bun run --cwd apps/api db:seed",
     "db:deploy": "bun run --cwd apps/api db:deploy",
     "test:smoke": "bun run --cwd apps/api test:smoke",
-    "test": "bun test packages/calendar packages/i18n"
+    "test": "bun test packages/calendar packages/i18n apps/mobile/src/lib/browser-database-access.test.ts apps/mobile/src/lib/session-lifecycle.test.ts"
   }
 }

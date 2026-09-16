@@ -6,7 +6,6 @@ export type SyncStateRow = {
   serverUserId: string | null;
   serverUsername: string | null;
   organizationName: string | null;
-  requireApproval: number;
   cursor: string | null;
   lastSyncAt: string | null;
   lastError: string | null;
@@ -29,20 +28,18 @@ export async function writeSyncState(
     serverUserId: patch.serverUserId ?? existing?.serverUserId ?? null,
     serverUsername: patch.serverUsername ?? existing?.serverUsername ?? null,
     organizationName: patch.organizationName ?? existing?.organizationName ?? null,
-    requireApproval: patch.requireApproval ?? existing?.requireApproval ?? 1,
     cursor: patch.cursor !== undefined ? patch.cursor : (existing?.cursor ?? null),
     lastSyncAt: patch.lastSyncAt !== undefined ? patch.lastSyncAt : (existing?.lastSyncAt ?? null),
     lastError: patch.lastError !== undefined ? patch.lastError : (existing?.lastError ?? null),
   };
 
   await db.runAsync(
-    `INSERT INTO SyncState (userId, serverUserId, serverUsername, organizationName, requireApproval, cursor, lastSyncAt, lastError)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO SyncState (userId, serverUserId, serverUsername, organizationName, cursor, lastSyncAt, lastError)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(userId) DO UPDATE SET
        serverUserId = excluded.serverUserId,
        serverUsername = excluded.serverUsername,
        organizationName = excluded.organizationName,
-       requireApproval = excluded.requireApproval,
        cursor = excluded.cursor,
        lastSyncAt = excluded.lastSyncAt,
        lastError = excluded.lastError`,
@@ -51,7 +48,6 @@ export async function writeSyncState(
       next.serverUserId,
       next.serverUsername,
       next.organizationName,
-      next.requireApproval,
       next.cursor,
       next.lastSyncAt,
       next.lastError,
@@ -187,7 +183,6 @@ export async function applyServerSessions(
       session.note,
       session.status,
       session.source,
-      session.reviewNote,
       session.project?.id ?? null,
       session.project?.name ?? null,
       session.project?.color ?? null,
@@ -200,7 +195,7 @@ export async function applyServerSessions(
       await db.runAsync(
         `UPDATE WorkSession
             SET startAt = ?, endAt = ?, durationMinutes = ?, category = ?, note = ?,
-                status = ?, source = ?, reviewNote = ?, projectId = ?, projectName = ?,
+                status = ?, source = ?, projectId = ?, projectName = ?,
                 projectColor = ?, remoteId = ?, updatedAt = ?, syncedAt = ?, dirty = 0,
                 deletedAt = NULL
           WHERE id = ?`,
@@ -212,9 +207,9 @@ export async function applyServerSessions(
     await db.runAsync(
       `INSERT INTO WorkSession
          (id, userId, startAt, endAt, durationMinutes, category, note, status, source,
-          reviewNote, projectId, projectName, projectColor, remoteId, updatedAt, syncedAt,
+          projectId, projectName, projectColor, remoteId, updatedAt, syncedAt,
           createdAt, dirty)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
       [localId, userId, ...values, session.createdAt],
     );
   }

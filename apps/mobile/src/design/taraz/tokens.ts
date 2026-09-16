@@ -102,7 +102,7 @@ export const lightColors: ColorScheme = {
 
   textTitle: palette.gray950,
   textBody: palette.gray800,
-  textMuted: palette.gray500,
+  textMuted: palette.gray600,
   textFaint: palette.gray400,
   textOnAccent: "#FFFFFF",
   textOnInverse: palette.gray25,
@@ -115,8 +115,8 @@ export const lightColors: ColorScheme = {
 
   fillQuiet: palette.gray100,
   fillQuietPressed: palette.gray200,
-  fillAccent: palette.accent500,
-  fillAccentPressed: palette.accent600,
+  fillAccent: palette.accent600,
+  fillAccentPressed: palette.accent700,
   fillAccentSoft: palette.accent50,
 
   successFill: palette.success100,
@@ -199,6 +199,9 @@ export const layout = {
   controlMd: 34,
   controlLg: 44,
   tapMin: 44,
+  dialogMaxWidth: 420,
+  startupMaxWidth: 520,
+  tabBarContentHeight: 56,
   hairline: StyleSheet.hairlineWidth,
 } as const;
 
@@ -434,6 +437,8 @@ const persianTypeRoles = Object.fromEntries(
         // Latin tracking is authored for Latin letterforms and pulls Persian
         // joins apart.
         letterSpacing: 0,
+        writingDirection: role === "mono" || role === "monoLg" ? "ltr" : "rtl",
+        textAlign: "right",
       },
     ];
   }),

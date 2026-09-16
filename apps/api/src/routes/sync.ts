@@ -1,6 +1,5 @@
 import { Elysia } from "elysia";
 import { syncRequestSchema, type SyncPushResultDto } from "@omam/contracts";
-import type { Organization } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { authenticated } from "../lib/context";
 import { ensureUserDefaultSettings, requireOrganization } from "../lib/auth";
@@ -9,18 +8,11 @@ import { serializeSyncSession } from "../lib/serialize";
 import { calculateSessionMinutes } from "../lib/time";
 import { isMonthLocked } from "../lib/payroll";
 
-function statusAfterClose(organization: Organization) {
-  return organization.requireApproval ? ("PENDING" as const) : ("APPROVED" as const);
-}
-
 /**
  * One round trip for the offline app: it sends everything it changed since the
  * last sync and receives everything the server changed, including deletions.
  *
- * Conflicts are settled by `updatedAt` — the newer write wins — with two hard
- * rules on top. Time inside a locked payroll month never changes, and editing
- * approved time sends it back through review rather than quietly altering a
- * figure a manager already signed off.
+ * Conflicts use the newer updatedAt; a locked payroll month always wins.
  */
 export const syncRoutes = new Elysia({ prefix: "/sync" })
   .use(authenticated)
@@ -119,7 +111,7 @@ export const syncRoutes = new Elysia({ prefix: "/sync" })
       }
 
       const durationMinutes = endAt ? calculateSessionMinutes({ startAt, endAt }) : 0;
-      const status = endAt ? statusAfterClose(organization) : ("OPEN" as const);
+      const status = endAt ? ("COMPLETED" as const) : ("OPEN" as const);
 
       if (!existing) {
         const created = await prisma.workSession.create({
@@ -135,7 +127,6 @@ export const syncRoutes = new Elysia({ prefix: "/sync" })
             note: incoming.note ?? null,
             status,
             source: "SYNC",
-            ...(status === "APPROVED" ? { approvedAt: new Date() } : {}),
           },
         });
 
@@ -148,11 +139,6 @@ export const syncRoutes = new Elysia({ prefix: "/sync" })
         continue;
       }
 
-      // An edit to approved time goes back into the review queue rather than
-      // silently changing what a manager already signed off.
-      const reReview =
-        existing.status === "APPROVED" && organization.requireApproval && endAt !== null;
-
       const updated = await prisma.workSession.update({
         where: { id: existing.id },
         data: {
@@ -163,13 +149,7 @@ export const syncRoutes = new Elysia({ prefix: "/sync" })
           note: incoming.note ?? null,
           projectId: incoming.projectId ?? existing.projectId,
           deletedAt: null,
-          ...(existing.status === "REJECTED"
-            ? { status, approvedAt: null, approvedById: null }
-            : {}),
-          ...(reReview
-            ? { status: "PENDING" as const, approvedAt: null, approvedById: null, reviewNote: null }
-            : {}),
-          ...(existing.status === "OPEN" && endAt ? { status } : {}),
+          status,
         },
       });
 
@@ -213,7 +193,6 @@ export const syncRoutes = new Elysia({ prefix: "/sync" })
       organization: {
         id: organization.id,
         name: organization.name,
-        requireApproval: organization.requireApproval,
       },
     };
   });

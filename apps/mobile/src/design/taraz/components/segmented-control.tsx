@@ -1,20 +1,17 @@
 import type { ReactNode } from "react";
-import { Pressable, View, type StyleProp, type ViewStyle } from "react-native";
-import { Text } from "./text";
-import { useTheme } from "../theme";
-import { radius } from "../tokens";
+import { type StyleProp, type ViewStyle } from "react-native";
+import { Tabs } from "heroui-native/tabs";
+import { useLanguage } from "../i18n";
+import { layout, typeRolesByLanguage } from "../tokens";
 
 export type SegmentOption<T extends string> = {
   value: T;
   label: string;
   icon?: (active: boolean) => ReactNode;
 };
-
 export type SegmentedControlProps<T extends string> = {
   options: SegmentOption<T>[];
   value: T;
-  /** NoInfer keeps T pinned to `options`/`value` — a handler typed for a
-   *  narrower union must not widen T to plain `string`. */
   onChange: (next: NoInfer<T>) => void;
   size?: "sm" | "md" | "lg";
   disabled?: boolean;
@@ -22,67 +19,33 @@ export type SegmentedControlProps<T extends string> = {
   style?: StyleProp<ViewStyle>;
 };
 
-const HEIGHTS = { sm: 26, md: 32, lg: 40 } as const;
-
-/** The selected segment is a raised card on a quiet track — no accent fill. */
 export function SegmentedControl<T extends string>({
-  options,
-  value,
-  onChange,
-  size = "md",
-  disabled = false,
-  full = false,
-  style,
+  options, value, onChange, size = "md", disabled = false, full = false, style,
 }: SegmentedControlProps<T>) {
-  const { colors, elevation } = useTheme();
-
+  const { language } = useLanguage();
   return (
-    <View
-      style={[
-        {
-          alignSelf: full ? "stretch" : "flex-start",
-          backgroundColor: colors.fillQuiet,
-          borderRadius: radius.control,
-          flexDirection: "row",
-          gap: 2,
-          opacity: disabled ? 0.4 : 1,
-          padding: 2,
-        },
-        style,
-      ]}
+    <Tabs
+      value={value}
+      onValueChange={(next) => {
+        const option = options.find((entry) => entry.value === next);
+        if (!disabled && option) onChange(option.value);
+      }}
+      style={[{ alignSelf: full ? "stretch" : "flex-start" }, style]}
     >
-      {options.map((option) => {
-        const active = option.value === value;
-
-        return (
-          <Pressable
+      <Tabs.List style={full ? { width: "100%" } : undefined}>
+        <Tabs.Indicator />
+        {options.map((option) => (
+          <Tabs.Trigger
             key={option.value}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active, disabled }}
-            disabled={disabled}
-            onPress={() => onChange(option.value as NoInfer<T>)}
-            style={[
-              {
-                alignItems: "center",
-                borderRadius: radius.control - 2,
-                flexDirection: "row",
-                flex: full ? 1 : undefined,
-                gap: 5,
-                height: HEIGHTS[size],
-                justifyContent: "center",
-                paddingHorizontal: 12,
-              },
-              active ? { backgroundColor: colors.surfaceCard } : null,
-              active ? elevation(1) : null,
-            ]}
+            value={option.value}
+            isDisabled={disabled}
+            style={{ flex: full ? 1 : undefined, minHeight: layout.tapMin, paddingHorizontal: layout.padControlX, gap: layout.gapTight }}
           >
-            {option.icon?.(active)}
-            <Text role="label" tone={active ? "title" : "muted"}>
-              {option.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
+            {option.icon?.(option.value === value)}
+            <Tabs.Label style={typeRolesByLanguage[language][size === "lg" ? "body" : "label"]}>{option.label}</Tabs.Label>
+          </Tabs.Trigger>
+        ))}
+      </Tabs.List>
+    </Tabs>
   );
 }

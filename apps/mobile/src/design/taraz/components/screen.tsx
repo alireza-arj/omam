@@ -36,7 +36,12 @@ export function Screen({
     <SafeAreaView style={{ backgroundColor: colors.surfaceApp, flex: 1 }} edges={["top"]}>
       {scroll ? (
         <ScrollView
-          contentContainerStyle={[padding, { paddingTop: layout.gapDefault }, contentStyle]}
+          contentContainerStyle={[
+            padding,
+            { paddingTop: layout.gapDefault },
+            center ? { flexGrow: 1, alignItems: "center", justifyContent: "center" } : null,
+            contentStyle,
+          ]}
           showsVerticalScrollIndicator={false}
           style={{ flex: 1 }}
         >

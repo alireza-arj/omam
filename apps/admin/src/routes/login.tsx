@@ -1,3 +1,4 @@
+import { LANGUAGE_LABEL } from "@omam/i18n";
 import { useState, type FormEvent } from "react";
 import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
@@ -28,7 +29,7 @@ export function LoginPage() {
     <div className="auth-screen">
       <Card className="auth-card">
         <div className="stack gap-3">
-          <span className="t-overline accent">{t("admin.brand")}</span>
+          <span className="t-label muted">{t("admin.brand")}</span>
           <h1>{t("admin.signInTitle")}</h1>
           <p className="t-body-sm muted">
             {t("admin.signInSubtitle")}
@@ -38,6 +39,7 @@ export function LoginPage() {
         <form className="stack gap-6" onSubmit={onSubmit}>
           <Field label={t("auth.username")}>
             <Input
+              dir="ltr"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               autoComplete="username"
@@ -56,7 +58,7 @@ export function LoginPage() {
             />
           </Field>
 
-          <Button type="submit" variant="primary" size="lg" block loading={isSigningIn}>
+          <Button type="submit" variant="primary" block loading={isSigningIn}>
             {t("auth.signIn")}
           </Button>
         </form>
@@ -67,14 +69,13 @@ export function LoginPage() {
             size="sm"
             onClick={() => setLanguage(language === "fa" ? "en" : "fa")}
           >
-            {language === "fa" ? "English" : "فارسی"}
+            {LANGUAGE_LABEL[language === "fa" ? "en" : "fa"]}
           </Button>
           <Button variant="ghost" size="sm" onClick={toggle}>
             {theme === "dark" ? t("profile.themeLight") : t("profile.themeDark")}
           </Button>
         </div>
 
-        <span className="t-caption faint">{t("admin.membersClockIn")}</span>
       </Card>
     </div>
   );

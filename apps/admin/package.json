@@ -3,18 +3,22 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@heroui/react": "3.2.4",
+    "@heroui/styles": "3.2.4",
     "@omam/calendar": "workspace:*",
     "@omam/contracts": "workspace:*",
+    "@omam/i18n": "workspace:*",
     "@tanstack/react-query": "^5.90.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-router-dom": "^7.9.1",
-    "@omam/i18n": "workspace:*"
+    "react-router-dom": "^7.9.1"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.17",
     "@types/react": "~19.1.10",
     "@types/react-dom": "~19.1.7",
     "@vitejs/plugin-react": "^5.0.2",
+    "tailwindcss": "^4.1.17",
     "typescript": "*",
     "vite": "^7.1.5"
   },

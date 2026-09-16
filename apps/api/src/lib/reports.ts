@@ -15,15 +15,14 @@ async function loadMemberships(organizationId: string) {
 }
 
 /**
- * Payroll counts approved work only. Everything else is reported so a manager
- * can see what is still waiting, but it never turns into money on its own.
+ * Payroll counts completed work at the membership rate without approval.
  */
-function grossFor(membership: Membership, approvedMinutes: number) {
+function grossFor(membership: Membership, completedMinutes: number) {
   if (membership.payType === "MONTHLY") {
     return membership.monthlySalary;
   }
 
-  return Number((hoursFromMinutes(approvedMinutes) * membership.hourlyRate).toFixed(2));
+  return Number((hoursFromMinutes(completedMinutes) * membership.hourlyRate).toFixed(2));
 }
 
 function emptyRow(membership: Membership): MemberReportRowDto {
@@ -40,9 +39,7 @@ function emptyRow(membership: Membership): MemberReportRowDto {
     monthlySalary: membership.monthlySalary,
     currency: membership.currency,
     monthlyGoalHours: membership.monthlyGoalHours,
-    approvedMinutes: 0,
-    pendingMinutes: 0,
-    rejectedMinutes: 0,
+    completedMinutes: 0,
     workedDays: 0,
     onsiteMinutes: 0,
     remoteMinutes: 0,
@@ -100,28 +97,21 @@ export async function buildMonthlyReport(
 
     const minutes = session.durationMinutes;
 
-    if (session.status === "APPROVED") {
-      row.approvedMinutes += minutes;
+    if (session.status === "COMPLETED") {
+      row.completedMinutes += minutes;
 
       if (session.category === "REMOTE") {
         row.remoteMinutes += minutes;
       } else {
         row.onsiteMinutes += minutes;
       }
-    } else if (session.status === "REJECTED") {
-      row.rejectedMinutes += minutes;
-    } else {
-      row.pendingMinutes += minutes;
     }
 
-    if (session.status !== "REJECTED") {
-      workedDays.get(session.userId)?.add(localDayKey(session.startAt, calendar));
-    }
+    workedDays.get(session.userId)?.add(localDayKey(session.startAt, calendar));
   }
 
   const byCurrency = new Map<Currency, number>();
-  let approvedMinutes = 0;
-  let pendingMinutes = 0;
+  let completedMinutes = 0;
 
   const result: MemberReportRowDto[] = [];
 
@@ -129,16 +119,15 @@ export async function buildMonthlyReport(
     const row = rows.get(membership.userId)!;
 
     row.workedDays = workedDays.get(membership.userId)?.size ?? 0;
-    row.grossAmount = grossFor(membership, row.approvedMinutes);
+    row.grossAmount = grossFor(membership, row.completedMinutes);
 
-    approvedMinutes += row.approvedMinutes;
-    pendingMinutes += row.pendingMinutes;
+    completedMinutes += row.completedMinutes;
     byCurrency.set(row.currency, (byCurrency.get(row.currency) ?? 0) + row.grossAmount);
 
     result.push(row);
   }
 
-  result.sort((a, b) => b.approvedMinutes - a.approvedMinutes);
+  result.sort((a, b) => b.completedMinutes - a.completedMinutes);
 
   return {
     month: window.month,
@@ -147,8 +136,7 @@ export async function buildMonthlyReport(
     to: window.to.toISOString(),
     currency: organization.currency,
     totals: {
-      approvedMinutes,
-      pendingMinutes,
+      completedMinutes,
       grossAmount: Number((byCurrency.get(organization.currency) ?? 0).toFixed(2)),
       byCurrency: [...byCurrency.entries()].map(([currency, grossAmount]) => ({
         currency,

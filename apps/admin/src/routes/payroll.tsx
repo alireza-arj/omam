@@ -1,19 +1,8 @@
-import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { PayrollLineDto } from "@omam/contracts";
-import { api, downloadCsv } from "../lib/api";
-import { useSession } from "../lib/session";
-import { translateError } from "@omam/i18n";
-import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
-import { currentMonth, displayName, formatDuration, formatMoney, monthLabel } from "../lib/format";
-import { PageHeader } from "./layout";
-import { MonthPicker } from "../components/controls";
 import {
+  ActionMenu,
   Badge,
   Button,
   Card,
-  CardHeader,
   EmptyState,
   ErrorState,
   Field,
@@ -21,8 +10,24 @@ import {
   Loading,
   Modal,
   Stat,
+  Table,
+  TableScroll,
   Textarea,
 } from "../components/ui";
+import { CollectionToolbar, Pagination } from "../components/collection";
+import { useCollection } from "../lib/collection";
+import { useReportMonth } from "../lib/report-month";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { PayrollLineDto } from "@omam/contracts";
+import { api, downloadCsv } from "../lib/api";
+import { useSession } from "../lib/session";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+import { useToast } from "../lib/ui";
+import { currencyLabel, displayName, formatDuration, formatMoney, monthLabel } from "../lib/format";
+import { PageHeader } from "./layout";
+import { MonthPicker } from "../components/controls";
 
 const STATUS_TONE = { DRAFT: "warning", LOCKED: "info", PAID: "success" } as const;
 
@@ -32,20 +37,17 @@ export function PayrollPage() {
   const queryClient = useQueryClient();
   const { language, t } = useLanguage();
 
-  const [month, setMonth] = useState(() => currentMonth(calendar));
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [month, setMonth] = useReportMonth(calendar);
   const [adjusting, setAdjusting] = useState<PayrollLineDto | null>(null);
   const [adjustment, setAdjustment] = useState(0);
   const [adjustmentNote, setAdjustmentNote] = useState("");
 
   const periods = useQuery({ queryKey: ["payroll-periods"], queryFn: api.payrollPeriods });
 
-  const periodForMonth = periods.data?.periods.find((period) => period.month === month) ?? null;
+  const periodForMonth =
+    periods.data?.periods.find((period) => period.month === month && period.calendar === calendar) ?? null;
 
-  // Following the month picker keeps one mental model: pick a month, see its run.
-  useEffect(() => {
-    setSelectedId(periodForMonth?.id ?? null);
-  }, [periodForMonth?.id]);
+  const selectedId = periodForMonth?.id ?? null;
 
   const detail = useQuery({
     queryKey: ["payroll-period", selectedId],
@@ -60,8 +62,7 @@ export function PayrollPage() {
 
   const build = useMutation({
     mutationFn: () => api.buildPayroll(month, calendar),
-    onSuccess: (result) => {
-      setSelectedId(result.period.id);
+    onSuccess: () => {
       toast(t("admin.payroll.ready", { month: monthLabel(month, calendar, language) }), "success");
       refresh();
     },
@@ -69,8 +70,7 @@ export function PayrollPage() {
   });
 
   const setStatus = useMutation({
-    mutationFn: (status: "DRAFT" | "LOCKED" | "PAID") =>
-      api.updatePayrollPeriod(selectedId!, { status }),
+    mutationFn: (status: "DRAFT" | "LOCKED" | "PAID") => api.updatePayrollPeriod(selectedId!, { status }),
     onSuccess: (_result, status) => {
       toast(
         t(
@@ -98,28 +98,31 @@ export function PayrollPage() {
     onError: (error) => toast(translateError(error, t), "error"),
   });
 
+  const [exporting, setExporting] = useState(false);
+  async function exportPayroll(path: string, query: Record<string, string>, filename: string) {
+    setExporting(true);
+    try {
+      await downloadCsv(path, query, filename);
+    } catch (error) {
+      toast(translateError(error, t), "error");
+    } finally {
+      setExporting(false);
+    }
+  }
   const period = detail.data?.period ?? null;
   const isDraft = period?.status === "DRAFT";
+
+  const collection = useCollection(
+    detail.data?.lines ?? [],
+    (row) => [displayName(row), row.employeeCode].join(" "),
+    month,
+  );
 
   return (
     <>
       <PageHeader
         title={t("admin.nav.payroll")}
-        subtitle={t("admin.payroll.subtitle")}
-        actions={
-          <>
-            <MonthPicker month={month} calendar={calendar} onChange={setMonth} />
-            <Button
-              variant="primary"
-              loading={build.isPending}
-              /* A locked run is the record of what was paid; it is never rebuilt. */
-              disabled={Boolean(periodForMonth) && periodForMonth?.status !== "DRAFT"}
-              onClick={() => build.mutate()}
-            >
-              {periodForMonth ? t("admin.payroll.rebuild") : t("admin.payroll.build")}
-            </Button>
-          </>
-        }
+        actions={<MonthPicker month={month} calendar={calendar} onChange={setMonth} />}
       />
 
       <div className="page-body">
@@ -127,7 +130,9 @@ export function PayrollPage() {
           <ErrorState message={translateError(periods.error, t)} onRetry={() => periods.refetch()} />
         ) : null}
 
-        {!periodForMonth && !periods.isPending ? (
+        {periods.isPending ? <Loading /> : null}
+
+        {periods.isSuccess && !periodForMonth ? (
           <Card>
             <EmptyState
               title={t("admin.payroll.noRun", { month: monthLabel(month, calendar, language) })}
@@ -142,14 +147,16 @@ export function PayrollPage() {
         ) : null}
 
         {detail.isPending && selectedId ? <Loading /> : null}
+        {detail.isError ? (
+          <ErrorState message={translateError(detail.error, t)} onRetry={() => detail.refetch()} />
+        ) : null}
 
         {period && detail.data ? (
           <>
-            <Card>
+            <Card className="summary-card">
               <div className="row between wrap gap-7">
                 <div className="stack gap-3">
                   <div className="row gap-5">
-                    <h2>{monthLabel(period.month, period.calendar, language)}</h2>
                     <Badge tone={STATUS_TONE[period.status]} dot>
                       {t(`admin.payroll.${period.status}`)}
                     </Badge>
@@ -162,13 +169,34 @@ export function PayrollPage() {
                 </div>
 
                 <div className="row gap-5 wrap">
+                  {isDraft || (can("OWNER") && period.status === "LOCKED") ? (
+                    <ActionMenu
+                      label={t("admin.table.actions")}
+                      disabled={build.isPending || setStatus.isPending}
+                      items={[
+                        ...(isDraft
+                          ? [{ label: t("admin.payroll.rebuild"), onAction: () => build.mutate() }]
+                          : []),
+                        ...(can("OWNER") && period.status === "LOCKED"
+                          ? [
+                              {
+                                label: t("admin.payroll.reopen"),
+                                onAction: () => setStatus.mutate("DRAFT" as const),
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  ) : null}
                   <Button
+                    variant="ghost"
+                    loading={exporting}
                     onClick={() =>
-                      downloadCsv(
+                      exportPayroll(
                         `/payroll/periods/${period.id}/export.csv`,
                         {},
                         `omam-payroll-${period.month}.csv`,
-                      ).catch((error) => toast(translateError(error, t), "error"))
+                      )
                     }
                   >
                     {t("admin.payroll.exportCsv")}
@@ -178,10 +206,9 @@ export function PayrollPage() {
                     <Button
                       variant="primary"
                       loading={setStatus.isPending}
+                      disabled={build.isPending}
                       onClick={() => {
-                        if (
-                          confirm(t("admin.payroll.confirmLock"))
-                        ) {
+                        if (confirm(t("admin.payroll.confirmLock"))) {
                           setStatus.mutate("LOCKED");
                         }
                       }}
@@ -192,10 +219,11 @@ export function PayrollPage() {
 
                   {can("OWNER") && period.status === "LOCKED" ? (
                     <>
-                      <Button variant="outline" onClick={() => setStatus.mutate("DRAFT")}>
-                        {t("admin.payroll.reopen")}
-                      </Button>
-                      <Button variant="primary" onClick={() => setStatus.mutate("PAID")}>
+                      <Button
+                        variant="primary"
+                        loading={setStatus.isPending}
+                        onClick={() => setStatus.mutate("PAID")}
+                      >
                         {t("admin.payroll.markPaid")}
                       </Button>
                     </>
@@ -206,90 +234,94 @@ export function PayrollPage() {
               <hr className="divider" style={{ margin: "var(--space-8) 0" }} />
 
               <div className="stat-grid">
-                <Stat label={t("admin.payroll.gross")} value={formatMoney(period.totalGross, period.currency, t)} />
+                <Stat
+                  label={t("admin.payroll.gross")}
+                  value={formatMoney(period.totalGross, period.currency, t)}
+                />
                 <Stat
                   label={t("admin.payroll.netToPay")}
                   value={formatMoney(period.totalNet, period.currency, t)}
-                  hint={t("admin.payroll.afterAdjustments")}
                 />
                 <Stat label={t("admin.payroll.people")} value={detail.data.lines.length} />
               </div>
             </Card>
 
             <Card flush>
-              <CardHeader
-                title={t("admin.payroll.payslips")}
-                subtitle={isDraft ? t("admin.payroll.payslipsHint") : undefined}
-              />
+              <CollectionToolbar search={collection.search} onSearch={collection.setSearch} />
+              {collection.search && !collection.total && detail.data ? (
+                <EmptyState title={t("admin.table.noResults")} hint={t("admin.table.searchHint")} />
+              ) : null}
 
-              {detail.data.lines.length ? (
-                <div className="table-scroll">
-                  <table className="data">
-                    <thead>
-                      <tr>
-                        <th>{t("admin.timesheets.member")}</th>
-                        <th>{t("admin.members.code")}</th>
-                        <th className="num">{t("admin.payroll.approved")}</th>
-                        <th className="num">{t("admin.payroll.days")}</th>
-                        <th className="num">{t("admin.payroll.rate")}</th>
-                        <th className="num">{t("admin.payroll.gross")}</th>
-                        <th className="num">{t("admin.payroll.adjustment")}</th>
-                        <th className="num">{t("admin.payroll.net")}</th>
-                        {isDraft ? <th className="tight" /> : null}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.data.lines.map((line) => (
-                        <tr key={line.id}>
-                          <td>{displayName(line)}</td>
-                          <td className="t-mono muted">{line.employeeCode ?? "—"}</td>
-                          <td className="num t-mono">{formatDuration(line.approvedMinutes, language)}</td>
-                          <td className="num t-mono muted">{line.workedDays}</td>
-                          <td className="num t-mono muted">
-                            {line.payType === "MONTHLY"
-                              ? t("admin.payroll.monthly")
-                              : formatMoney(line.hourlyRate, line.currency, t)}
-                          </td>
-                          <td className="num t-mono">{formatMoney(line.grossAmount, line.currency, t)}</td>
-                          <td className="num t-mono">
-                            {line.adjustment ? (
-                              <span
-                                title={line.adjustmentNote ?? undefined}
-                                className={line.adjustment > 0 ? "accent" : "muted"}
-                              >
-                                {line.adjustment > 0 ? "+" : ""}
-                                {formatMoney(line.adjustment, line.currency, t)}
-                              </span>
-                            ) : (
-                              <span className="faint">—</span>
-                            )}
-                          </td>
-                          <td className="num t-mono">{formatMoney(line.netAmount, line.currency, t)}</td>
-                          {isDraft ? (
-                            <td className="tight">
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setAdjusting(line);
-                                  setAdjustment(line.adjustment);
-                                  setAdjustmentNote(line.adjustmentNote ?? "");
-                                }}
-                              >
-                                {t("admin.payroll.adjust")}
-                              </Button>
-                            </td>
-                          ) : null}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <EmptyState
-                  title={t("admin.payroll.noApproved")}
-                  hint={t("admin.payroll.noApprovedHint")}
-                />
-              )}
+              {collection.total > 0 ? (
+                <TableScroll>
+                  <Table>
+                    <Table.Content aria-label={t("common.records")} className="omam-data">
+                      <Table.Header>
+                        <Table.Column isRowHeader>{t("admin.timesheets.member")}</Table.Column>
+                        <Table.Column>{t("admin.members.code")}</Table.Column>
+                        <Table.Column className="num">{t("admin.payroll.completed")}</Table.Column>
+                        <Table.Column className="num">{t("admin.payroll.days")}</Table.Column>
+                        <Table.Column className="num">{t("admin.payroll.rate")}</Table.Column>
+                        <Table.Column className="num">{t("admin.payroll.gross")}</Table.Column>
+                        <Table.Column className="num">{t("admin.payroll.adjustment")}</Table.Column>
+                        <Table.Column className="num">{t("admin.payroll.net")}</Table.Column>
+                        {isDraft ? <Table.Column className="tight" /> : null}
+                      </Table.Header>
+                      <Table.Body>
+                        {collection.rows.map((line) => (
+                          <Table.Row id={line.id} key={line.id}>
+                            <Table.Cell>{displayName(line)}</Table.Cell>
+                            <Table.Cell className="t-mono muted">{line.employeeCode ?? "—"}</Table.Cell>
+                            <Table.Cell className="num t-mono">
+                              {formatDuration(line.completedMinutes, language)}
+                            </Table.Cell>
+                            <Table.Cell className="num t-mono muted">{line.workedDays}</Table.Cell>
+                            <Table.Cell className="num t-mono muted">
+                              {line.payType === "MONTHLY"
+                                ? t("admin.payroll.monthly")
+                                : formatMoney(line.hourlyRate, line.currency, t)}
+                            </Table.Cell>
+                            <Table.Cell className="num t-mono">
+                              {formatMoney(line.grossAmount, line.currency, t)}
+                            </Table.Cell>
+                            <Table.Cell className="num t-mono">
+                              {line.adjustment ? (
+                                <span title={line.adjustmentNote ?? undefined} className="muted">
+                                  {formatMoney(line.adjustment, line.currency, t, true)}
+                                </span>
+                              ) : (
+                                <span className="faint">—</span>
+                              )}
+                            </Table.Cell>
+                            <Table.Cell className="num t-mono">
+                              {formatMoney(line.netAmount, line.currency, t)}
+                            </Table.Cell>
+                            {isDraft ? (
+                              <Table.Cell className="tight">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={build.isPending || setStatus.isPending}
+                                  onClick={() => {
+                                    setAdjusting(line);
+                                    setAdjustment(line.adjustment);
+                                    setAdjustmentNote(line.adjustmentNote ?? "");
+                                  }}
+                                >
+                                  {t("admin.payroll.adjust")}
+                                </Button>
+                              </Table.Cell>
+                            ) : null}
+                          </Table.Row>
+                        ))}
+                      </Table.Body>
+                    </Table.Content>
+                  </Table>
+                </TableScroll>
+              ) : !collection.search ? (
+                <EmptyState title={t("admin.payroll.noCompleted")} hint={t("admin.payroll.noCompletedHint")} />
+              ) : null}
+              <Pagination {...collection} />
             </Card>
           </>
         ) : null}
@@ -323,11 +355,14 @@ export function PayrollPage() {
           <p className="t-body-sm muted">
             {t("admin.payroll.adjustIntro", {
               gross: formatMoney(adjusting.grossAmount, adjusting.currency, t),
-              duration: formatDuration(adjusting.approvedMinutes, language),
+              duration: formatDuration(adjusting.completedMinutes, language),
             })}
           </p>
 
-          <Field label={t("admin.payroll.adjustAmount", { currency: adjusting.currency })}>
+          <Field
+            label={t("admin.payroll.adjustAmount", { currency: currencyLabel(adjusting.currency, t) })}
+            hint={t("admin.payroll.adjustHint")}
+          >
             <Input
               type="number"
               value={adjustment}

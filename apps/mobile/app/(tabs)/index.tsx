@@ -116,7 +116,7 @@ export default function TodayScreen() {
   }
 
   return (
-    <Screen center bottomInset={tabBarHeight} gap={layout.gapSection}>
+    <Screen scroll center bottomInset={tabBarHeight} gap={layout.gapSection}>
       <View style={{ alignItems: "center", gap: 2 }}>
         <Text role="overline" tone="muted">
           {displayDate}

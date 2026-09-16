@@ -378,7 +378,7 @@ export default function ProfileScreen() {
             placeholder="160"
             trailing={
               <Text role="caption" tone="muted">
-                hours
+                {t("units.hoursSuffix")}
               </Text>
             }
             containerStyle={{ flex: 1 }}

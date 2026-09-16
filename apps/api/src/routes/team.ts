@@ -43,7 +43,6 @@ function serializeOrganization(organization: Organization) {
     currency: organization.currency,
     defaultHourlyRate: organization.defaultHourlyRate,
     monthlyGoalHours: organization.monthlyGoalHours,
-    requireApproval: organization.requireApproval,
     createdAt: organization.createdAt.toISOString(),
     updatedAt: organization.updatedAt.toISOString(),
   };

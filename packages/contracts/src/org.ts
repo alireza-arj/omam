@@ -19,7 +19,6 @@ export const organizationSchema = z.object({
   currency: currencySchema,
   defaultHourlyRate: z.number().nonnegative(),
   monthlyGoalHours: z.number().nonnegative(),
-  requireApproval: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -32,7 +31,6 @@ export const updateOrganizationInputSchema = z.object({
   currency: currencySchema.optional(),
   defaultHourlyRate: z.number().nonnegative().optional(),
   monthlyGoalHours: z.number().nonnegative().max(744).optional(),
-  requireApproval: z.boolean().optional(),
 });
 
 export const memberSchema = z.object({

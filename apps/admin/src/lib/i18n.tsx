@@ -19,6 +19,8 @@ import {
   type Translator,
 } from "@omam/i18n";
 
+import { I18nProvider } from "@heroui/react";
+
 const STORAGE_KEY = "omam.admin.language";
 
 function readStored(): Language | null {
@@ -84,7 +86,7 @@ export function LanguageProvider({ children }: PropsWithChildren) {
     [adoptLanguage, language, setLanguage],
   );
 
-  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+  return <LanguageContext.Provider value={value}><I18nProvider locale={language === "fa" ? "fa-IR" : "en-US"}>{children}</I18nProvider></LanguageContext.Provider>;
 }
 
 export function useLanguage(): LanguageValue {

@@ -25,9 +25,7 @@ export const sessionSchema = z.object({
   status: workSessionStatusSchema,
   source: workSessionSourceSchema,
   note: z.string().nullable(),
-  reviewNote: z.string().nullable(),
   project: sessionProjectSchema.nullable(),
-  approvedAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -38,8 +36,7 @@ export const sessionsResponseSchema = z.object({
 
 export const summarySchema = z.object({
   totalMinutes: z.number().nonnegative(),
-  approvedMinutes: z.number().nonnegative(),
-  pendingMinutes: z.number().nonnegative(),
+  completedMinutes: z.number().nonnegative(),
   totalIncome: z.number().nonnegative(),
   activeSession: sessionSchema.nullable(),
   workedDays: z.number().nonnegative(),
@@ -100,18 +97,10 @@ export type CreateSessionInputDto = z.infer<typeof createSessionInputSchema>;
 export type UpdateSessionInputDto = z.infer<typeof updateSessionInputSchema>;
 export type SessionListQueryDto = z.infer<typeof sessionListQuerySchema>;
 
-/** Manager-side review of another member's time. */
-export const reviewSessionInputSchema = z.object({
-  reviewNote: z.string().trim().max(240).nullable().optional(),
-});
-
-export const bulkReviewInputSchema = z.object({
-  sessionIds: z.array(z.string()).min(1).max(500),
-  action: z.enum(["APPROVE", "REJECT"]),
-  reviewNote: z.string().trim().max(240).nullable().optional(),
-});
-
 export const timesheetQuerySchema = z.object({
+  search: z.string().trim().max(120).optional(),
+  page: z.coerce.number().int().min(1).max(1000000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
   month: monthKeySchema.optional(),
   calendar: calendarSystemSchema.optional(),
   userId: z.string().optional(),
@@ -128,16 +117,15 @@ export const timesheetEntrySchema = sessionSchema.extend({
 export const timesheetResponseSchema = z.object({
   month: monthKeySchema,
   calendar: calendarSystemSchema,
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
   entries: z.array(timesheetEntrySchema),
   totals: z.object({
-    approvedMinutes: z.number().nonnegative(),
-    pendingMinutes: z.number().nonnegative(),
-    rejectedMinutes: z.number().nonnegative(),
+    completedMinutes: z.number().nonnegative(),
   }),
 });
 
-export type ReviewSessionInputDto = z.infer<typeof reviewSessionInputSchema>;
-export type BulkReviewInputDto = z.infer<typeof bulkReviewInputSchema>;
 export type TimesheetQueryDto = z.infer<typeof timesheetQuerySchema>;
 export type TimesheetEntryDto = z.infer<typeof timesheetEntrySchema>;
 export type TimesheetResponseDto = z.infer<typeof timesheetResponseSchema>;

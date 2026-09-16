@@ -1,5 +1,6 @@
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { useColors } from "../theme";
+import { Surface } from "heroui-native/surface";
 import { radius } from "../tokens";
 
 export type ProgressBarProps = {
@@ -15,7 +16,7 @@ export function ProgressBar({ value, height = 6, tone = "accent", style }: Progr
   const clamped = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 
   return (
-    <View
+    <Surface
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(clamped * 100) }}
       style={[
@@ -23,6 +24,7 @@ export function ProgressBar({ value, height = 6, tone = "accent", style }: Progr
           backgroundColor: colors.fillQuiet,
           borderRadius: radius.pill,
           height,
+          padding: 0,
           overflow: "hidden",
         },
         style,
@@ -36,6 +38,6 @@ export function ProgressBar({ value, height = 6, tone = "accent", style }: Progr
           width: `${clamped * 100}%`,
         }}
       />
-    </View>
+    </Surface>
   );
 }

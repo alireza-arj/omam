@@ -1,23 +1,6 @@
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "../lib/api";
-import { useSession } from "../lib/session";
-import { translateError } from "@omam/i18n";
-import { useLanguage } from "../lib/i18n";
-
-import {
-  currentMonth,
-  displayName,
-  formatDate,
-  formatDuration,
-  formatMoney,
-  formatTime,
-} from "../lib/format";
-import { PageHeader } from "./layout";
-import { DayBars, MonthPicker } from "../components/controls";
 import {
   Avatar,
+  ButtonLink,
   Card,
   CardHeader,
   EmptyState,
@@ -26,13 +9,28 @@ import {
   Progress,
   Stat,
   StatusBadge,
+  Table,
+  TableScroll,
 } from "../components/ui";
+import { CollectionToolbar, Pagination } from "../components/collection";
+import { useCollection } from "../lib/collection";
+import { useReportMonth } from "../lib/report-month";
+import { useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+
+import { displayName, formatDate, formatDuration, formatMoney, formatTime } from "../lib/format";
+import { PageHeader } from "./layout";
+import { DayBars, MonthPicker } from "../components/controls";
 
 export function MemberDetailPage() {
   const { userId = "" } = useParams();
   const { calendar } = useSession();
   const { language, t } = useLanguage();
-  const [month, setMonth] = useState(() => currentMonth(calendar));
+  const [month, setMonth] = useReportMonth(calendar);
 
   const report = useQuery({
     queryKey: ["member-report", userId, month, calendar],
@@ -42,6 +40,18 @@ export function MemberDetailPage() {
   const member = report.data?.member;
   const goalMinutes = (member?.monthlyGoalHours ?? 0) * 60;
 
+  const collection = useCollection(
+    report.data?.sessions ?? [],
+    (row) =>
+      [
+        row.note,
+        row.project?.name,
+        t(`category.${row.category}`),
+        formatDate(row.startAt, calendar, language),
+      ].join(" "),
+    `${month}:${userId}`,
+  );
+
   return (
     <>
       <PageHeader
@@ -50,9 +60,7 @@ export function MemberDetailPage() {
         actions={
           <>
             <MonthPicker month={month} calendar={calendar} onChange={setMonth} />
-            <Link className="btn" to="/members">
-              {t("admin.memberDetail.allMembers")}
-            </Link>
+            <ButtonLink to="/members">{t("admin.memberDetail.allMembers")}</ButtonLink>
           </>
         }
       />
@@ -65,11 +73,10 @@ export function MemberDetailPage() {
 
         {report.data && member ? (
           <>
-            <Card>
+            <Card className="summary-card">
               <div className="row gap-7 wrap">
                 <Avatar name={displayName(member)} src={member.avatarUrl} size="lg" />
                 <div className="stack gap-2 grow">
-                  <span className="t-title2">{displayName(member)}</span>
                   <span className="t-body-sm muted">
                     @{member.username}
                     {member.employeeCode ? ` · ${member.employeeCode}` : ""} ·{" "}
@@ -87,38 +94,31 @@ export function MemberDetailPage() {
               <hr className="divider" style={{ margin: "var(--space-8) 0" }} />
 
               <div className="stat-grid">
-                <Stat label={t("admin.memberDetail.approved")} value={formatDuration(member.approvedMinutes, language)} />
                 <Stat
-                  label={t("admin.memberDetail.waiting")}
-                  value={formatDuration(member.pendingMinutes, language)}
-                  hint={
-                    member.pendingMinutes ? (
-                      <Link to="/timesheets">{t("admin.memberDetail.review")}</Link>
-                    ) : undefined
-                  }
+                  label={t("admin.memberDetail.completed")}
+                  value={formatDuration(member.completedMinutes, language)}
                 />
                 <Stat label={t("admin.memberDetail.workedDays")} value={member.workedDays} />
                 <Stat
                   label={t("admin.memberDetail.earned")}
                   value={formatMoney(member.grossAmount, member.currency, t)}
-                  hint={t("admin.memberDetail.approvedOnly")}
                 />
               </div>
 
               {goalMinutes > 0 ? (
-                <div className="stack gap-4" style={{ marginTop: "var(--space-8)" }}>
+                <div className="goal-summary stack gap-4">
                   <div className="row between t-caption muted">
                     <span>{t("admin.memberDetail.towardsGoal", { goal: member.monthlyGoalHours })}</span>
                     <span className="t-mono">
-                      {Math.round((member.approvedMinutes / goalMinutes) * 100)}%
+                      {Math.round((member.completedMinutes / goalMinutes) * 100)}%
                     </span>
                   </div>
-                  <Progress value={member.approvedMinutes / goalMinutes} />
+                  <Progress value={member.completedMinutes / goalMinutes} />
                 </div>
               ) : null}
             </Card>
 
-            <div className="row gap-7 wrap align-start">
+            <div className="detail-grid">
               <Card flush className="grow">
                 <CardHeader title={t("admin.memberDetail.perDay")} />
                 <div className="card-body">
@@ -126,7 +126,7 @@ export function MemberDetailPage() {
                 </div>
               </Card>
 
-              <Card flush style={{ minWidth: 280 }}>
+              <Card flush>
                 <CardHeader title={t("admin.memberDetail.byProject")} />
                 <div className="card-body stack gap-6">
                   {report.data.projects.length ? (
@@ -140,59 +140,69 @@ export function MemberDetailPage() {
                           </span>
                           <span className="t-mono muted">{formatDuration(project.minutes, language)}</span>
                         </div>
-                        <Progress value={project.minutes / Math.max(1, member.approvedMinutes)} />
+                        <Progress value={project.minutes / Math.max(1, member.completedMinutes)} />
                       </div>
                     ))
                   ) : (
-                    <span className="t-body-sm muted">{t("admin.memberDetail.noApproved")}</span>
+                    <span className="t-body-sm muted">{t("admin.memberDetail.noCompleted")}</span>
                   )}
                 </div>
               </Card>
             </div>
 
             <Card flush>
-              <CardHeader title={t("admin.memberDetail.entries", { count: report.data.sessions.length })} />
-              {report.data.sessions.length ? (
-                <div className="table-scroll">
-                  <table className="data">
-                    <thead>
-                      <tr>
-                        <th>{t("admin.timesheets.day")}</th>
-                        <th>{t("admin.timesheets.hours")}</th>
-                        <th className="num">{t("admin.timesheets.duration")}</th>
-                        <th>{t("admin.timesheets.where")}</th>
-                        <th>{t("admin.timesheets.project")}</th>
-                        <th>{t("admin.timesheets.note")}</th>
-                        <th>{t("admin.timesheets.status")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.data.sessions.map((session) => (
-                        <tr key={session.id}>
-                          <td className="muted">{formatDate(session.startAt, calendar, language)}</td>
-                          <td className="t-mono timecode muted">
-                            {formatTime(session.startAt)}
-                            {session.endAt
-                              ? ` – ${formatTime(session.endAt)}`
-                              : ` – ${t("admin.timesheets.running")}`}
-                          </td>
-                          <td className="num t-mono">{formatDuration(session.durationMinutes, language)}</td>
-                          <td className="muted">{t(`category.${session.category}`)}</td>
-                          <td>{session.project?.name ?? <span className="faint">—</span>}</td>
-                          <td className="muted" style={{ maxWidth: 260 }}>
-                            {session.note ?? <span className="faint">—</span>}
-                          </td>
-                          <td>
-                            <StatusBadge status={session.status} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
+              <CollectionToolbar search={collection.search} onSearch={collection.setSearch} />
+              {collection.search && !collection.total && report.data ? (
+                <EmptyState title={t("admin.table.noResults")} hint={t("admin.table.searchHint")} />
+              ) : null}
+              {collection.total > 0 ? (
+                <TableScroll>
+                  <Table>
+                    <Table.Content aria-label={t("common.records")} className="omam-data">
+                      <Table.Header>
+                        <Table.Column isRowHeader>{t("admin.timesheets.day")}</Table.Column>
+                        <Table.Column>{t("admin.timesheets.hours")}</Table.Column>
+                        <Table.Column className="num">{t("admin.timesheets.duration")}</Table.Column>
+                        <Table.Column>{t("admin.timesheets.where")}</Table.Column>
+                        <Table.Column>{t("admin.timesheets.project")}</Table.Column>
+                        <Table.Column>{t("admin.timesheets.note")}</Table.Column>
+                        <Table.Column>{t("admin.timesheets.status")}</Table.Column>
+                      </Table.Header>
+                      <Table.Body>
+                        {collection.rows.map((session) => (
+                          <Table.Row id={session.id} key={session.id}>
+                            <Table.Cell className="muted">
+                              {formatDate(session.startAt, calendar, language)}
+                            </Table.Cell>
+                            <Table.Cell className="t-mono timecode muted">
+                              {formatTime(session.startAt)}
+                              {session.endAt
+                                ? ` – ${formatTime(session.endAt)}`
+                                : ` – ${t("admin.timesheets.running")}`}
+                            </Table.Cell>
+                            <Table.Cell className="num t-mono">
+                              {formatDuration(session.durationMinutes, language)}
+                            </Table.Cell>
+                            <Table.Cell className="muted">{t(`category.${session.category}`)}</Table.Cell>
+                            <Table.Cell>
+                              {session.project?.name ?? <span className="faint">—</span>}
+                            </Table.Cell>
+                            <Table.Cell className="muted note-column">
+                              {session.note ?? <span className="faint">—</span>}
+                            </Table.Cell>
+                            <Table.Cell>
+                              <StatusBadge status={session.status} />
+                            </Table.Cell>
+                          </Table.Row>
+                        ))}
+                      </Table.Body>
+                    </Table.Content>
+                  </Table>
+                </TableScroll>
+              ) : !collection.search ? (
                 <EmptyState title={t("admin.memberDetail.noTime")} />
-              )}
+              ) : null}
+              <Pagination {...collection} />
             </Card>
           </>
         ) : null}

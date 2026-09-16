@@ -15,11 +15,9 @@ export function serializeSession(session: SessionWithProject): SessionDto {
     status: session.status,
     source: session.source,
     note: session.note,
-    reviewNote: session.reviewNote,
     project: session.project
       ? { id: session.project.id, name: session.project.name, color: session.project.color }
       : null,
-    approvedAt: session.approvedAt?.toISOString() ?? null,
     createdAt: session.createdAt.toISOString(),
     updatedAt: session.updatedAt.toISOString(),
   };

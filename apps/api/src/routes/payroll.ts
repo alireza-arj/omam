@@ -43,7 +43,7 @@ export const payrollRoutes = new Elysia({ prefix: "/payroll" })
     return { periods: periods.map((period) => serializePeriod(period, organization.currency)) };
   })
 
-  /** Builds or rebuilds the draft for a month from its approved sessions. */
+  /** Builds or rebuilds the draft for a month from its completed sessions. */
   .post("/periods", async ({ principal, body }) => {
     requireRole(principal, "MANAGER");
 
@@ -171,8 +171,8 @@ export const payrollRoutes = new Elysia({ prefix: "/payroll" })
         "Name",
         "Pay type",
         "Rate",
-        "Approved hours",
-        "Approved time",
+        "Completed hours",
+        "Completed time",
         "Worked days",
         "Currency",
         "Gross",
@@ -186,8 +186,8 @@ export const payrollRoutes = new Elysia({ prefix: "/payroll" })
         line.nickname ?? line.username,
         line.payType,
         line.payType === "MONTHLY" ? line.monthlySalary : line.hourlyRate,
-        hoursFromMinutes(line.approvedMinutes),
-        formatDuration(line.approvedMinutes),
+        hoursFromMinutes(line.completedMinutes),
+        formatDuration(line.completedMinutes),
         line.workedDays,
         line.currency,
         line.grossAmount,

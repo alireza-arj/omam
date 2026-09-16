@@ -1,9 +1,8 @@
+import type { Prisma } from "@prisma/client";
 import { Elysia } from "elysia";
 import { asCalendarSystem } from "@omam/calendar";
 import {
-  bulkReviewInputSchema,
   createSessionInputSchema,
-  reviewSessionInputSchema,
   timesheetQuerySchema,
 } from "@omam/contracts";
 import { prisma } from "../lib/prisma";
@@ -45,7 +44,7 @@ async function assertNotPaidOut(organizationId: string, ...dates: (Date | null)[
   }
 }
 
-/** Review and edit of anyone's time. Everything here is manager-only. */
+/** Read and edit of anyone's time. Everything here is manager-only. */
 export const timesheetRoutes = new Elysia({ prefix: "/timesheets" })
   .use(authenticated)
 
@@ -57,31 +56,57 @@ export const timesheetRoutes = new Elysia({ prefix: "/timesheets" })
     const calendar = asCalendarSystem(filters.calendar ?? organization.calendar);
     const window = monthWindow(filters.month, calendar);
 
-    const entries = await prisma.workSession.findMany({
-      where: {
-        organizationId: organization.id,
-        deletedAt: null,
-        startAt: { gte: window.from, lte: window.to },
-        ...(filters.userId ? { userId: filters.userId } : {}),
-        ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.projectId ? { projectId: filters.projectId } : {}),
+    const search = filters.search;
+    const where: Prisma.WorkSessionWhereInput = {
+      organizationId: organization.id,
+      deletedAt: null,
+      startAt: { gte: window.from, lte: window.to },
+      ...(filters.userId ? { userId: filters.userId } : {}),
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.projectId ? { projectId: filters.projectId } : {}),
+      ...(search
+        ? {
+            OR: [
+              { note: { contains: search, mode: "insensitive" } },
+              { user: { nickname: { contains: search, mode: "insensitive" } } },
+              { user: { username: { contains: search, mode: "insensitive" } } },
+              { project: { name: { contains: search, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
+    };
+    const { entries, total, groups, page } = await prisma.$transaction(
+      async (tx) => {
+        const total = await tx.workSession.count({ where });
+        const page = Math.min(filters.page, Math.max(1, Math.ceil(total / filters.pageSize)));
+        const entries = await tx.workSession.findMany({
+          where,
+          include,
+          orderBy: [{ startAt: "desc" }, { id: "desc" }],
+          skip: (page - 1) * filters.pageSize,
+          take: filters.pageSize,
+        });
+        const groups = await tx.workSession.groupBy({
+          by: ["status"],
+          where,
+          _sum: { durationMinutes: true },
+        });
+        return { entries, total, groups, page };
       },
-      include,
-      orderBy: { startAt: "desc" },
-      take: 2000,
-    });
-
-    const totals = { approvedMinutes: 0, pendingMinutes: 0, rejectedMinutes: 0 };
-
-    for (const entry of entries) {
-      if (entry.status === "APPROVED") totals.approvedMinutes += entry.durationMinutes;
-      else if (entry.status === "REJECTED") totals.rejectedMinutes += entry.durationMinutes;
-      else totals.pendingMinutes += entry.durationMinutes;
+      { isolationLevel: "RepeatableRead" },
+    );
+    const totals = { completedMinutes: 0 };
+    for (const group of groups) {
+      const minutes = group._sum.durationMinutes ?? 0;
+      if (group.status === "COMPLETED") totals.completedMinutes += minutes;
     }
 
     return {
       month: window.month,
       calendar,
+      total,
+      page,
+      pageSize: filters.pageSize,
       totals,
       entries: entries.map((entry) => ({
         ...serializeSession(entry),
@@ -90,122 +115,6 @@ export const timesheetRoutes = new Elysia({ prefix: "/timesheets" })
         avatarUrl: entry.user.avatarUrl,
       })),
     };
-  })
-
-  .post("/:id/approve", async ({ principal, params, body }) => {
-    requireRole(principal, "MANAGER");
-
-    const organization = requireOrganization(principal);
-    const payload = parseInput(reviewSessionInputSchema, body ?? {});
-    const session = await loadOrgSession(organization.id, params.id);
-
-    if (!session.endAt) {
-      throw invalid("A running session cannot be approved yet.");
-    }
-
-    await assertNotPaidOut(organization.id, session.startAt);
-
-    const updated = await prisma.workSession.update({
-      where: { id: session.id },
-      data: {
-        status: "APPROVED",
-        approvedById: principal.user.id,
-        approvedAt: new Date(),
-        reviewNote: payload.reviewNote ?? null,
-      },
-      include,
-    });
-
-    await recordAudit({
-      organizationId: organization.id,
-      actorId: principal.user.id,
-      action: "timesheet.approved",
-      targetType: "session",
-      targetId: session.id,
-      metadata: { username: session.user.username, minutes: session.durationMinutes },
-    });
-
-    return serializeSession(updated);
-  })
-
-  .post("/:id/reject", async ({ principal, params, body }) => {
-    requireRole(principal, "MANAGER");
-
-    const organization = requireOrganization(principal);
-    const payload = parseInput(reviewSessionInputSchema, body ?? {});
-    const session = await loadOrgSession(organization.id, params.id);
-
-    await assertNotPaidOut(organization.id, session.startAt);
-
-    const updated = await prisma.workSession.update({
-      where: { id: session.id },
-      data: {
-        status: "REJECTED",
-        approvedById: principal.user.id,
-        approvedAt: new Date(),
-        reviewNote: payload.reviewNote ?? null,
-      },
-      include,
-    });
-
-    await recordAudit({
-      organizationId: organization.id,
-      actorId: principal.user.id,
-      action: "timesheet.rejected",
-      targetType: "session",
-      targetId: session.id,
-      metadata: { username: session.user.username, reason: payload.reviewNote ?? null },
-    });
-
-    return serializeSession(updated);
-  })
-
-  /** One approval for a whole month of one member — the common case. */
-  .post("/bulk-review", async ({ principal, body }) => {
-    requireRole(principal, "MANAGER");
-
-    const organization = requireOrganization(principal);
-    const payload = parseInput(bulkReviewInputSchema, body);
-
-    const sessions = await prisma.workSession.findMany({
-      where: {
-        id: { in: payload.sessionIds },
-        organizationId: organization.id,
-        deletedAt: null,
-        endAt: { not: null },
-      },
-      select: { id: true, startAt: true },
-    });
-
-    if (!sessions.length) {
-      throw invalid("None of those sessions can be reviewed.");
-    }
-
-    for (const session of sessions) {
-      await assertNotPaidOut(organization.id, session.startAt);
-    }
-
-    const status = payload.action === "APPROVE" ? "APPROVED" : "REJECTED";
-
-    const result = await prisma.workSession.updateMany({
-      where: { id: { in: sessions.map((session) => session.id) } },
-      data: {
-        status,
-        approvedById: principal.user.id,
-        approvedAt: new Date(),
-        reviewNote: payload.reviewNote ?? null,
-      },
-    });
-
-    await recordAudit({
-      organizationId: organization.id,
-      actorId: principal.user.id,
-      action: `timesheet.bulk_${payload.action.toLowerCase()}`,
-      targetType: "session",
-      metadata: { count: result.count },
-    });
-
-    return { updated: result.count, status };
   })
 
   .patch("/:id", async ({ principal, params, body }) => {
@@ -233,11 +142,7 @@ export const timesheetRoutes = new Elysia({ prefix: "/timesheets" })
         note: payload.note ?? null,
         projectId: payload.projectId ?? null,
         source: "ADMIN",
-        // A manager's edit stands as reviewed; re-queuing their own change
-        // would leave the entry waiting on themselves.
-        status: endAt ? "APPROVED" : "OPEN",
-        approvedById: endAt ? principal.user.id : null,
-        approvedAt: endAt ? new Date() : null,
+        status: endAt ? "COMPLETED" : "OPEN",
       },
       include,
     });

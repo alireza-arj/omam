@@ -31,7 +31,6 @@ export function SettingsPage() {
         currency: organization.data.currency,
         defaultHourlyRate: organization.data.defaultHourlyRate,
         monthlyGoalHours: organization.data.monthlyGoalHours,
-        requireApproval: organization.data.requireApproval,
       });
     }
   }, [organization.data]);
@@ -60,9 +59,9 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title={t("admin.nav.settings")} subtitle={t("admin.settings.subtitle")} />
+      <PageHeader title={t("admin.nav.settings")} />
 
-      <div className="page-body">
+      <div className="page-body settings-body">
         {organization.isPending ? <Loading /> : null}
         {organization.isError ? (
           <ErrorState
@@ -85,7 +84,7 @@ export function SettingsPage() {
               }
             />
 
-            <div className="card-body stack gap-7" style={{ maxWidth: 560 }}>
+            <div className="card-body stack gap-7">
               <Field label={t("admin.settings.teamName")}>
                 <Input
                   value={draft.name ?? ""}
@@ -94,15 +93,15 @@ export function SettingsPage() {
                 />
               </Field>
 
-              <div className="row gap-6">
+              <div className="form-grid">
                 <Field label={t("admin.settings.calendar")} hint={t("admin.settings.calendarHint")}>
                   <Select
                     value={draft.calendar}
                     disabled={!can("OWNER")}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       setDraft({
                         ...draft,
-                        calendar: event.target.value as UpdateOrganizationInputDto["calendar"],
+                        calendar: value as UpdateOrganizationInputDto["calendar"],
                       })
                     }
                   >
@@ -115,32 +114,30 @@ export function SettingsPage() {
                   <Select
                     value={draft.currency}
                     disabled={!can("OWNER")}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       setDraft({
                         ...draft,
-                        currency: event.target.value as UpdateOrganizationInputDto["currency"],
+                        currency: value as UpdateOrganizationInputDto["currency"],
                       })
                     }
                   >
-                    <option value="IRR">IRR</option>
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
+                    <option value="IRR">{t("units.toman")}</option>
+                    <option value="USD">{t("admin.currency.USD")}</option>
+                    <option value="EUR">{t("admin.currency.EUR")}</option>
                   </Select>
                 </Field>
               </div>
 
-              <Field
-                label={t("admin.settings.timezone")}
-                hint={t("admin.settings.timezoneHint")}
-              >
+              <Field label={t("admin.settings.timezone")} hint={t("admin.settings.timezoneHint")}>
                 <Input
+                  dir="ltr"
                   value={draft.timezone ?? ""}
                   disabled={!can("OWNER")}
                   onChange={(event) => setDraft({ ...draft, timezone: event.target.value })}
                 />
               </Field>
 
-              <div className="row gap-6">
+              <div className="form-grid">
                 <Field label={t("admin.settings.defaultRate")} hint={t("admin.settings.defaultRateHint")}>
                   <Input
                     type="number"
@@ -160,53 +157,34 @@ export function SettingsPage() {
                     max={744}
                     disabled={!can("OWNER")}
                     value={draft.monthlyGoalHours ?? 0}
-                    onChange={(event) =>
-                      setDraft({ ...draft, monthlyGoalHours: Number(event.target.value) })
-                    }
+                    onChange={(event) => setDraft({ ...draft, monthlyGoalHours: Number(event.target.value) })}
                   />
                 </Field>
               </div>
 
-              <Field
-                label={t("admin.settings.approval")}
-                hint={t("admin.settings.approvalHint")}
-              >
-                <Select
-                  value={draft.requireApproval ? "yes" : "no"}
-                  disabled={!can("OWNER")}
-                  onChange={(event) =>
-                    setDraft({ ...draft, requireApproval: event.target.value === "yes" })
-                  }
-                >
-                  <option value="yes">{t("admin.settings.approvalOn")}</option>
-                  <option value="no">{t("admin.settings.approvalOff")}</option>
-                </Select>
-              </Field>
             </div>
           </Card>
         ) : null}
 
-        <Card flush>
-          <CardHeader title={t("language.label")} subtitle={t("language.hint")} />
-          <div className="card-body" style={{ maxWidth: 420 }}>
-            <Field label={t("language.label")}>
-              <Select
-                value={language}
-                onChange={(event) => setLanguage(event.target.value as typeof language)}
-              >
-                {LANGUAGES.map((value) => (
-                  <option key={value} value={value}>
-                    {LANGUAGE_LABEL[value]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
+        <Card>
+          <Field label={t("language.label")}>
+            <Select
+              aria-label={t("language.label")}
+              value={language}
+              onValueChange={(value) => setLanguage(value as typeof language)}
+            >
+              {LANGUAGES.map((value) => (
+                <option key={value} value={value}>
+                  {LANGUAGE_LABEL[value]}
+                </option>
+              ))}
+            </Select>
+          </Field>
         </Card>
 
-        <Card flush>
-          <CardHeader title={t("admin.settings.yourPassword")} />
-          <div className="card-body stack gap-7" style={{ maxWidth: 420 }}>
+        <details className="settings-disclosure">
+          <summary>{t("admin.settings.yourPassword")}</summary>
+          <div className="card-body stack gap-7">
             <Field label={t("admin.settings.currentPassword")}>
               <Input
                 type="password"
@@ -236,7 +214,7 @@ export function SettingsPage() {
               </Button>
             </div>
           </div>
-        </Card>
+        </details>
       </div>
     </>
   );

@@ -1,7 +1,7 @@
 # Omam
 
 Time tracking for a development team. People clock their hours on their phone;
-whoever runs the team reviews them and closes the month out as payroll.
+whoever runs the team closes the month out as payroll. Time entries need no manager approval.
 
 - `apps/mobile` — Expo app, offline-first, built on the Taraz design layer
 - `apps/admin` — the web panel for managers and owners
@@ -15,8 +15,8 @@ whoever runs the team reviews them and closes the month out as payroll.
 A member records time in the app, which writes to SQLite on the device and
 keeps working with no network at all. When the account is linked to a team
 server, the app pushes what changed and pulls what the server changed in one
-round trip. Finished entries land in a review queue; a manager approves them
-in the panel, and only approved time turns into pay.
+round trip. Completed, non-deleted entries count towards pay immediately at
+the team membership rate. There is no approval or rejection workflow.
 
 At the end of the month the manager builds a payroll draft, adjusts any line
 that needs a bonus or a deduction, and locks it. A locked month stops accepting
@@ -78,9 +78,8 @@ them alone.
 
 - `bun run typecheck` — all three apps
 - `bun run test:smoke` — drives a running API through the whole product: sign
-  in, invite, track, review, report, payroll, lock, and an offline device
-  syncing through all of it. It makes its own fixtures each run, so it is safe
-  to repeat against a development database.
+  in, invite, track, report, payroll, lock, and an offline device
+  syncing through all of it. It makes its own fixtures each run, and should run against a dedicated test database.
 - `bun run test` — the calendar arithmetic and the dictionaries (every language
   covers every key, no blank phrases, matching placeholders)
 

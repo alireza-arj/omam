@@ -1,3 +1,19 @@
+import {
+  Avatar,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Loading,
+  Progress,
+  Select,
+  Stat,
+  Table,
+  TableScroll,
+} from "../components/ui";
+import { CollectionToolbar, Pagination } from "../components/collection";
+import { useCollection } from "../lib/collection";
+import { useReportMonth, reportLink } from "../lib/report-month";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -6,46 +22,43 @@ import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
 import { useToast } from "../lib/ui";
-import {
-  currentMonth,
-  displayName,
-  formatDuration,
-  formatHours,
-  formatMoney,
-  monthLabel,
-} from "../lib/format";
+import { displayName, formatDuration, formatHours, formatMoney } from "../lib/format";
 import { PageHeader } from "./layout";
 import { MonthPicker } from "../components/controls";
-import {
-  Avatar,
-  Badge,
-  Button,
-  Card,
-  CardHeader,
-  EmptyState,
-  ErrorState,
-  Loading,
-  Progress,
-  Stat,
-} from "../components/ui";
 
 export function ReportPage() {
   const { calendar } = useSession();
   const toast = useToast();
   const { language, t } = useLanguage();
-  const [month, setMonth] = useState(() => currentMonth(calendar));
+  const [month, setMonth] = useReportMonth(calendar);
 
   const report = useQuery({
     queryKey: ["report", month, calendar],
     queryFn: () => api.monthlyReport({ month, calendar }),
   });
 
+  const [sort, setSort] = useState("name");
+  const [exporting, setExporting] = useState(false);
+  const sortedRows = [...(report.data?.rows ?? [])].sort((a, b) => {
+    if (sort === "completed") return b.completedMinutes - a.completedMinutes;
+    if (sort === "days") return b.workedDays - a.workedDays;
+    return displayName(a).localeCompare(displayName(b), language);
+  });
+  const collection = useCollection(
+    sortedRows,
+    (row) => [displayName(row), row.username].join(" "),
+    `${month}:${sort}`,
+  );
+
   async function exportCsv() {
+    setExporting(true);
     try {
       await downloadCsv("/reports/monthly.csv", { month, calendar }, `omam-${month}.csv`);
       toast(t("admin.report.exported"), "success");
     } catch (error) {
       toast(translateError(error, t), "error");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -53,11 +66,15 @@ export function ReportPage() {
     <>
       <PageHeader
         title={t("admin.nav.report")}
-        subtitle={t("admin.report.subtitle", { month: monthLabel(month, calendar, language) })}
         actions={
           <>
             <MonthPicker month={month} calendar={calendar} onChange={setMonth} />
-            <Button variant="primary" onClick={exportCsv}>
+            <Button
+              variant="primary"
+              loading={exporting}
+              disabled={!report.data?.rows.length}
+              onClick={exportCsv}
+            >
               {t("admin.report.exportCsv")}
             </Button>
           </>
@@ -72,25 +89,11 @@ export function ReportPage() {
 
         {report.data ? (
           <>
-            <Card>
+            <Card className="summary-card">
               <div className="stat-grid">
                 <Stat
-                  label={t("admin.report.approved")}
-                  value={formatDuration(report.data.totals.approvedMinutes, language)}
-                  hint={t("admin.report.approvedHours", {
-                    value: formatHours(report.data.totals.approvedMinutes),
-                  })}
-                />
-                <Stat
-                  label={t("admin.report.stillWaiting")}
-                  value={formatDuration(report.data.totals.pendingMinutes, language)}
-                  hint={
-                    report.data.totals.pendingMinutes > 0 ? (
-                      <Link to="/timesheets">{t("admin.report.reviewBeforePayroll")}</Link>
-                    ) : (
-                      t("admin.report.allReviewed")
-                    )
-                  }
+                  label={t("admin.report.completed")}
+                  value={formatDuration(report.data.totals.completedMinutes, language)}
                 />
                 <Stat
                   label={t("admin.report.payrollTotal")}
@@ -109,86 +112,94 @@ export function ReportPage() {
             </Card>
 
             <Card flush>
-              <CardHeader
-                title={t("admin.report.perMember")}
-                subtitle={t("admin.report.perMemberHint")}
-              />
-
-              {report.data.rows.length ? (
-                <div className="table-scroll">
-                  <table className="data">
-                    <thead>
-                      <tr>
-                        <th>{t("admin.timesheets.member")}</th>
-                        <th className="num">{t("admin.report.approved")}</th>
-                        <th className="num">{t("admin.report.pending")}</th>
-                        <th className="num">{t("admin.report.days")}</th>
-                        <th style={{ minWidth: 140 }}>{t("admin.report.towardsGoal")}</th>
-                        <th className="num">{t("admin.report.onsite")}</th>
-                        <th className="num">{t("admin.report.remote")}</th>
-                        <th className="num">{t("admin.report.gross")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.data.rows.map((row) => {
-                        const goalMinutes = row.monthlyGoalHours * 60;
-
-                        return (
-                          <tr key={row.userId}>
-                            <td>
-                              <div className="row gap-5">
-                                <Avatar name={displayName(row)} src={row.avatarUrl} size="sm" />
-                                <div className="stack">
-                                  <Link to={`/members/${row.userId}`}>{displayName(row)}</Link>
-                                  <span className="t-caption faint">
-                                    {row.payType === "MONTHLY"
-                                      ? t("payType.MONTHLY")
-                                      : t("payType.perHour", {
-                                          amount: formatMoney(row.hourlyRate, row.currency, t),
-                                        })}
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="num t-mono">{formatDuration(row.approvedMinutes, language)}</td>
-                            <td className="num t-mono">
-                              {row.pendingMinutes ? (
-                                <Badge tone="warning">{formatDuration(row.pendingMinutes, language)}</Badge>
-                              ) : (
-                                <span className="faint">—</span>
-                              )}
-                            </td>
-                            <td className="num t-mono muted">{row.workedDays}</td>
-                            <td>
-                              {goalMinutes > 0 ? (
-                                <div className="stack gap-3">
-                                  <Progress value={row.approvedMinutes / goalMinutes} />
-                                  <span className="t-caption faint">
-                                    {t("admin.report.ofGoal", {
-                                      value: formatHours(row.approvedMinutes),
-                                      goal: row.monthlyGoalHours,
-                                    })}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="faint">{t("admin.report.noGoal")}</span>
-                              )}
-                            </td>
-                            <td className="num t-mono muted">{formatHours(row.onsiteMinutes)}</td>
-                            <td className="num t-mono muted">{formatHours(row.remoteMinutes)}</td>
-                            <td className="num t-mono">{formatMoney(row.grossAmount, row.currency, t)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              <CollectionToolbar search={collection.search} onSearch={collection.setSearch}>
+                <div className="collection-sort">
+                  <Select aria-label={t("admin.table.sort")} value={sort} onValueChange={setSort}>
+                    <option value="name">{t("admin.table.name")}</option>
+                    <option value="completed">{t("admin.table.completed")}</option>
+                    <option value="days">{t("admin.table.days")}</option>
+                  </Select>
                 </div>
-              ) : (
-                <EmptyState
-                  title={t("admin.report.noMembers")}
-                  hint={t("admin.report.noMembersHint")}
-                />
-              )}
+              </CollectionToolbar>
+              {collection.search && !collection.total && report.data ? (
+                <EmptyState title={t("admin.table.noResults")} hint={t("admin.table.searchHint")} />
+              ) : null}
+
+              {collection.total > 0 ? (
+                <TableScroll>
+                  <Table>
+                    <Table.Content aria-label={t("common.records")} className="omam-data">
+                      <Table.Header>
+                        <Table.Column isRowHeader>{t("admin.timesheets.member")}</Table.Column>
+                        <Table.Column className="num">{t("admin.report.completed")}</Table.Column>
+                        <Table.Column className="num">{t("admin.report.days")}</Table.Column>
+                        <Table.Column className="goal-column">{t("admin.report.towardsGoal")}</Table.Column>
+                        <Table.Column className="num">{t("admin.report.onsite")}</Table.Column>
+                        <Table.Column className="num">{t("admin.report.remote")}</Table.Column>
+                        <Table.Column className="num">{t("admin.report.gross")}</Table.Column>
+                      </Table.Header>
+                      <Table.Body>
+                        {collection.rows.map((row) => {
+                          const goalMinutes = row.monthlyGoalHours * 60;
+
+                          return (
+                            <Table.Row id={row.userId} key={row.userId}>
+                              <Table.Cell>
+                                <div className="row gap-5">
+                                  <Avatar name={displayName(row)} src={row.avatarUrl} size="sm" />
+                                  <div className="stack">
+                                    <Link to={reportLink(`/members/${row.userId}`, month, calendar)}>
+                                      {displayName(row)}
+                                    </Link>
+                                    <span className="t-caption faint">
+                                      {row.payType === "MONTHLY"
+                                        ? t("payType.MONTHLY")
+                                        : t("payType.perHour", {
+                                            amount: formatMoney(row.hourlyRate, row.currency, t),
+                                          })}
+                                    </span>
+                                  </div>
+                                </div>
+                              </Table.Cell>
+                              <Table.Cell className="num t-mono">
+                                {formatDuration(row.completedMinutes, language)}
+                              </Table.Cell>
+                              <Table.Cell className="num t-mono muted">{row.workedDays}</Table.Cell>
+                              <Table.Cell>
+                                {goalMinutes > 0 ? (
+                                  <div className="stack gap-3">
+                                    <Progress value={row.completedMinutes / goalMinutes} />
+                                    <span className="t-caption faint">
+                                      {t("admin.report.ofGoal", {
+                                        value: formatHours(row.completedMinutes),
+                                        goal: row.monthlyGoalHours,
+                                      })}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="faint">{t("admin.report.noGoal")}</span>
+                                )}
+                              </Table.Cell>
+                              <Table.Cell className="num t-mono muted">
+                                {formatDuration(row.onsiteMinutes, language)}
+                              </Table.Cell>
+                              <Table.Cell className="num t-mono muted">
+                                {formatDuration(row.remoteMinutes, language)}
+                              </Table.Cell>
+                              <Table.Cell className="num t-mono">
+                                {formatMoney(row.grossAmount, row.currency, t)}
+                              </Table.Cell>
+                            </Table.Row>
+                          );
+                        })}
+                      </Table.Body>
+                    </Table.Content>
+                  </Table>
+                </TableScroll>
+              ) : !collection.search ? (
+                <EmptyState title={t("admin.report.noMembers")} hint={t("admin.report.noMembersHint")} />
+              ) : null}
+              <Pagination {...collection} />
             </Card>
           </>
         ) : null}

@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 const DATABASE_NAME = "omam.db";
 
 /** Bump when a migration is added below. */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 export const DB_SCHEMA = `
   CREATE TABLE IF NOT EXISTS User (
@@ -39,9 +39,9 @@ export const DB_SCHEMA = `
     createdAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL,
     remoteId TEXT,
-    status TEXT NOT NULL DEFAULT 'PENDING',
+    legacyReviewStatus TEXT,
+    status TEXT NOT NULL DEFAULT 'OPEN',
     source TEXT NOT NULL DEFAULT 'TIMER',
-    reviewNote TEXT,
     projectId TEXT,
     projectName TEXT,
     projectColor TEXT,
@@ -55,7 +55,6 @@ export const DB_SCHEMA = `
     serverUserId TEXT,
     serverUsername TEXT,
     organizationName TEXT,
-    requireApproval INTEGER NOT NULL DEFAULT 1,
     cursor TEXT,
     lastSyncAt TEXT,
     lastError TEXT
@@ -65,9 +64,8 @@ export const DB_SCHEMA = `
 /** Columns added by the team-sync migration, with the SQL to add each one. */
 const SYNC_COLUMNS: [column: string, definition: string][] = [
   ["remoteId", "TEXT"],
-  ["status", "TEXT NOT NULL DEFAULT 'PENDING'"],
+  ["status", "TEXT NOT NULL DEFAULT 'OPEN'"],
   ["source", "TEXT NOT NULL DEFAULT 'TIMER'"],
-  ["reviewNote", "TEXT"],
   ["projectId", "TEXT"],
   ["projectName", "TEXT"],
   ["projectColor", "TEXT"],
@@ -186,6 +184,16 @@ export async function initializeDatabase(db: SQLiteDatabase) {
   if (!(await hasColumn(db, "AppSettings", "language"))) {
     await db.execAsync("ALTER TABLE AppSettings ADD COLUMN language TEXT NOT NULL DEFAULT 'en'");
   }
+
+  if (!(await hasColumn(db, "WorkSession", "legacyReviewStatus"))) {
+    await db.execAsync("ALTER TABLE WorkSession ADD COLUMN legacyReviewStatus TEXT");
+  }
+  await db.runAsync(
+    "UPDATE WorkSession SET legacyReviewStatus = status WHERE status NOT IN ('OPEN', 'COMPLETED') AND legacyReviewStatus IS NULL",
+  );
+  await db.runAsync(
+    "UPDATE WorkSession SET status = CASE WHEN endAt IS NULL THEN 'OPEN' ELSE 'COMPLETED' END",
+  );
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }

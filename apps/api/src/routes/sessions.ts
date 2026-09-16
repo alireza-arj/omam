@@ -8,7 +8,6 @@ import {
   summaryQuerySchema,
   updateSessionInputSchema,
 } from "@omam/contracts";
-import type { Organization, WorkSession } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { authenticated } from "../lib/context";
 import { requireOrganization } from "../lib/auth";
@@ -18,11 +17,6 @@ import { calculateSessionMinutes, hoursFromMinutes, localDayKey, monthWindow } f
 import { isMonthLocked } from "../lib/payroll";
 
 const includeProject = { project: true } as const;
-
-/** Where a finished session lands: straight to approved, or into the queue. */
-function statusAfterClose(organization: Organization) {
-  return organization.requireApproval ? ("PENDING" as const) : ("APPROVED" as const);
-}
 
 /**
  * A session inside a locked payroll month is history — editing it would change
@@ -75,25 +69,6 @@ async function ownSession(userId: string, id: string) {
   }
 
   return session;
-}
-
-/** Editing time that was already reviewed sends it back through review. */
-function reviewResetFor(organization: Organization, session: WorkSession) {
-  const wasReviewed = session.status === "APPROVED" || session.status === "REJECTED";
-
-  if (!wasReviewed) {
-    return {};
-  }
-
-  if (!organization.requireApproval) {
-    // With approval off, a rejected entry still has to leave that state, or an
-    // edit would silently keep it out of payroll.
-    return session.status === "REJECTED"
-      ? { status: "APPROVED" as const, approvedAt: new Date(), reviewNote: null }
-      : {};
-  }
-
-  return { status: "PENDING" as const, approvedAt: null, approvedById: null, reviewNote: null };
 }
 
 export const sessionRoutes = new Elysia({ prefix: "/sessions" })
@@ -178,8 +153,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
       data: {
         endAt,
         durationMinutes: calculateSessionMinutes({ startAt: session.startAt, endAt }),
-        status: statusAfterClose(organization),
-        ...(organization.requireApproval ? {} : { approvedAt: new Date() }),
+        status: "COMPLETED",
       },
       include: includeProject,
     });
@@ -217,8 +191,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
         category: payload.category,
         note: payload.note ?? null,
         source: "MANUAL",
-        status: endAt ? statusAfterClose(organization) : "OPEN",
-        ...(endAt && !organization.requireApproval ? { approvedAt: new Date() } : {}),
+        status: endAt ? "COMPLETED" : "OPEN",
       },
       include: includeProject,
     });
@@ -245,8 +218,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
         category: payload.category,
         note: payload.note ?? null,
         projectId: await assertProjectBelongs(organization.id, payload.projectId),
-        ...(endAt ? {} : { status: "OPEN" as const, approvedAt: null, approvedById: null }),
-        ...(endAt ? reviewResetFor(organization, session) : {}),
+        status: endAt ? "COMPLETED" : "OPEN",
       },
       include: includeProject,
     });
@@ -303,14 +275,9 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
     const categoryMinutes = { onsite: 0, remote: 0 };
     const workedDays = new Set<string>();
     let totalMinutes = 0;
-    let approvedMinutes = 0;
-    let pendingMinutes = 0;
+    let completedMinutes = 0;
 
     for (const session of sessions) {
-      if (session.status === "REJECTED") {
-        continue;
-      }
-
       workedDays.add(localDayKey(session.startAt, calendar));
 
       if (!session.endAt) {
@@ -319,10 +286,8 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
 
       totalMinutes += session.durationMinutes;
 
-      if (session.status === "APPROVED") {
-        approvedMinutes += session.durationMinutes;
-      } else {
-        pendingMinutes += session.durationMinutes;
+      if (session.status === "COMPLETED") {
+        completedMinutes += session.durationMinutes;
       }
 
       if (session.category === "REMOTE") {
@@ -341,8 +306,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
       calendar,
       summary: {
         totalMinutes,
-        approvedMinutes,
-        pendingMinutes,
+        completedMinutes,
         totalIncome: Number((hoursFromMinutes(totalMinutes) * hourlyRate).toFixed(2)),
         activeSession: activeSession ? serializeSession(activeSession) : null,
         workedDays: workedDays.size,

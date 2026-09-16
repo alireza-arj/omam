@@ -29,7 +29,6 @@ export type SessionRow = {
   remoteId: string | null;
   status: WorkSessionStatus;
   source: WorkSessionSource;
-  reviewNote: string | null;
   projectId: string | null;
   projectName: string | null;
   projectColor: string | null;
@@ -54,7 +53,6 @@ export function toSessionDto(row: SessionRow): SessionDto {
     status: row.status,
     source: row.source,
     note: row.note,
-    reviewNote: row.reviewNote,
     project: row.projectId
       ? {
           id: row.projectId,
@@ -62,7 +60,6 @@ export function toSessionDto(row: SessionRow): SessionDto {
           color: row.projectColor ?? "#B4213C",
         }
       : null,
-    approvedAt: null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -151,7 +148,7 @@ export async function clockOut(db: SQLiteDatabase, sessionId: string, userId: st
   }
 
   await db.runAsync(
-    "UPDATE WorkSession SET endAt = ?, durationMinutes = ?, updatedAt = ?, status = 'PENDING', dirty = 1 WHERE id = ?",
+    "UPDATE WorkSession SET endAt = ?, durationMinutes = ?, updatedAt = ?, status = 'COMPLETED', dirty = 1 WHERE id = ?",
     [endAt, calculateSessionMinutes(session.startAt, endAt), now(), sessionId],
   );
 
@@ -183,9 +180,7 @@ export async function updateSession(
       category,
       note,
       now(),
-      // An edit puts approved time back in the queue; the server applies the
-      // same rule, so the two agree without a round trip.
-      endAt ? "PENDING" : "OPEN",
+      endAt ? "COMPLETED" : "OPEN",
       sessionId,
     ],
   );
@@ -239,7 +234,7 @@ export async function createSession(
       note,
       ts,
       ts,
-      endAt ? "PENDING" : "OPEN",
+      endAt ? "COMPLETED" : "OPEN",
     ],
   );
 
@@ -273,8 +268,7 @@ export async function getMonthlySummary(
   calendar: CalendarSystem,
 ): Promise<{
   totalMinutes: number;
-  approvedMinutes: number;
-  pendingMinutes: number;
+  completedMinutes: number;
   totalIncome: number;
   activeSession: SessionDto | null;
   workedDays: number;
@@ -298,8 +292,7 @@ export async function getMonthlySummary(
   const activeSession = await getActiveSession(db, userId);
 
   let totalMinutes = 0;
-  let approvedMinutes = 0;
-  let pendingMinutes = 0;
+  let completedMinutes = 0;
   const categoryMinutes = {
     onsite: 0,
     remote: 0,
@@ -307,10 +300,6 @@ export async function getMonthlySummary(
   const workedDaysSet = new Set<string>();
 
   for (const session of sessions) {
-    if (session.status === "REJECTED") {
-      continue;
-    }
-
     workedDaysSet.add(dayKey(new Date(session.startAt), calendar));
 
     if (!session.endAt) {
@@ -322,10 +311,8 @@ export async function getMonthlySummary(
 
     totalMinutes += minutes;
 
-    if (session.status === "APPROVED") {
-      approvedMinutes += minutes;
-    } else {
-      pendingMinutes += minutes;
+    if (session.status === "COMPLETED") {
+      completedMinutes += minutes;
     }
 
     if (session.category === "REMOTE") {
@@ -339,8 +326,7 @@ export async function getMonthlySummary(
 
   return {
     totalMinutes,
-    approvedMinutes,
-    pendingMinutes,
+    completedMinutes,
     totalIncome: Number(((totalMinutes / 60) * hourlyRate).toFixed(2)),
     activeSession,
     workedDays: workedDaysSet.size,

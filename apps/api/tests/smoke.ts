@@ -1,6 +1,6 @@
 /**
  * Drives the whole product against a running API: sign in, invite, track time,
- * review it, report on it, run payroll, lock the month, and sync an offline
+ * report on it, run payroll, lock the month, and sync an offline
  * device through all of it.
  *
  * Every run makes its own member and project, and hands back the month it
@@ -37,22 +37,6 @@ function check(label: string, ok: boolean, detail?: unknown) {
   else console.log(`  ok    ${label}`);
 }
 
-// A month left locked by an earlier crash would fail every check below.
-const bootstrap = await call("POST", "/auth/login", { body: { username: "owner", password: "changeme123" } });
-
-if (bootstrap.status === 200) {
-  const stale = await call("GET", "/payroll/periods", { token: bootstrap.json.token });
-
-  for (const period of stale.json?.periods ?? []) {
-    if (period.status !== "DRAFT") {
-      await call("PATCH", `/payroll/periods/${period.id}`, {
-        token: bootstrap.json.token,
-        body: { status: "DRAFT" },
-      });
-    }
-  }
-}
-
 const owner = await call("POST", "/auth/login", { body: { username: "owner", password: "changeme123" } });
 check("owner login", owner.status === 200 && !!owner.json.token, owner.json);
 const ownerToken = owner.json.token;
@@ -83,7 +67,7 @@ const day = (offset: number, hour: number) => {
 
 const manual = await call("POST", "/sessions", { token: devToken, body: { startAt: day(2, 9), endAt: day(2, 17), category: "ONSITE", projectId: project.json.id, note: "Auth routes" } });
 check("manual session 8h", manual.status === 200 && manual.json.durationMinutes === 480, manual.json);
-check("manual session is PENDING", manual.json.status === "PENDING", manual.json.status);
+check("manual session is COMPLETED", manual.json.status === "COMPLETED", manual.json.status);
 
 const manual2 = await call("POST", "/sessions", { token: devToken, body: { startAt: day(1, 10), endAt: day(1, 15), category: "REMOTE" } });
 check("second session 5h", manual2.json?.durationMinutes === 300, manual2.json);
@@ -98,6 +82,17 @@ check("clock out", (await call("POST", `/sessions/${clockIn.json.id}/clock-out`,
 const devUserId = dev.json.user.id;
 const sheet = await call("GET", "/timesheets", { token: ownerToken, query: `?userId=${devUserId}` });
 check("manager sees 3 entries", sheet.json?.entries?.length === 3, sheet.json?.entries?.length);
+const firstPage = await call("GET", "/timesheets", { token: ownerToken, query: `?userId=${devUserId}&pageSize=1` });
+const secondPage = await call("GET", "/timesheets", { token: ownerToken, query: `?userId=${devUserId}&pageSize=1&page=2` });
+check("timesheets return total and one page", firstPage.json.total === 3 && firstPage.json.entries.length === 1 && firstPage.json.pageSize === 1);
+check("timesheet pages do not overlap", firstPage.json.entries[0].id !== secondPage.json.entries[0].id);
+check("timesheet totals span all pages", firstPage.json.totals.completedMinutes === 840 && secondPage.json.totals.completedMinutes === 840);
+check("invalid page rejected", (await call("GET", "/timesheets", { token: ownerToken, query: "?page=0" })).status === 422);
+const searched = await call("GET", "/timesheets", { token: ownerToken, query: `?userId=${devUserId}&search=${DEV_USERNAME}` });
+check("timesheet search includes member names", searched.json.total === 3);
+const beyondPage = await call("GET", "/timesheets", { token: ownerToken, query: `?userId=${devUserId}&pageSize=1&page=999` });
+check("out-of-range page clamps to final page", beyondPage.json.page === 3 && beyondPage.json.entries.length === 1);
+
 // `/sessions` is the member's own list, so a manager must never see time that
 // belongs to someone else in it.
 const ownerOwnSessions = (await call("GET", "/sessions", { token: ownerToken })).json.sessions;
@@ -107,13 +102,13 @@ check(
   ownerOwnSessions.length,
 );
 
-const ids = sheet.json.entries.map((e: any) => e.id);
-const bulk = await call("POST", "/timesheets/bulk-review", { token: ownerToken, body: { sessionIds: ids, action: "APPROVE" } });
-check("bulk approve", bulk.json?.updated === 3, bulk.json);
+check("approval endpoint removed", (await call("POST", `/timesheets/${manual.json.id}/approve`, { token: ownerToken, body: {} })).status === 404);
+check("rejection endpoint removed", (await call("POST", `/timesheets/${manual.json.id}/reject`, { token: ownerToken, body: {} })).status === 404);
+check("bulk review endpoint removed", (await call("POST", "/timesheets/bulk-review", { token: ownerToken, body: {} })).status === 404);
 
 const report = await call("GET", "/reports/monthly", { token: ownerToken });
 const sara = report.json?.rows?.find((r: any) => r.username === DEV_USERNAME);
-check("report approved minutes = 840", sara?.approvedMinutes === 840, sara);
+check("report completed minutes = 840", sara?.completedMinutes === 840, sara);
 check("report gross = 14h * 850000", sara?.grossAmount === 14 * 850000, sara?.grossAmount);
 check("report worked days = 3", sara?.workedDays === 3, sara?.workedDays);
 
@@ -134,6 +129,9 @@ check("period locked", locked.json?.period?.status === "LOCKED", locked.json?.pe
 
 const afterLock = await call("POST", "/sessions", { token: devToken, body: { startAt: day(3, 9), endAt: day(3, 12) } });
 check("locked month blocks new time", afterLock.status === 409, afterLock.json);
+check("locked month blocks member edits", (await call("PATCH", `/sessions/${manual.json.id}`, { token: devToken, body: { startAt: day(2, 9), endAt: day(2, 18) } })).status === 409);
+check("locked month blocks manager edits", (await call("PATCH", `/timesheets/${manual.json.id}`, { token: ownerToken, body: { startAt: day(2, 9), endAt: day(2, 18) } })).status === 409);
+check("locked month blocks deletion", (await call("DELETE", `/sessions/${manual.json.id}`, { token: devToken })).status === 409);
 check("locked month blocks rebuild", (await call("POST", "/payroll/periods", { token: ownerToken, body: { month: report.json.month } })).status === 409);
 
 const sync = await call("POST", "/sync", { token: devToken, body: { sessions: [] } });
@@ -173,14 +171,13 @@ const stale = await call("POST", "/sync", {
 check("an older client edit is skipped", stale.json?.results?.[0]?.outcome === "skipped", stale.json?.results);
 
 const serverId = push1.json.results[0].serverId;
-await call("POST", `/timesheets/${serverId}/approve`, { token: ownerToken, body: {} });
 
 const reEdit = await call("POST", "/sync", {
   token: devToken,
   body: { sessions: [{ ...offline, endAt: past(10, 14), updatedAt: new Date().toISOString() }] },
 });
 const reEdited = reEdit.json.sessions.find((s: any) => s.clientId === offline.clientId);
-check("editing approved time re-queues it", reEdited?.status === "PENDING", reEdited?.status);
+check("editing completed time keeps it completed", reEdited?.status === "COMPLETED", reEdited?.status);
 check("edited duration is 5h", reEdited?.durationMinutes === 300, reEdited?.durationMinutes);
 
 const removed = await call("POST", "/sync", {
@@ -199,13 +196,14 @@ check(
   ),
 );
 
-// A rejected entry that the member fixes must return to the queue, not stay
-// silently out of payroll.
-const fixable = await call("POST", "/sessions", { token: devToken, body: { startAt: past(12, 9), endAt: past(12, 11) } });
-await call("POST", `/timesheets/${fixable.json.id}/reject`, { token: ownerToken, body: { reviewNote: "Wrong day" } });
-const fixed = await call("PATCH", `/sessions/${fixable.json.id}`, { token: devToken, body: { startAt: past(12, 9), endAt: past(12, 12) } });
-check("editing a rejected entry re-queues it", fixed.json?.status === "PENDING", fixed.json?.status);
-check("the review note is cleared", fixed.json?.reviewNote === null, fixed.json?.reviewNote);
+const editable = await call("POST", "/sessions", { token: devToken, body: { startAt: past(12, 9), endAt: past(12, 11) } });
+const edited = await call("PATCH", `/sessions/${editable.json.id}`, { token: devToken, body: { startAt: past(12, 9), endAt: past(12, 12) } });
+check("member edits need no approval", edited.json?.status === "COMPLETED" && edited.json?.durationMinutes === 180, edited.json);
+check("approval metadata absent from session response", !("reviewNote" in edited.json) && !("approvedAt" in edited.json));
+const reopened = await call("PATCH", `/sessions/${editable.json.id}`, { token: devToken, body: { startAt: past(12, 9), endAt: null } });
+check("reopened session is OPEN", reopened.json?.status === "OPEN" && reopened.json?.durationMinutes === 0, reopened.json);
+const managerEdited = await call("PATCH", `/timesheets/${editable.json.id}`, { token: ownerToken, body: { startAt: past(12, 9), endAt: past(12, 12) } });
+check("manager edits produce completed time", managerEdited.json?.status === "COMPLETED", managerEdited.json);
 
 const lockedPush = await call("POST", "/sync", {
   token: devToken,
@@ -213,26 +211,10 @@ const lockedPush = await call("POST", "/sync", {
 });
 check("a locked month refuses a pushed row", lockedPush.json?.results?.[0]?.outcome === "rejected", lockedPush.json?.results);
 
-/**
- * Hand the month back as a draft so the next run can build payroll again.
- *
- * Looked up rather than remembered, and run even when a check above threw: a
- * run that dies after locking would otherwise leave the month closed, and
- * every later run fails at the first thing it tries to record.
- */
-async function unlockMonth() {
-  const periods = await call("GET", "/payroll/periods", { token: ownerToken });
-  const period = periods.json?.periods?.find((p: any) => p.status !== "DRAFT");
-
-  if (period) {
-    await call("PATCH", `/payroll/periods/${period.id}`, {
-      token: ownerToken,
-      body: { status: "DRAFT" },
-    });
-  }
-}
-
-await unlockMonth();
+await call("PATCH", `/payroll/periods/${built.json.period.id}`, {
+  token: ownerToken,
+  body: { status: "DRAFT" },
+});
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

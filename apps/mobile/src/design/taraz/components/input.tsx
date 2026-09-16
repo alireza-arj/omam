@@ -1,14 +1,16 @@
-import { useState, type ReactNode } from "react";
-import {
-  Platform,
-  TextInput,
-  View,
-  type TextInputProps,
-  type StyleProp, type ViewStyle } from "react-native";
+import { useId, type ReactNode } from "react";
+import { type TextInputProps, type StyleProp, type ViewStyle, type TextStyle } from "react-native";
+import { TextField } from "heroui-native/text-field";
+import { Input as HeroInput } from "heroui-native/input";
+import { InputGroup } from "heroui-native/input-group";
+import { TextArea } from "heroui-native/text-area";
+import { Label } from "heroui-native/label";
+import { Description } from "heroui-native/description";
+import { FieldError } from "heroui-native/field-error";
 import { Text } from "./text";
+import { LayoutDirection } from "uniwind";
 import { useLanguage } from "../i18n";
-import { useTheme } from "../theme";
-import { layout, palette, radius, typeRoles } from "../tokens";
+import { layout, typeRolesByLanguage } from "../tokens";
 
 export type InputProps = Omit<TextInputProps, "style"> & {
   label?: string;
@@ -18,105 +20,49 @@ export type InputProps = Omit<TextInputProps, "style"> & {
   leading?: ReactNode;
   trailing?: ReactNode;
   containerStyle?: StyleProp<ViewStyle>;
-  /**
-   * True for a field the reader writes prose into — a name, a note. Those
-   * follow the interface language; a time, a date, a rate or a URL stays
-   * left-to-right whatever the language, because that is how it is typed.
-   */
   freeText?: boolean;
 };
 
-const HEIGHTS = { sm: layout.controlSm, md: layout.controlMd, lg: layout.controlLg } as const;
-
 export function Input({
-  label,
-  hint,
-  error,
-  size = "lg",
-  leading,
-  trailing,
-  containerStyle,
-  freeText = false,
-  ...rest
+  label, hint, error, size = "lg", leading, trailing, containerStyle, freeText = false, ...rest
 }: InputProps) {
-  const { colors, elevation } = useTheme();
-  const { isRtl } = useLanguage();
-  const [focused, setFocused] = useState(false);
-  const writingDirection = freeText && isRtl ? ("rtl" as const) : ("ltr" as const);
-
-  // A multiline field grows instead of clipping to the control height, and its
-  // affordances sit at the top rather than centred against three lines of text.
-  const multiline = rest.multiline === true;
-  const box: ViewStyle = multiline
-    ? {
-        alignItems: "flex-start",
-        minHeight: HEIGHTS[size] * 2,
-        paddingVertical: layout.padControlY,
-      }
-    : { alignItems: "center", height: HEIGHTS[size] };
+  const id = useId();
+  const { isRtl, language } = useLanguage();
+  const roles = typeRolesByLanguage[language];
+  const rtlText = freeText && isRtl;
+  const inputStyle: TextStyle = {
+    ...roles[size === "sm" ? "bodySm" : "body"],
+    minHeight: layout.tapMin,
+    height: "auto",
+    writingDirection: rtlText ? "rtl" : "ltr",
+    textAlign: rtlText ? "right" : "left",
+    ...(rest.multiline ? { minHeight: layout.controlLg * 2, textAlignVertical: "top" } : null),
+  };
+  const inputProps = {
+    ...rest,
+    nativeID: rest.nativeID ?? id,
+    accessibilityLabel: rest.accessibilityLabel ?? label,
+    "aria-describedby": error || hint ? id + "-description" : undefined,
+    isInvalid: Boolean(error),
+    style: inputStyle,
+  };
 
   return (
-    <View style={[{ gap: 5, width: "100%" }, containerStyle]}>
-      {label ? (
-        <Text role="label" tone="body">
-          {label}
-        </Text>
-      ) : null}
-
-      <View
-        style={[
-          {
-            backgroundColor: colors.surfaceCard,
-            borderRadius: radius.control,
-            flexDirection: "row",
-            gap: 7,
-            paddingHorizontal: layout.padControlX,
-          },
-          box,
-          elevation(1),
-          error
-            ? { borderColor: palette.accent600, borderWidth: 1 }
-            : focused
-              ? {
-                  borderColor: palette.accent500,
-                  borderWidth: 1,
-                  shadowColor: palette.accent500,
-                  shadowOffset: { width: 0, height: 0 },
-                  shadowOpacity: 0.38,
-                  shadowRadius: 4,
-                }
-              : null,
-        ]}
-      >
-        {leading}
-        <TextInput
-          onBlur={() => setFocused(false)}
-          onFocus={() => setFocused(true)}
-          placeholderTextColor={colors.textFaint}
-          selectionColor={palette.accent500}
-          style={[
-            typeRoles.bodySm,
-            {
-              color: colors.textTitle,
-              flex: 1,
-              minWidth: 0,
-              padding: 0,
-              ...(multiline ? { textAlignVertical: "top" as const } : null),
-              writingDirection,
-              textAlign: writingDirection === "rtl" ? "right" : "left",
-              ...Platform.select({ web: { outlineStyle: "none" } as object }),
-            },
-          ]}
-          {...rest}
-        />
-        {trailing}
-      </View>
-
-      {error || hint ? (
-        <Text role="caption" tone={error ? "accent" : "muted"}>
-          {error || hint}
-        </Text>
-      ) : null}
-    </View>
+    <TextField isInvalid={Boolean(error)} isDisabled={rest.editable === false} style={[{ width: "100%", gap: layout.gapTight }, containerStyle]}>
+      {label ? <Label nativeID={id + "-label"}><Label.Text style={roles.label}>{label}</Label.Text></Label> : null}
+      {rest.multiline ? (
+        <TextArea {...inputProps} />
+      ) : leading || trailing ? (
+        <LayoutDirection rtl={rtlText}>
+          <InputGroup>
+            {leading ? <InputGroup.Prefix>{leading}</InputGroup.Prefix> : null}
+            <InputGroup.Input {...inputProps} />
+            {trailing ? <InputGroup.Suffix>{trailing}</InputGroup.Suffix> : null}
+          </InputGroup>
+        </LayoutDirection>
+      ) : <HeroInput {...inputProps} />}
+      {error ? <FieldError nativeID={id + "-description"}><Text role="caption" tone="accent">{error}</Text></FieldError> : null}
+      {!error && hint ? <Description nativeID={id + "-description"} style={roles.caption}>{hint}</Description> : null}
+    </TextField>
   );
 }

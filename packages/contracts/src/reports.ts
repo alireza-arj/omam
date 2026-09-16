@@ -16,13 +16,11 @@ export const memberReportRowSchema = z.object({
   monthlySalary: z.number().nonnegative(),
   currency: currencySchema,
   monthlyGoalHours: z.number().nonnegative(),
-  approvedMinutes: z.number().nonnegative(),
-  pendingMinutes: z.number().nonnegative(),
-  rejectedMinutes: z.number().nonnegative(),
+  completedMinutes: z.number().nonnegative(),
   workedDays: z.number().nonnegative(),
   onsiteMinutes: z.number().nonnegative(),
   remoteMinutes: z.number().nonnegative(),
-  /** Approved hours times the rate, or the fixed salary for MONTHLY members. */
+  /** Completed hours times the rate, or the fixed salary for MONTHLY members. */
   grossAmount: z.number(),
 });
 
@@ -33,8 +31,7 @@ export const monthlyReportSchema = z.object({
   to: z.string(),
   currency: currencySchema,
   totals: z.object({
-    approvedMinutes: z.number().nonnegative(),
-    pendingMinutes: z.number().nonnegative(),
+    completedMinutes: z.number().nonnegative(),
     /** Sum of the rows paid in the organization's own currency. */
     grossAmount: z.number(),
     /** Every currency present in the month, so a contractor is never dropped. */
@@ -86,9 +83,8 @@ export const dashboardSchema = z.object({
       minutes: z.number().nonnegative(),
     }),
   ),
-  pendingCount: z.number().nonnegative(),
   memberCount: z.number().nonnegative(),
-  monthApprovedMinutes: z.number().nonnegative(),
+  monthCompletedMinutes: z.number().nonnegative(),
   monthGrossAmount: z.number(),
   trend: z.array(dailyBucketSchema),
 });

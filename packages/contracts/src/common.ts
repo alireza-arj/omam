@@ -21,7 +21,7 @@ export const calendarSystemSchema = z.enum(["JALALI", "GREGORIAN"]);
  */
 export const languageSchema = z.enum(LANGUAGES);
 export const workSessionCategorySchema = z.enum(["ONSITE", "REMOTE"]);
-export const workSessionStatusSchema = z.enum(["OPEN", "PENDING", "APPROVED", "REJECTED"]);
+export const workSessionStatusSchema = z.enum(["OPEN", "COMPLETED"]);
 export const workSessionSourceSchema = z.enum(["TIMER", "MANUAL", "SYNC", "ADMIN"]);
 export const orgRoleSchema = z.enum(["OWNER", "MANAGER", "MEMBER"]);
 export const membershipStatusSchema = z.enum(["ACTIVE", "SUSPENDED"]);

@@ -1,60 +1,32 @@
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
-import { Text } from "./text";
-import { useColors } from "../theme";
-import { motion, radius } from "../tokens";
+import { StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import { Chip } from "heroui-native/chip";
+import { useLanguage } from "../i18n";
+import { layout, typeRolesByLanguage } from "../tokens";
 
 export type TagProps = {
   label: string;
   icon?: ReactNode;
-  /** A selected tag is near-black, not crimson — crimson always means *do something*. */
   selected?: boolean;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
 };
 
 export function Tag({ label, icon, selected = false, onPress, style }: TagProps) {
-  const colors = useColors();
-
-  const body = (pressed: boolean): ViewStyle => ({
-    alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: selected
-      ? colors.surfaceInverse
-      : pressed
-        ? colors.fillQuietPressed
-        : colors.fillQuiet,
-    borderRadius: radius.pill,
-    flexDirection: "row",
-    gap: 5,
-    height: 28,
-    paddingHorizontal: 10,
-    transform: [{ scale: pressed ? motion.pressScale : 1 }],
-  });
-
-  const content = (
-    <>
-      {icon}
-      <Text role="label" color={selected ? colors.textOnInverse : colors.textBody}>
-        {label}
-      </Text>
-    </>
-  );
-
-  if (!onPress) {
-    return <View style={[body(false), style]}>{content}</View>;
-  }
-
+  const { language } = useLanguage();
   return (
-    <Pressable
-      accessibilityRole="button"
+    <Chip
+      variant={selected ? "primary" : "soft"}
+      color="default"
+      accessibilityRole={onPress ? "button" : "text"}
       accessibilityState={{ selected }}
       onPress={onPress}
-      style={({ pressed }) => [body(pressed), style]}
+      style={[{ alignSelf: "flex-start", minHeight: onPress ? layout.tapMin : undefined, gap: layout.gapTight }, style]}
     >
-      {content}
-    </Pressable>
+      {icon}
+      <Chip.Label style={typeRolesByLanguage[language].label}>{label}</Chip.Label>
+    </Chip>
   );
 }
 
-export const tagStyles = StyleSheet.create({ row: { flexDirection: "row", gap: 6 } });
+export const tagStyles = StyleSheet.create({ row: { flexDirection: "row", gap: layout.gapTight } });

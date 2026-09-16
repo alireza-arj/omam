@@ -1,6 +1,9 @@
 /** The source of truth: every other dictionary is typed against this shape. */
 export const en = {
   common: {
+    records: "Records",
+    progress: "Progress",
+    startupFailed: "Omam could not start",
     save: "Save",
     saving: "Saving",
     cancel: "Cancel",
@@ -17,6 +20,13 @@ export const en = {
     none: "—",
     yes: "Yes",
     no: "No",
+  },
+
+  database: {
+    openElsewhere: "Omam is open in another tab",
+    waitingHint: "Close the other Omam tab or window to continue here. This tab will open automatically. Your saved records stay on this device.",
+    retryHint: "Close the other Omam tabs or windows, then try again. Your saved records stay on this device.",
+    unavailableHint: "Your browser could not open local storage safely. Try again in a current browser over HTTPS or localhost.",
   },
 
   errors: {
@@ -52,9 +62,9 @@ export const en = {
 
   status: {
     OPEN: "Running",
-    PENDING: "Awaiting review",
-    APPROVED: "Approved",
-    REJECTED: "Not approved",
+
+    COMPLETED: "Completed",
+
   },
 
   role: {
@@ -156,6 +166,7 @@ export const en = {
   },
 
   session: {
+    category: "Work type",
     title: "Session",
     newTitle: "New session",
     editTitle: "Edit session",
@@ -267,13 +278,38 @@ export const en = {
   },
 
   admin: {
+    table: {
+      scrollHint: "Scroll horizontally to see all columns.",
+      search: "Search records…",
+      range: "{from}–{to} of {total}",
+      pages: "Pages",
+      previous: "Previous",
+      next: "Next",
+      actions: "Actions",
+      actionsFor: "Actions for {name}",
+      noResults: "No matching records",
+      searchHint: "Try another name, code or keyword.",
+      sort: "Sort by",
+      name: "Name",
+      completed: "Most completed hours",
+
+      days: "Most worked days",
+      account: "Account",
+      navigation: "Navigation",
+      skip: "Skip to content",
+      selection: "Select entries on this page",
+      clearSelection: "Clear selection",
+      preferences: "Preferences",
+      appearance: "Appearance",
+      allMonths: "Choose month",
+    },
     brand: "Omam",
     signInTitle: "Team admin",
-    signInSubtitle: "Sign in with the manager or owner account for your team.",
+    signInSubtitle: "Sign in with your manager or owner account.",
     membersClockIn: "Members clock in from the mobile app.",
     managersOnly: "This panel is for managers and owners.",
     sessionExpired: "Your session has expired. Sign in again.",
-    starting: "Starting Omam Admin",
+    starting: "Loading",
     requestFailed: "The request failed.",
     exportFailed: "The export failed.",
 
@@ -290,6 +326,8 @@ export const en = {
       audit: "Activity",
     },
 
+    currency: {"USD": "US dollar", "EUR": "Euro"},
+
     month: {
       previous: "Previous month",
       next: "Next month",
@@ -297,12 +335,10 @@ export const en = {
     },
 
     dashboard: {
-      approvedThisMonth: "Approved this month",
+      completedThisMonth: "Completed this month",
       payrollSoFar: "Payroll so far",
-      approvedOnly: "Approved time only",
-      waiting: "Waiting for review",
-      reviewNow: "Review now",
-      queueEmpty: "Nothing in the queue",
+      completedOnly: "Completed time only",
+
       activeMembers: "Active members",
       onTheClock: "On the clock",
       runningNow: { one: "{count} running now", other: "{count} running now" },
@@ -311,21 +347,20 @@ export const en = {
       elapsed: "Elapsed",
       nobodyClockedIn: "Nobody is clocked in",
       nobodyHint: "Timers show up here as they start.",
-      perDay: "Approved time per day",
+      perDay: "Completed time per day",
     },
 
     timesheets: {
-      subtitle: "Review the time your team submitted before it turns into payroll.",
+      subtitle: "View and manage the time your team recorded.",
       status: "Status",
       all: "All",
       member: "Member",
       everyone: "Everyone",
-      approvedTotal: "Approved {value}",
-      pendingTotal: "Pending {value}",
+      completedTotal: "Completed {value}",
+
       entries: { one: "{count} entry", other: "{count} entries" },
       selected: "{count} selected",
-      approveSelected: "Approve selected",
-      rejectSelected: "Reject selected",
+
       selectAll: "Select every entry",
       select: "Select {name}",
       day: "Day",
@@ -335,25 +370,17 @@ export const en = {
       project: "Project",
       note: "Note",
       running: "running",
-      approve: "Approve",
-      reject: "Reject",
+
       nothingHere: "Nothing here",
       nothingHint: "No time matches this month and filter.",
       confirmDelete: "Delete this entry? It will not count towards payroll.",
       deleted: "Entry deleted.",
-      rejectTitle: "Reject {name}'s entry",
-      rejectIntro:
-        "Rejected time is kept on the record but never counts towards pay. Say why, so the member can fix it.",
-      reason: "Reason",
-      reasonPlaceholder: "Overlaps an entry already submitted.",
-      rejectEntry: "Reject entry",
-      approvedCount: { one: "{count} entry approved.", other: "{count} entries approved." },
-      rejectedCount: { one: "{count} entry rejected.", other: "{count} entries rejected." },
+
     },
 
     members: {
       subtitle: "Roles and pay. What is set here is what payroll uses.",
-      inviteSomeone: "Invite someone",
+      inviteSomeone: "Invite member",
       onTheTeam: { one: "{count} on the team", other: "{count} on the team" },
       code: "Code",
       role: "Role",
@@ -371,7 +398,7 @@ export const en = {
       employeeCodePlaceholder: "004",
       monthlySalary: "Monthly salary ({currency})",
       hourlyRate: "Hourly rate ({currency})",
-      hourlyRateHint: "Payroll multiplies this by approved hours.",
+      hourlyRateHint: "Payroll multiplies this by completed hours.",
       monthlyGoalHours: "Monthly goal hours",
       saveChanges: "Save changes",
       updated: "Member updated.",
@@ -387,16 +414,14 @@ export const en = {
       subtitle: "Everyone's hours for {month}.",
       exportCsv: "Export CSV",
       exported: "Export downloaded.",
-      approved: "Approved",
-      approvedHours: "{value} hours",
-      stillWaiting: "Still waiting",
-      reviewBeforePayroll: "Review before payroll",
-      allReviewed: "Everything is reviewed",
+      completed: "Completed",
+      completedHours: "{value} hours",
+
       payrollTotal: "Payroll total",
       members: "Members",
       perMember: "Per member",
-      perMemberHint: "Approved time only. Pending hours never turn into pay.",
-      pending: "Pending",
+      perMemberHint: "Amounts are based on completed time.",
+
       days: "Days",
       towardsGoal: "Towards goal",
       ofGoal: "{value} of {goal}h",
@@ -411,34 +436,33 @@ export const en = {
     memberDetail: {
       allMembers: "All members",
       member: "Member",
-      approved: "Approved",
-      waiting: "Waiting",
-      review: "Review",
+      completed: "Completed",
+
       workedDays: "Worked days",
       earned: "Earned",
-      approvedOnly: "Approved time only",
+      completedOnly: "Completed time only",
       towardsGoal: "Towards {goal}h goal",
-      perDay: "Approved time per day",
+      perDay: "Completed time per day",
       byProject: "By project",
       untagged: "Untagged",
-      noApproved: "No approved time this month.",
+      noCompleted: "No completed time this month.",
       entries: { one: "{count} entry", other: "{count} entries" },
       noTime: "No time this month",
     },
 
     payroll: {
-      subtitle: "Turn approved hours into what each person is owed.",
+      subtitle: "Turn completed hours into what each person is owed.",
       build: "Build payroll",
       rebuild: "Rebuild draft",
       noRun: "No payroll run for {month}",
       noRunHint:
-        "Building a draft totals every approved entry in the month. You can rebuild it as often as you like until you lock it.",
+        "Payroll is calculated from completed time.",
       ready: "Payroll for {month} is ready to review.",
       DRAFT: "Draft",
       LOCKED: "Locked",
       PAID: "Paid",
       lockedBy: "Locked by {name}.",
-      draftHint: "Draft — rebuild it whenever new time is approved.",
+      draftHint: "Draft — rebuild it whenever time is recorded or updated.",
       exportCsv: "Export CSV",
       lockMonth: "Lock month",
       confirmLock:
@@ -454,17 +478,18 @@ export const en = {
       people: "People",
       payslips: "Payslips",
       payslipsHint: "Adjust a line for a bonus, an advance or a deduction.",
-      approved: "Approved",
+      completed: "Completed",
       days: "Days",
       rate: "Rate",
       adjustment: "Adjustment",
       net: "Net",
       adjust: "Adjust",
-      noApproved: "No approved time in this month",
-      noApprovedHint: "Approve the team's timesheets, then rebuild the draft.",
+      noCompleted: "No completed time in this month",
+      noCompletedHint: "Record the team's time, then rebuild the draft.",
       adjustTitle: "Adjust {name}'s pay",
       adjustIntro:
-        "Gross is {gross} from {duration} of approved time. A negative number deducts.",
+        "Gross pay: {gross} · Completed time: {duration}",
+      adjustHint: "Use a positive amount for a bonus and a negative amount for a deduction.",
       adjustAmount: "Adjustment ({currency})",
       adjustWhy: "Why",
       adjustPlaceholder: "Eid bonus",
@@ -476,7 +501,7 @@ export const en = {
 
     projects: {
       subtitle: "What the team tags their time against.",
-      newProject: "New project",
+      newProject: "Add project",
       count: { one: "{count} project", other: "{count} projects" },
       project: "Project",
       status: "Status",
@@ -488,7 +513,7 @@ export const en = {
       updated: "Project updated.",
       empty: "No projects yet",
       emptyHint:
-        "Members can still track time without one — projects just make the report sharper.",
+        "Add a project to group related time.",
       name: "Name",
       namePlaceholder: "Omam API",
       colour: "Colour",
@@ -498,7 +523,7 @@ export const en = {
 
     invites: {
       subtitle: "Send someone a code, they sign up in the app and land on your team.",
-      newInvite: "New invite",
+      newInvite: "Create invite",
       count: { one: "{count} invite", other: "{count} invites" },
       code: "Code",
       for: "For",
@@ -516,7 +541,7 @@ export const en = {
       created: "Invite {code} created.",
       revokedToast: "Invite revoked.",
       empty: "No invites yet",
-      emptyHint: "An invite is the only way onto the team, so nobody can sign themselves up.",
+      emptyHint: "Share an invite code with a new member.",
       whoFor: "Who is this for",
       whoForHint: "Just a note for you — they never see it.",
       whoForPlaceholder: "Sara, backend",
@@ -540,15 +565,11 @@ export const en = {
       currency: "Currency",
       timezone: "Timezone",
       timezoneHint:
-        "Run the API with TZ set to this, so a month ends when the team's day does.",
+        "Must match the server timezone.",
       defaultRate: "Default hourly rate",
       defaultRateHint: "Used for a new invite left at zero.",
       monthlyGoalHours: "Monthly goal hours",
-      approval: "Approval",
-      approvalHint:
-        "With approval off, submitted time counts towards pay the moment it is logged.",
-      approvalOn: "A manager reviews every entry",
-      approvalOff: "Approve automatically",
+
       saveChanges: "Save changes",
       saved: "Team settings saved.",
       yourPassword: "Your password",
@@ -560,6 +581,58 @@ export const en = {
     },
 
     audit: {
+      actions: {
+        organizationUpdated: "Team settings updated",
+        memberUpdated: "Member updated",
+        passwordReset: "Password reset",
+        memberJoined: "Member joined",
+        inviteCreated: "Invite created",
+        inviteRevoked: "Invite revoked",
+        projectCreated: "Project created",
+        projectUpdated: "Project updated",
+        payrollBuilt: "Payroll calculated",
+        payrollDraft: "Payroll reopened",
+        payrollLocked: "Payroll locked",
+        payrollPaid: "Payment recorded",
+        payrollUpdated: "Payroll updated",
+        payrollAdjusted: "Pay adjusted",
+        timesheetApproved: "Time approved",
+        timesheetRejected: "Time rejected",
+        timesheetBulkApproved: "Selected time approved",
+        timesheetBulkRejected: "Selected time rejected",
+        timesheetEdited: "Time edited",
+        timesheetDeleted: "Time deleted",
+        unknown: "Activity recorded",
+      },
+      fields: {
+        reason: "Reason",
+        name: "Name",
+        username: "Username",
+        label: "Invitee",
+        role: "Role",
+        status: "Status",
+        employeeCode: "Employee code",
+        jobTitle: "Job title",
+        payType: "Pay type",
+        hourlyRate: "Hourly rate",
+        monthlySalary: "Monthly salary",
+        currency: "Currency",
+        monthlyGoalHours: "Monthly target (hours)",
+        defaultHourlyRate: "Default hourly rate",
+        timezone: "Timezone",
+        calendar: "Calendar",
+        language: "Language",
+        requireApproval: "Manager approval",
+        archived: "Archived",
+        color: "Colour",
+        month: "Month",
+        adjustment: "Adjustment",
+        note: "Note",
+
+        count: "Entries",
+        minutes: "Duration",
+      },
+      notSet: "Not set",
       subtitle: "Every change a manager or owner made.",
       count: { one: "{count} entry", other: "{count} entries" },
       newer: "Newer",

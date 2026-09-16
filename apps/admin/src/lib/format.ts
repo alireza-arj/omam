@@ -29,16 +29,22 @@ const SYMBOL: Record<Exclude<Currency, "IRR">, string> = {
   EUR: "€",
 };
 
+export function currencyLabel(currency: Currency, t: Translator) {
+  return currency === "IRR" ? t("units.toman") : t(`admin.currency.${currency}`);
+}
+
 /**
  * Rial amounts are large and have no meaningful minor unit, so they are shown
  * whole; USD and EUR keep two decimals.
  */
-export function formatMoney(amount: number, currency: Currency, t: Translator) {
+export function formatMoney(amount: number, currency: Currency, t: Translator, withSign = false) {
+  const sign = withSign && amount > 0 ? "+" : "";
+
   if (currency === "IRR") {
-    return `${formatNumber(Math.round(amount))} ${t("units.toman")}`;
+    return `\u2066${sign}${formatNumber(Math.round(amount))}\u2069 ${t("units.toman")}`;
   }
 
-  return `${SYMBOL[currency]}${formatNumber(amount, 2)}`;
+  return `\u2066${sign}${SYMBOL[currency]}${formatNumber(amount, 2)}\u2069`;
 }
 
 /** A clock time. `Intl` is fine here — it is a time, not a date. */

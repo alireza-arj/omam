@@ -1,4 +1,4 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { Building2, ChevronRight, Laptop } from "lucide-react-native";
 import type { SessionDto } from "@omam/contracts";
 import {
@@ -8,7 +8,7 @@ import {
   sessionMinutes,
 } from "../lib/format";
 import { useAttendance } from "../providers/attendance-provider";
-import { Badge, Icon, Text, layout, motion, useColors, useLanguage } from "../design/taraz";
+import { Badge, Icon, Text, PressableFeedback, layout, useColors, useLanguage } from "../design/taraz";
 
 type Props = {
   session: SessionDto;
@@ -16,17 +16,9 @@ type Props = {
   showDate?: boolean;
   /** Opens the session editor. Adds a chevron and a press state when set. */
   onPress?: () => void;
-  /** Shows where the entry stands with the manager. Only set once a team is linked. */
-  showStatus?: boolean;
 };
 
-/** Approved time needs no label; only what is still open or refused does. */
-const STATUS_KEY = {
-  PENDING: "status.PENDING",
-  REJECTED: "status.REJECTED",
-} as const;
-
-export function SessionItem({ session, showDate = true, onPress, showStatus }: Props) {
+export function SessionItem({ session, showDate = true, onPress }: Props) {
   const colors = useColors();
   const { calendar } = useAttendance();
   const { language, t } = useLanguage();
@@ -59,11 +51,6 @@ export function SessionItem({ session, showDate = true, onPress, showStatus }: P
           </Text>
         ) : null}
 
-        {showStatus && !isOpen && (session.status === "PENDING" || session.status === "REJECTED") ? (
-          <Text role="caption" tone={session.status === "REJECTED" ? "accent" : "muted"}>
-            {t(STATUS_KEY[session.status])}
-          </Text>
-        ) : null}
       </View>
 
       {isOpen ? (
@@ -87,19 +74,18 @@ export function SessionItem({ session, showDate = true, onPress, showStatus }: P
   }
 
   return (
-    <Pressable
+    <PressableFeedback
       accessibilityRole="button"
-      accessibilityLabel={`Edit session, ${formatSessionRange(session, t)}`}
+      accessibilityLabel={`${t("session.editTitle")}, ${formatSessionRange(session, t)}`}
       onPress={onPress}
-      style={({ pressed }) => ({
+      style={{
         alignItems: "center",
         flexDirection: "row",
         gap: layout.gapDefault,
-        opacity: pressed ? 0.6 : 1,
-        transform: [{ scale: pressed ? motion.pressScaleLarge : 1 }],
-      })}
+        minHeight: layout.tapMin,
+      }}
     >
       {content}
-    </Pressable>
+    </PressableFeedback>
   );
 }

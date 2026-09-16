@@ -4,13 +4,14 @@
     "jsx": "react-jsx",
     "noEmit": true,
     "types": [
-      "nativewind/types"
+      "uniwind/types"
     ]
   },
+  "exclude": ["**/*.test.ts"],
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    "nativewind-env.d.ts",
+    "uniwind-env.d.ts",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ]

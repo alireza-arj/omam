@@ -1,0 +1,105 @@
+- generic [ref=f5e1]:
+  - generic [ref=f5e20]:
+    - log
+    - log
+  - generic [ref=f5e21]:
+    - link "رفتن به محتوا" [ref=f5e135] [cursor=pointer]:
+      - /url: "#main-content"
+    - complementary [ref=f5e23]:
+      - generic [ref=f5e24]:
+        - generic [ref=f5e25]: Omam
+        - generic [ref=f5e26]: Omam Team
+      - navigation "فهرست بخش‌ها" [ref=f5e136]:
+        - link "نمای کلی" [ref=f5e137] [cursor=pointer]:
+          - /url: /
+        - link "کارکرد 2" [ref=f5e138] [cursor=pointer]:
+          - /url: /timesheets
+          - text: کارکرد
+          - generic [ref=f5e30]: "2"
+        - link "گزارش ماهانه" [ref=f5e139] [cursor=pointer]:
+          - /url: /report
+        - link "حقوق و دستمزد" [ref=f5e140] [cursor=pointer]:
+          - /url: /payroll
+        - generic [ref=f5e33]: تیم
+        - link "اعضا" [ref=f5e141] [cursor=pointer]:
+          - /url: /members
+        - link "دعوت‌نامه‌ها" [ref=f5e142] [cursor=pointer]:
+          - /url: /invites
+        - link "پروژه‌ها" [ref=f5e143] [cursor=pointer]:
+          - /url: /projects
+        - link "تنظیمات" [ref=f5e144] [cursor=pointer]:
+          - /url: /settings
+        - link "فعالیت‌ها" [ref=f5e145] [cursor=pointer]:
+          - /url: /audit
+      - button "حساب کاربری" [active] [ref=f5e146] [cursor=pointer]:
+        - generic [ref=f5e42]: OW
+        - generic [ref=f5e43]:
+          - generic [ref=f5e44]: Owner
+          - generic [ref=f5e45]: مالک
+        - generic [aria-hidden] [ref=f5e46]: ⌄
+    - main [ref=f5e47]:
+      - generic [ref=f5e48]:
+        - heading "نمای کلی" [level=1] [ref=f5e147]
+        - generic [ref=f5e53]:
+          - button "ماه قبل" [ref=f5e148] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f5e55]: →
+          - generic [ref=f5e56]: شهریور 1405
+          - button "ماه بعد" [disabled]:
+            - generic [aria-hidden]: ←
+      - generic [ref=f5e57]:
+        - generic [ref=f5e59]:
+          - generic [ref=f5e60]:
+            - generic [ref=f5e61]: کارکرد تأییدشده
+            - generic [ref=f5e62]: 28:00
+          - generic [ref=f5e63]:
+            - generic [ref=f5e64]: حقوق محاسبه‌شده
+            - generic [ref=f5e65]: ⁦23,800,000⁩ تومان
+          - generic [ref=f5e66]:
+            - generic [ref=f5e67]: در انتظار بررسی
+            - generic [ref=f5e68]: "2"
+            - link "بررسی کارکرد" [ref=f5e149] [cursor=pointer]:
+              - /url: /timesheets?month=1405-06&calendar=JALALI
+          - generic [ref=f5e71]:
+            - generic [ref=f5e72]: اعضای فعال
+            - generic [ref=f5e73]: "3"
+        - generic [ref=f5e74]:
+          - heading "در حال کار" [level=3] [ref=f5e150]
+          - generic [ref=f5e78]: کسی در حال کار نیست
+        - generic [ref=f5e80]:
+          - heading "کارکرد تأییدشدهٔ روزانه" [level=3] [ref=f5e151]
+          - generic [ref=f5e85]:
+            - generic [ref=f5e86]:
+              - generic "1405-06-01 · 0:00" [ref=f5e152]
+              - generic "1405-06-02 · 0:00" [ref=f5e153]
+              - generic "1405-06-03 · 0:00" [ref=f5e154]
+              - generic "1405-06-04 · 0:00" [ref=f5e155]
+              - generic "1405-06-05 · 0:00" [ref=f5e156]
+              - generic "1405-06-06 · 0:00" [ref=f5e157]
+              - generic "1405-06-07 · 0:00" [ref=f5e158]
+              - generic "1405-06-08 · 0:00" [ref=f5e159]
+              - generic "1405-06-09 · 0:00" [ref=f5e160]
+              - generic "1405-06-10 · 0:00" [ref=f5e161]
+              - generic "1405-06-11 · 0:00" [ref=f5e162]
+              - generic "1405-06-12 · 0:00" [ref=f5e163]
+              - generic "1405-06-13 · 16:00" [ref=f5e164]
+              - generic "1405-06-14 · 10:00" [ref=f5e165]
+              - generic "1405-06-15 · 2:00" [ref=f5e166]
+              - generic "1405-06-16 · 0:00" [ref=f5e167]
+              - generic "1405-06-17 · 0:00" [ref=f5e168]
+              - generic "1405-06-18 · 0:00" [ref=f5e169]
+              - generic "1405-06-19 · 0:00" [ref=f5e170]
+              - generic "1405-06-20 · 0:00" [ref=f5e171]
+              - generic "1405-06-21 · 0:00" [ref=f5e172]
+              - generic "1405-06-22 · 0:00" [ref=f5e173]
+              - generic "1405-06-23 · 0:00" [ref=f5e174]
+              - generic "1405-06-24 · 0:00" [ref=f5e175]
+              - generic "1405-06-25 · 0:00" [ref=f5e176]
+              - generic "1405-06-26 · 0:00" [ref=f5e177]
+              - generic "1405-06-27 · 0:00" [ref=f5e178]
+              - generic "1405-06-28 · 0:00" [ref=f5e179]
+              - generic "1405-06-29 · 0:00" [ref=f5e180]
+              - generic "1405-06-30 · 0:00" [ref=f5e181]
+              - generic "1405-06-31 · 0:00" [ref=f5e182]
+            - generic [ref=f5e118]:
+              - generic [ref=f5e119]: "01"
+              - generic [ref=f5e120]: "31"

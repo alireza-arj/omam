@@ -1,38 +1,34 @@
-import { useMemo, useState } from "react";
+import {
+  ActionMenu,
+  Avatar,
+  Card,
+  EmptyState,
+  ErrorState,
+  Field,
+  Loading,
+  Select,
+  StatusBadge,
+  Table,
+  TableScroll,
+} from "../components/ui";
+import { CollectionToolbar, Pagination } from "../components/collection";
+import { PAGE_SIZE } from "../lib/collection";
+import { useSearchParams } from "react-router-dom";
+import { useReportMonth, reportLink } from "../lib/report-month";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TimesheetEntryDto, WorkSessionStatus } from "@omam/contracts";
+import type { WorkSessionStatus } from "@omam/contracts";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
 import { useToast } from "../lib/ui";
-import {
-  currentMonth,
-  displayName,
-  formatDate,
-  formatDuration,
-  formatTime,
-} from "../lib/format";
+import { displayName, formatDate, formatDuration, formatTime } from "../lib/format";
 import { PageHeader } from "./layout";
 import { MonthPicker } from "../components/controls";
-import {
-  Avatar,
-  Badge,
-  Button,
-  Card,
-  CardHeader,
-  EmptyState,
-  ErrorState,
-  Field,
-  Loading,
-  Modal,
-  Select,
-  StatusBadge,
-  Textarea,
-} from "../components/ui";
 
-const STATUSES: (WorkSessionStatus | "ALL")[] = ["ALL", "PENDING", "APPROVED", "REJECTED", "OPEN"];
+const STATUSES: (WorkSessionStatus | "ALL")[] = ["ALL", "COMPLETED", "OPEN"];
 
 export function TimesheetsPage() {
   const { calendar } = useSession();
@@ -40,21 +36,40 @@ export function TimesheetsPage() {
   const queryClient = useQueryClient();
   const { language, t } = useLanguage();
 
-  const [month, setMonth] = useState(() => currentMonth(calendar));
-  const [status, setStatus] = useState<WorkSessionStatus | "ALL">("PENDING");
-  const [userId, setUserId] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [rejecting, setRejecting] = useState<TimesheetEntryDto | null>(null);
-  const [rejectNote, setRejectNote] = useState("");
+  const [month, setMonth] = useReportMonth(calendar);
+  const [status, setStatus] = useState<WorkSessionStatus | "ALL">("ALL");
+  const [params, setParams] = useSearchParams();
+  const userId = params.get("userId") ?? "";
+  const setUserId = (value: string) =>
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (value) next.set("userId", value);
+      else next.delete("userId");
+      return next;
+    });
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [requestedPage, setPage] = useState(1);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(search.trim());
+      setPage(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const members = useQuery({ queryKey: ["members"], queryFn: api.members });
 
   const timesheets = useQuery({
-    queryKey: ["timesheets", month, calendar, status, userId],
+    queryKey: ["timesheets", month, calendar, status, userId, query, requestedPage],
     queryFn: () =>
       api.timesheets({
         month,
         calendar,
+        search: query,
+        page: requestedPage,
+        pageSize: PAGE_SIZE,
         ...(status === "ALL" ? {} : { status }),
         ...(userId ? { userId } : {}),
       }),
@@ -64,26 +79,8 @@ export function TimesheetsPage() {
     queryClient.invalidateQueries({ queryKey: ["timesheets"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     queryClient.invalidateQueries({ queryKey: ["report"] });
-    setSelected(new Set());
+    queryClient.invalidateQueries({ queryKey: ["member-report"] });
   }
-
-  const review = useMutation({
-    mutationFn: (input: { ids: string[]; action: "APPROVE" | "REJECT"; note?: string | null }) =>
-      api.bulkReview({ sessionIds: input.ids, action: input.action, reviewNote: input.note ?? null }),
-    onSuccess: (result, input) => {
-      toast(
-        t(
-          input.action === "APPROVE"
-            ? "admin.timesheets.approvedCount"
-            : "admin.timesheets.rejectedCount",
-          { count: result.updated },
-        ),
-        "success",
-      );
-      invalidate();
-    },
-    onError: (error) => toast(translateError(error, t), "error"),
-  });
 
   const remove = useMutation({
     mutationFn: (id: string) => api.deleteTimesheet(id),
@@ -95,275 +92,183 @@ export function TimesheetsPage() {
   });
 
   const entries = timesheets.data?.entries ?? [];
-
-  /** Only closed entries can be reviewed, so a running timer never gets picked. */
-  const selectableIds = useMemo(
-    () => entries.filter((entry) => entry.endAt).map((entry) => entry.id),
-    [entries],
-  );
-
-  const allSelected = selectableIds.length > 0 && selected.size === selectableIds.length;
-
-  function toggle(id: string) {
-    setSelected((current) => {
-      const next = new Set(current);
-
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-
-      return next;
-    });
-  }
+  const collection = {
+    search,
+    setSearch,
+    rows: entries,
+    total: timesheets.data?.total ?? 0,
+    page: timesheets.data?.page ?? 1,
+    pageSize: PAGE_SIZE,
+    pageCount: Math.max(1, Math.ceil((timesheets.data?.total ?? 0) / PAGE_SIZE)),
+    setPage: (page: number) => {
+      setPage(page);
+    },
+  };
 
   return (
     <>
       <PageHeader
         title={t("admin.nav.timesheets")}
-        subtitle={t("admin.timesheets.subtitle")}
-        actions={<MonthPicker month={month} calendar={calendar} onChange={setMonth} />}
+        actions={
+          <MonthPicker
+            month={month}
+            calendar={calendar}
+            onChange={(next) => {
+              setMonth(next);
+              setPage(1);
+            }}
+          />
+        }
       />
 
       <div className="page-body">
-        <Card>
-          <div className="row gap-6 wrap">
-            <Field label={t("admin.timesheets.status")}>
-              <Select
-                value={status}
-                onChange={(event) => setStatus(event.target.value as WorkSessionStatus | "ALL")}
-              >
-                {STATUSES.map((value) => (
-                  <option key={value} value={value}>
-                    {value === "ALL" ? t("admin.timesheets.all") : t(`status.${value}`)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-
-            <Field label={t("admin.timesheets.member")}>
-              <Select value={userId} onChange={(event) => setUserId(event.target.value)}>
-                <option value="">{t("admin.timesheets.everyone")}</option>
-                {(members.data?.members ?? []).map((member) => (
-                  <option key={member.userId} value={member.userId}>
-                    {displayName(member)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-
-            {timesheets.data ? (
-              <div className="row gap-5" style={{ marginLeft: "auto" }}>
-                <Badge tone="success">
-                  {t("admin.timesheets.approvedTotal", {
-                    value: formatDuration(timesheets.data.totals.approvedMinutes, language),
-                  })}
-                </Badge>
-                <Badge tone="warning">
-                  {t("admin.timesheets.pendingTotal", {
-                    value: formatDuration(timesheets.data.totals.pendingMinutes, language),
-                  })}
-                </Badge>
-              </div>
-            ) : null}
-          </div>
-        </Card>
-
         <Card flush>
-          <CardHeader
-            title={t("admin.timesheets.entries", { count: entries.length })}
-            subtitle={
-              selected.size ? t("admin.timesheets.selected", { count: selected.size }) : undefined
-            }
-            actions={
-              selected.size ? (
-                <>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    loading={review.isPending}
-                    onClick={() => review.mutate({ ids: [...selected], action: "APPROVE" })}
-                  >
-                    {t("admin.timesheets.approveSelected")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => review.mutate({ ids: [...selected], action: "REJECT" })}
-                  >
-                    {t("admin.timesheets.rejectSelected")}
-                  </Button>
-                </>
-              ) : null
-            }
-          />
+          <CollectionToolbar
+            search={collection.search}
+            onSearch={(value) => {
+              collection.setSearch(value);
+            }}
+          >
+            <div className="filter-bar">
+              <Field label={t("admin.timesheets.status")}>
+                <Select
+                  value={status}
+                  onValueChange={(value) => {
+                    setStatus(value as WorkSessionStatus | "ALL");
+                    setPage(1);
+                  }}
+                >
+                  {STATUSES.map((value) => (
+                    <option key={value} value={value}>
+                      {value === "ALL" ? t("admin.timesheets.all") : t(`status.${value}`)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+
+              <Field label={t("admin.timesheets.member")}>
+                <Select
+                  value={userId}
+                  onValueChange={(value) => {
+                    setUserId(value);
+                    setPage(1);
+                  }}
+                >
+                  <option value="">{t("admin.timesheets.everyone")}</option>
+                  {(members.data?.members ?? []).map((member) => (
+                    <option key={member.userId} value={member.userId}>
+                      {displayName(member)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+
+              {timesheets.data ? (
+                <div className="filter-summary">
+                  <span className="t-caption muted">
+                    {t("admin.timesheets.completedTotal", {
+                      value: formatDuration(timesheets.data.totals.completedMinutes, language),
+                    })}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </CollectionToolbar>
+          {collection.search && !collection.total && timesheets.data ? (
+            <EmptyState title={t("admin.table.noResults")} hint={t("admin.table.searchHint")} />
+          ) : null}
 
           {timesheets.isPending ? <Loading /> : null}
           {timesheets.isError ? (
-            <ErrorState
-              message={translateError(timesheets.error, t)}
-              onRetry={() => timesheets.refetch()}
-            />
+            <ErrorState message={translateError(timesheets.error, t)} onRetry={() => timesheets.refetch()} />
           ) : null}
 
-          {timesheets.data && !entries.length ? (
-            <EmptyState
-              title={t("admin.timesheets.nothingHere")}
-              hint={t("admin.timesheets.nothingHint")}
-            />
+          {timesheets.data && !entries.length && !collection.search ? (
+            <EmptyState title={t("admin.timesheets.nothingHere")} hint={t("admin.timesheets.nothingHint")} />
           ) : null}
 
           {entries.length ? (
-            <div className="table-scroll">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th className="tight">
-                      <input
-                        type="checkbox"
-                        aria-label={t("admin.timesheets.selectAll")}
-                        checked={allSelected}
-                        onChange={() =>
-                          setSelected(allSelected ? new Set() : new Set(selectableIds))
-                        }
-                      />
-                    </th>
-                    <th>{t("admin.timesheets.member")}</th>
-                    <th>{t("admin.timesheets.day")}</th>
-                    <th>{t("admin.timesheets.hours")}</th>
-                    <th className="num">{t("admin.timesheets.duration")}</th>
-                    <th>{t("admin.timesheets.where")}</th>
-                    <th>{t("admin.timesheets.project")}</th>
-                    <th>{t("admin.timesheets.note")}</th>
-                    <th>{t("admin.timesheets.status")}</th>
-                    <th className="tight" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((entry) => (
-                    <tr key={entry.id}>
-                      <td className="tight">
-                        <input
-                          type="checkbox"
-                          aria-label={t("admin.timesheets.select", { name: displayName(entry) })}
-                          disabled={!entry.endAt}
-                          checked={selected.has(entry.id)}
-                          onChange={() => toggle(entry.id)}
-                        />
-                      </td>
-                      <td>
-                        <div className="row gap-5">
-                          <Avatar name={displayName(entry)} src={entry.avatarUrl} size="sm" />
-                          <Link to={`/members/${entry.userId}`}>{displayName(entry)}</Link>
-                        </div>
-                      </td>
-                      <td className="muted">{formatDate(entry.startAt, calendar, language)}</td>
-                      <td className="t-mono timecode muted">
-                        {formatTime(entry.startAt)}
-                        {entry.endAt ? ` – ${formatTime(entry.endAt)}` : ` – ${t("admin.timesheets.running")}`}
-                      </td>
-                      <td className="num t-mono">{formatDuration(entry.durationMinutes, language)}</td>
-                      <td className="muted">{t(`category.${entry.category}`)}</td>
-                      <td>
-                        {entry.project ? (
-                          <span className="row gap-3">
-                            <span
-                              className="dot"
-                              style={{ color: entry.project.color }}
-                              aria-hidden
-                            />
-                            {entry.project.name}
-                          </span>
-                        ) : (
-                          <span className="faint">—</span>
-                        )}
-                      </td>
-                      <td className="muted" style={{ maxWidth: 220 }}>
-                        {entry.note ?? <span className="faint">—</span>}
-                      </td>
-                      <td>
-                        <StatusBadge status={entry.status} />
-                      </td>
-                      <td className="tight">
-                        <div className="row gap-3 end">
-                          {entry.endAt && entry.status !== "APPROVED" ? (
-                            <Button
-                              size="sm"
-                              variant="primary"
-                              onClick={() =>
-                                review.mutate({ ids: [entry.id], action: "APPROVE" })
-                              }
-                            >
-                              {t("admin.timesheets.approve")}
-                            </Button>
-                          ) : null}
-                          {entry.endAt && entry.status !== "REJECTED" ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setRejecting(entry);
-                                setRejectNote("");
-                              }}
-                            >
-                              {t("admin.timesheets.reject")}
-                            </Button>
-                          ) : null}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              if (confirm(t("admin.timesheets.confirmDelete"))) {
-                                remove.mutate(entry.id);
-                              }
-                            }}
-                          >
-                            {t("common.delete")}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TableScroll>
+              <Table>
+                <Table.Content aria-label={t("common.records")} className="omam-data">
+                  <Table.Header>
+                    <Table.Column isRowHeader>{t("admin.timesheets.member")}</Table.Column>
+                    <Table.Column>{t("admin.timesheets.day")}</Table.Column>
+                    <Table.Column className="num">{t("admin.timesheets.duration")}</Table.Column>
+                    <Table.Column>{t("admin.timesheets.project")}</Table.Column>
+                    <Table.Column>{t("admin.timesheets.note")}</Table.Column>
+                    <Table.Column>{t("admin.timesheets.status")}</Table.Column>
+                    <Table.Column className="tight" />
+                  </Table.Header>
+                  <Table.Body>
+                    {collection.rows.map((entry) => (
+                      <Table.Row id={entry.id} key={entry.id}>
+                        <Table.Cell>
+                          <div className="row gap-5">
+                            <Avatar name={displayName(entry)} src={entry.avatarUrl} size="sm" />
+                            <Link to={reportLink(`/members/${entry.userId}`, month, calendar)}>
+                              {displayName(entry)}
+                            </Link>
+                          </div>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <div className="stack gap-2">
+                            <span>{formatDate(entry.startAt, calendar, language)}</span>
+                            <span className="t-caption timecode muted">
+                              {formatTime(entry.startAt)}
+                              {entry.endAt
+                                ? ` – ${formatTime(entry.endAt)}`
+                                : ` – ${t("admin.timesheets.running")}`}
+                            </span>
+                          </div>
+                        </Table.Cell>
+                        <Table.Cell className="num t-mono">
+                          {formatDuration(entry.durationMinutes, language)}
+                        </Table.Cell>
+                        <Table.Cell>
+                          <div className="stack gap-2">
+                            {entry.project ? (
+                              <span className="row gap-3">
+                                <span className="dot" style={{ color: entry.project.color }} aria-hidden />
+                                {entry.project.name}
+                              </span>
+                            ) : (
+                              <span className="faint">—</span>
+                            )}
+                            <span className="t-caption muted">{t(`category.${entry.category}`)}</span>
+                          </div>
+                        </Table.Cell>
+                        <Table.Cell className="muted note-column">
+                          {entry.note ?? <span className="faint">—</span>}
+                        </Table.Cell>
+                        <Table.Cell>
+                          <StatusBadge status={entry.status} />
+                        </Table.Cell>
+                        <Table.Cell className="tight">
+                          <ActionMenu
+                            label={t("admin.table.actionsFor", { name: displayName(entry) })}
+                            disabled={remove.isPending}
+                            items={[
+                              {
+                                label: t("common.delete"),
+                                onAction: () => {
+                                  if (confirm(t("admin.timesheets.confirmDelete"))) remove.mutate(entry.id);
+                                },
+                              },
+                            ]}
+                          />
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table>
+            </TableScroll>
           ) : null}
+          <Pagination {...collection} />
         </Card>
       </div>
 
-      {rejecting ? (
-        <Modal
-          title={t("admin.timesheets.rejectTitle", { name: displayName(rejecting) })}
-          onClose={() => setRejecting(null)}
-          footer={
-            <>
-              <Button variant="ghost" onClick={() => setRejecting(null)}>
-                {t("common.cancel")}
-              </Button>
-              <Button
-                variant="primary"
-                loading={review.isPending}
-                onClick={() => {
-                  review.mutate({ ids: [rejecting.id], action: "REJECT", note: rejectNote || null });
-                  setRejecting(null);
-                }}
-              >
-                {t("admin.timesheets.rejectEntry")}
-              </Button>
-            </>
-          }
-        >
-          <p className="t-body-sm muted">
-            {t("admin.timesheets.rejectIntro")}
-          </p>
-          <Field label={t("admin.timesheets.reason")}>
-            <Textarea
-              value={rejectNote}
-              onChange={(event) => setRejectNote(event.target.value)}
-              placeholder={t("admin.timesheets.reasonPlaceholder")}
-              maxLength={240}
-            />
-          </Field>
-        </Modal>
-      ) : null}
     </>
   );
 }

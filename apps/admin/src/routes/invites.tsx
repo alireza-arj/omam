@@ -1,18 +1,8 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CreateInviteInputDto } from "@omam/contracts";
-import { api } from "../lib/api";
-import { useSession } from "../lib/session";
-import { translateError } from "@omam/i18n";
-import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
-import { formatDate, formatMoney } from "../lib/format";
-import { PageHeader } from "./layout";
 import {
+  ActionMenu,
   Badge,
   Button,
   Card,
-  CardHeader,
   EmptyState,
   ErrorState,
   Field,
@@ -21,7 +11,21 @@ import {
   Modal,
   RoleBadge,
   Select,
+  Table,
+  TableScroll,
 } from "../components/ui";
+import { CollectionToolbar, Pagination } from "../components/collection";
+import { useCollection } from "../lib/collection";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { CreateInviteInputDto } from "@omam/contracts";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { translateError } from "@omam/i18n";
+import { useLanguage } from "../lib/i18n";
+import { useToast } from "../lib/ui";
+import { currencyLabel, formatDate, formatMoney } from "../lib/format";
+import { PageHeader } from "./layout";
 
 const EMPTY: CreateInviteInputDto = {
   role: "MEMBER",
@@ -81,11 +85,14 @@ export function InvitesPage() {
     return { tone: "info" as const, key: "admin.invites.open" as const };
   }
 
+  const collection = useCollection(invites.data?.invites ?? [], (row) =>
+    [row.code, row.label, row.acceptedByName].join(" "),
+  );
+
   return (
     <>
       <PageHeader
         title={t("admin.nav.invites")}
-        subtitle={t("admin.invites.subtitle")}
         actions={
           <Button variant="primary" onClick={() => setCreating(true)}>
             {t("admin.invites.newInvite")}
@@ -95,93 +102,93 @@ export function InvitesPage() {
 
       <div className="page-body">
         <Card flush>
-          <CardHeader title={t("admin.invites.count", { count: invites.data?.invites.length ?? 0 })} />
+          <CollectionToolbar search={collection.search} onSearch={collection.setSearch} />
+          {collection.search && !collection.total && invites.data ? (
+            <EmptyState title={t("admin.table.noResults")} hint={t("admin.table.searchHint")} />
+          ) : null}
 
           {invites.isPending ? <Loading /> : null}
           {invites.isError ? (
             <ErrorState message={translateError(invites.error, t)} onRetry={() => invites.refetch()} />
           ) : null}
 
-          {invites.data?.invites.length ? (
-            <div className="table-scroll">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>{t("admin.invites.code")}</th>
-                    <th>{t("admin.invites.for")}</th>
-                    <th>{t("admin.invites.role")}</th>
-                    <th>{t("admin.invites.pay")}</th>
-                    <th>{t("admin.invites.expires")}</th>
-                    <th>{t("admin.invites.status")}</th>
-                    <th className="tight" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {invites.data.invites.map((invite) => {
-                    const status = state(invite);
-                    const open = status.key === "admin.invites.open";
+          {collection.total > 0 ? (
+            <TableScroll>
+              <Table>
+                <Table.Content aria-label={t("common.records")} className="omam-data">
+                  <Table.Header>
+                    <Table.Column isRowHeader>{t("admin.invites.code")}</Table.Column>
+                    <Table.Column>{t("admin.invites.for")}</Table.Column>
+                    <Table.Column>{t("admin.invites.role")}</Table.Column>
+                    <Table.Column>{t("admin.invites.pay")}</Table.Column>
+                    <Table.Column>{t("admin.invites.expires")}</Table.Column>
+                    <Table.Column>{t("admin.invites.status")}</Table.Column>
+                    <Table.Column className="tight" />
+                  </Table.Header>
+                  <Table.Body>
+                    {collection.rows.map((invite) => {
+                      const status = state(invite);
+                      const open = status.key === "admin.invites.open";
 
-                    return (
-                      <tr key={invite.id}>
-                        <td>
-                          <span className="code">{invite.code}</span>
-                        </td>
-                        <td className="muted">
-                          {invite.label ?? invite.acceptedByName ?? <span className="faint">—</span>}
-                        </td>
-                        <td>
-                          <RoleBadge role={invite.role} />
-                        </td>
-                        <td className="t-mono muted">
-                          {invite.payType === "MONTHLY"
-                            ? t("payType.perMonth", {
-                                amount: formatMoney(invite.monthlySalary, membership?.currency ?? "IRR", t),
-                              })
-                            : t("payType.perHour", {
-                                amount: formatMoney(invite.hourlyRate, membership?.currency ?? "IRR", t),
-                              })}
-                        </td>
-                        <td className="muted">{formatDate(invite.expiresAt, calendar, language)}</td>
-                        <td>
-                          <Badge tone={status.tone} dot={open}>
-                            {t(status.key)}
-                          </Badge>
-                        </td>
-                        <td className="tight">
-                          <div className="row gap-3 end">
+                      return (
+                        <Table.Row id={invite.id} key={invite.id}>
+                          <Table.Cell>
+                            <span className="code">{invite.code}</span>
+                          </Table.Cell>
+                          <Table.Cell className="muted">
+                            {invite.label ?? invite.acceptedByName ?? <span className="faint">—</span>}
+                          </Table.Cell>
+                          <Table.Cell>
+                            <RoleBadge role={invite.role} />
+                          </Table.Cell>
+                          <Table.Cell className="t-mono muted">
+                            {invite.payType === "MONTHLY"
+                              ? t("payType.perMonth", {
+                                  amount: formatMoney(invite.monthlySalary, membership?.currency ?? "IRR", t),
+                                })
+                              : t("payType.perHour", {
+                                  amount: formatMoney(invite.hourlyRate, membership?.currency ?? "IRR", t),
+                                })}
+                          </Table.Cell>
+                          <Table.Cell className="muted">
+                            {formatDate(invite.expiresAt, calendar, language)}
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Badge tone={status.tone} dot={open}>
+                              {t(status.key)}
+                            </Badge>
+                          </Table.Cell>
+                          <Table.Cell className="tight">
                             {open ? (
-                              <>
-                                <Button size="sm" onClick={() => copy(invite.code)}>
-                                  {t("common.copy")}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => revoke.mutate(invite.id)}
-                                >
-                                  {t("admin.invites.revoke")}
-                                </Button>
-                              </>
+                              <ActionMenu
+                                label={t("admin.table.actionsFor", { name: invite.label ?? invite.code })}
+                                disabled={revoke.isPending}
+                                items={[
+                                  {
+                                    label: t("common.copy"),
+                                    onAction: () => {
+                                      void copy(invite.code);
+                                    },
+                                  },
+                                  {
+                                    label: t("admin.invites.revoke"),
+                                    onAction: () => revoke.mutate(invite.id),
+                                  },
+                                ]}
+                              />
                             ) : null}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : invites.data ? (
-            <EmptyState
-              title={t("admin.invites.empty")}
-              hint={t("admin.invites.emptyHint")}
-              action={
-                <Button variant="primary" onClick={() => setCreating(true)}>
-                  {t("admin.invites.newInvite")}
-                </Button>
-              }
-            />
+                          </Table.Cell>
+                        </Table.Row>
+                      );
+                    })}
+                  </Table.Body>
+                </Table.Content>
+              </Table>
+            </TableScroll>
+          ) : invites.data && !collection.search ? (
+            <EmptyState title={t("admin.invites.empty")} hint={t("admin.invites.emptyHint")} />
           ) : null}
+          <Pagination {...collection} />
         </Card>
       </div>
 
@@ -209,14 +216,12 @@ export function InvitesPage() {
             />
           </Field>
 
-          <div className="row gap-6">
+          <div className="form-grid">
             <Field label={t("admin.invites.role")}>
               <Select
                 value={draft.role}
                 disabled={!can("OWNER")}
-                onChange={(event) =>
-                  setDraft({ ...draft, role: event.target.value as CreateInviteInputDto["role"] })
-                }
+                onValueChange={(value) => setDraft({ ...draft, role: value as CreateInviteInputDto["role"] })}
               >
                 <option value="MEMBER">{t("role.MEMBER")}</option>
                 <option value="MANAGER">{t("role.MANAGER")}</option>
@@ -227,10 +232,10 @@ export function InvitesPage() {
             <Field label={t("admin.invites.payType")}>
               <Select
                 value={draft.payType}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   setDraft({
                     ...draft,
-                    payType: event.target.value as CreateInviteInputDto["payType"],
+                    payType: value as CreateInviteInputDto["payType"],
                   })
                 }
               >
@@ -241,19 +246,23 @@ export function InvitesPage() {
           </div>
 
           {draft.payType === "MONTHLY" ? (
-            <Field label={t("admin.invites.monthlySalary", { currency: membership?.currency ?? "IRR" })}>
+            <Field
+              label={t("admin.invites.monthlySalary", {
+                currency: currencyLabel(membership?.currency ?? "IRR", t),
+              })}
+            >
               <Input
                 type="number"
                 min={0}
                 value={draft.monthlySalary}
-                onChange={(event) =>
-                  setDraft({ ...draft, monthlySalary: Number(event.target.value) })
-                }
+                onChange={(event) => setDraft({ ...draft, monthlySalary: Number(event.target.value) })}
               />
             </Field>
           ) : (
             <Field
-              label={t("admin.invites.hourlyRate", { currency: membership?.currency ?? "IRR" })}
+              label={t("admin.invites.hourlyRate", {
+                currency: currencyLabel(membership?.currency ?? "IRR", t),
+              })}
               hint={t("admin.invites.hourlyRateHint")}
             >
               <Input
@@ -271,9 +280,7 @@ export function InvitesPage() {
               min={1}
               max={365}
               value={draft.expiresInDays}
-              onChange={(event) =>
-                setDraft({ ...draft, expiresInDays: Number(event.target.value) })
-              }
+              onChange={(event) => setDraft({ ...draft, expiresInDays: Number(event.target.value) })}
             />
           </Field>
         </Modal>

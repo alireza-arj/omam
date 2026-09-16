@@ -40,7 +40,6 @@ export const authMembershipSchema = z.object({
   monthlyGoalHours: z.number(),
   calendar: calendarSystemSchema,
   language: languageSchema,
-  requireApproval: z.boolean(),
   jobTitle: z.string().nullable(),
 });
 

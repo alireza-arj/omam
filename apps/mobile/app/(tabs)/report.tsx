@@ -18,7 +18,6 @@ import {
 import type { LucideIcon } from "lucide-react-native";
 import type { SessionDto } from "@omam/contracts";
 import { SessionItem } from "../../src/components/session-item";
-import { useSync } from "../../src/providers/sync-provider";
 import { getSessions } from "../../src/lib/db/sessions";
 import { formatClock, formatCurrency, formatShortMinutes, joinMeta } from "../../src/lib/format";
 import {
@@ -67,7 +66,6 @@ export default function ReportScreen() {
   const db = useSQLiteContext();
   const { user } = useAuth();
   const { sessions: monthSessions, settings, calendar } = useAttendance();
-  const { isLinked } = useSync();
   const { language, t } = useLanguage();
   const colors = useColors();
   const tabBarHeight = useTabBarHeight();
@@ -354,7 +352,7 @@ export default function ReportScreen() {
         {sessionDays.length ? (
           <View style={{ padding: layout.padCard }}>
             <Text role="title3" style={{ marginBottom: layout.gapTight }}>
-              Sessions
+              {t("common.records")}
             </Text>
 
             {sessionDays.map((day, index) => (
@@ -373,7 +371,6 @@ export default function ReportScreen() {
                         key={session.id}
                         session={session}
                         showDate={false}
-                        showStatus={isLinked}
                         onPress={() => openSession(session.id)}
                       />
                     ))}

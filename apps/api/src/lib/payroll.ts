@@ -35,8 +35,7 @@ function serializeLine(
     username: line.user.username,
     nickname: line.user.nickname,
     employeeCode: line.membership?.employeeCode ?? null,
-    approvedMinutes: line.approvedMinutes,
-    pendingMinutes: line.pendingMinutes,
+    completedMinutes: line.completedMinutes,
     workedDays: line.workedDays,
     payType: line.payType,
     hourlyRate: line.hourlyRate,
@@ -84,7 +83,7 @@ export async function readPeriodDetail(
 }
 
 /**
- * Recomputes a DRAFT period from the month's approved sessions.
+ * Recomputes a DRAFT period from the month's completed sessions.
  *
  * A LOCKED or PAID period is left alone on purpose: its lines are the record
  * of what was actually paid, so a rate edited in March must not rewrite what
@@ -142,8 +141,7 @@ export async function buildPayrollPeriod(
           periodId: period.id,
           userId: row.userId,
           membershipId: row.membershipId,
-          approvedMinutes: row.approvedMinutes,
-          pendingMinutes: row.pendingMinutes,
+          completedMinutes: row.completedMinutes,
           workedDays: row.workedDays,
           payType: row.payType,
           hourlyRate: row.hourlyRate,

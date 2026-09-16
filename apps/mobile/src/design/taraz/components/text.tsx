@@ -1,4 +1,5 @@
-import { Text as RNText, type TextProps as RNTextProps, type TextStyle } from "react-native";
+import { type TextProps as RNTextProps, type TextStyle } from "react-native";
+import { Text as HeroText } from "heroui-native/text";
 import { useLanguage } from "../i18n";
 import { useColors } from "../theme";
 import { typeRolesByLanguage, type ColorScheme, type TypeRole } from "../tokens";
@@ -50,7 +51,7 @@ function bidi(role: TypeRole, rtl: boolean): TextStyle {
 
   return MONO_ROLES.has(role)
     ? { writingDirection: "ltr", textAlign: "right" }
-    : { writingDirection: "rtl" };
+    : { writingDirection: "rtl", textAlign: "right" };
 }
 
 /**
@@ -64,7 +65,7 @@ export function Text({ role = "body", tone, color, style, ...rest }: TextProps) 
     tone ?? (role === "title1" || role === "title2" || role === "title3" || role === "display" ? "title" : "body");
 
   return (
-    <RNText
+    <HeroText
       style={[
         typeRolesByLanguage[language][role],
         {

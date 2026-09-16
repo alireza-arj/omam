@@ -1,12 +1,14 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
   type PropsWithChildren,
 } from "react";
+
+import { Toast, toast } from "@heroui/react";
+import { useT } from "./i18n";
 
 /* ── theme ───────────────────────────────────────────────────────────────── */
 
@@ -63,44 +65,26 @@ export function useTheme() {
 
 /* ── toast ───────────────────────────────────────────────────────────────── */
 
-type Toast = { id: number; message: string; tone: "neutral" | "success" | "error" };
-
-const ToastContext = createContext<{
-  show: (message: string, tone?: Toast["tone"]) => void;
-} | null>(null);
-
 export function ToastProvider({ children }: PropsWithChildren) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
-
-  const show = useCallback((message: string, tone: Toast["tone"] = "neutral") => {
-    const id = Date.now() + Math.random();
-
-    setToasts((current) => [...current, { id, message, tone }]);
-    setTimeout(() => setToasts((current) => current.filter((entry) => entry.id !== id)), 4200);
-  }, []);
-
-  const value = useMemo(() => ({ show }), [show]);
-
+  const t = useT();
   return (
-    <ToastContext.Provider value={value}>
+    <>
       {children}
-      <div className="toast-stack">
-        {toasts.map((toast) => (
-          <div key={toast.id} className={`toast ${toast.tone}`} role="status">
-            {toast.message}
-          </div>
-        ))}
-      </div>
-    </ToastContext.Provider>
+      <Toast.Provider placement="bottom end">
+        {({ toast: notification }) => (
+          <Toast toast={notification} variant={notification.content.variant}>
+            <Toast.Indicator />
+            <Toast.Content><Toast.Title>{notification.content.title}</Toast.Title></Toast.Content>
+            <Toast.CloseButton aria-label={t("common.close")} />
+          </Toast>
+        )}
+      </Toast.Provider>
+    </>
   );
 }
 
 export function useToast() {
-  const context = useContext(ToastContext);
-
-  if (!context) {
-    throw new Error("useToast must be used inside ToastProvider.");
-  }
-
-  return context.show;
+  return (message: string, tone: "neutral" | "success" | "error" = "neutral") => {
+    toast(message, { variant: tone === "error" ? "danger" : tone === "success" ? "success" : "default", timeout: 4200 });
+  };
 }

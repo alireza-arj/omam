@@ -1,7 +1,6 @@
 import type {
   AuditLogsResponseDto,
   AuthResponseDto,
-  BulkReviewInputDto,
   CreateInviteInputDto,
   CreateProjectInputDto,
   CreateSessionInputDto,
@@ -21,6 +20,7 @@ import type {
   SettingsDto,
   UpdateSettingsInputDto,
   TimesheetResponseDto,
+  TimesheetQueryDto,
   UpdateMemberInputDto,
   UpdateOrganizationInputDto,
   UpdatePayrollLineInputDto,
@@ -182,14 +182,8 @@ export const api = {
   updateProject: (id: string, body: UpdateProjectInputDto) =>
     request<ProjectDto>(`/projects/${id}`, { method: "PATCH", body }),
 
-  timesheets: (query: MonthQuery & { userId?: string; status?: string; projectId?: string }) =>
+  timesheets: (query: Partial<TimesheetQueryDto>) =>
     request<TimesheetResponseDto>("/timesheets", { query }),
-  approve: (id: string, reviewNote?: string | null) =>
-    request<unknown>(`/timesheets/${id}/approve`, { method: "POST", body: { reviewNote } }),
-  reject: (id: string, reviewNote?: string | null) =>
-    request<unknown>(`/timesheets/${id}/reject`, { method: "POST", body: { reviewNote } }),
-  bulkReview: (body: BulkReviewInputDto) =>
-    request<{ updated: number }>("/timesheets/bulk-review", { method: "POST", body }),
   editTimesheet: (id: string, body: CreateSessionInputDto) =>
     request<unknown>(`/timesheets/${id}`, { method: "PATCH", body }),
   deleteTimesheet: (id: string) =>

@@ -34,7 +34,7 @@ export { Stat } from "./components/stat";
 export { TabBar, useTabBarHeight } from "./components/tab-bar";
 export { Tag } from "./components/tag";
 export { Text } from "./components/text";
-export { ToastProvider, useToast } from "./components/toast";
+export { useToast } from "./components/toast";
 
 export type { AccordionProps } from "./components/accordion";
 export type { AvatarProps } from "./components/avatar";
@@ -54,3 +54,7 @@ export type { TabBarProps, TabItem } from "./components/tab-bar";
 export type { TagProps } from "./components/tag";
 export type { TextProps } from "./components/text";
 export type { ToastOptions, ToastTone } from "./components/toast";
+
+export { HeroUIProvider } from "./hero-ui-provider";
+export { Spinner } from "heroui-native/spinner";
+export { PressableFeedback } from "heroui-native/pressable-feedback";
