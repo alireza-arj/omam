@@ -5,6 +5,7 @@ import {
   formatDayLabel,
   formatFullDate,
   formatMonthLabel,
+  formatWeekday,
   gregorianToJalali,
   isLeapJalaliYear,
   jalaliMonthLength,
@@ -13,9 +14,11 @@ import {
   monthRange,
   normalizeMonthKey,
   parseDayKey,
+  shortWeekdayNames,
   startOfWeek,
   toDate,
   toParts,
+  weekdayNames,
 } from "./index";
 
 /** Local-time helper: these functions are all timezone-relative by design. */

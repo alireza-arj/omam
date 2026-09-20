@@ -99,16 +99,16 @@ const GREGORIAN_MONTHS_SHORT = [
 
 /** Indexed by `Date.prototype.getDay()`, so position 0 is Sunday. */
 const JALALI_WEEKDAYS = [
-  "Yekshanbe",
-  "Doshanbe",
-  "Seshanbe",
-  "Chaharshanbe",
-  "Panjshanbe",
+  "1shanbe",
+  "2shanbe",
+  "3shanbe",
+  "4shanbe",
+  "5shanbe",
   "Jome",
   "Shanbe",
 ];
 
-const JALALI_WEEKDAYS_SHORT = ["Ye", "Do", "Se", "Ch", "Pa", "Jo", "Sh"];
+const JALALI_WEEKDAYS_SHORT = ["1sh", "2sh", "3sh", "4sh", "5sh", "Jo", "Sh"];
 
 const GREGORIAN_WEEKDAYS = [
   "Sunday",
