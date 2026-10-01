@@ -225,6 +225,8 @@ model WorkSession {
   approvedById String? @ignore
   approvedAt DateTime? @ignore
   approvedBy User? @relation("SessionApprover", fields: [approvedById], references: [id], onDelete: SetNull) @ignore
+  deviceId String?
+  deviceName String?
   id              String              @id @default(cuid())
   organizationId  String
   userId          String
