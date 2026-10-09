@@ -1,4 +1,4 @@
-import type { SQLiteDatabase } from "expo-sqlite";
+import type { SQLiteDatabase } from "../sqlite-context";
 import type { AuthUserDto } from "@omam/contracts";
 import { hashPassword, needsRehash, verifyPassword } from "../crypto/password";
 import { generateId } from "./id";

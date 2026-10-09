@@ -7,6 +7,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { AuthMembershipDto, AuthUserDto, OrgRole } from "@omam/contracts";
 import { roleAtLeast } from "@omam/contracts";
 import { DEFAULT_CALENDAR, asCalendarSystem, type CalendarSystem } from "@omam/calendar";
@@ -23,12 +24,18 @@ type SessionValue = {
   signIn: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
+  teams: AuthMembershipDto[];
+  selectTeam: (organizationId: string) => Promise<void>;
+  isSwitching: boolean;
   can: (role: OrgRole) => boolean;
 };
 
 const SessionContext = createContext<SessionValue | null>(null);
 
 export function SessionProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
+  const [teams, setTeams] = useState<AuthMembershipDto[]>([]);
+  const [isSwitching, setIsSwitching] = useState(false);
   const { adoptLanguage } = useLanguage();
   const [user, setUser] = useState<AuthUserDto | null>(null);
   const [membership, setMembership] = useState<AuthMembershipDto | null>(null);
@@ -45,8 +52,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
     try {
       const result = await api.me();
 
+      const available = (await api.teams()).memberships.filter((team) => roleAtLeast(team.role, "MANAGER"));
+      if (!available.length) throw new Error("MANAGERS_ONLY");
+      const selected = result.membership && roleAtLeast(result.membership.role, "MANAGER") ? result.membership : await api.selectTeam(available[0].organizationId);
+      setTeams(available);
       setUser(result.user);
-      setMembership(result.membership);
+      setMembership(selected);
 
       // The account's own language, unless this browser has already been told
       // otherwise.
@@ -73,18 +84,31 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const result = await api.login(username, password);
 
       // The panel is for running the team, not for logging your own hours.
-      if (!result.membership || !roleAtLeast(result.membership.role, "MANAGER")) {
-        throw new Error("MANAGERS_ONLY");
-      }
-
       writeToken(result.token);
+      const available = (await api.teams()).memberships.filter((team) => roleAtLeast(team.role, "MANAGER"));
+      if (!available.length) { writeToken(null); throw new Error("MANAGERS_ONLY"); }
+      const selected = result.membership && roleAtLeast(result.membership.role, "MANAGER") ? result.membership : await api.selectTeam(available[0].organizationId);
+      queryClient.clear();
+      setTeams(available);
       setUser(result.user);
-      setMembership(result.membership);
-      adoptLanguage(result.membership.language);
+      setMembership(selected);
+      adoptLanguage(selected.language);
     } finally {
       setIsSigningIn(false);
     }
-  }, [adoptLanguage]);
+  }, [adoptLanguage, queryClient]);
+
+  const selectTeam = useCallback(async (organizationId: string) => {
+    setIsSwitching(true);
+    try {
+      await queryClient.cancelQueries();
+      const selected = await api.selectTeam(organizationId);
+      queryClient.clear();
+      setMembership(selected);
+      const available = await api.teams();
+      setTeams(available.memberships.filter((team) => roleAtLeast(team.role, "MANAGER")));
+    } finally { setIsSwitching(false); }
+  }, [queryClient]);
 
   const signOut = useCallback(async () => {
     try {
@@ -96,7 +120,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
     writeToken(null);
     setUser(null);
     setMembership(null);
-  }, []);
+    setTeams([]);
+    queryClient.clear();
+  }, [queryClient]);
 
   const value = useMemo<SessionValue>(
     () => ({
@@ -108,9 +134,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
       signIn,
       signOut,
       refresh,
+      teams, selectTeam, isSwitching,
       can: (role) => Boolean(membership && roleAtLeast(membership.role, role)),
     }),
-    [isReady, isSigningIn, membership, refresh, signIn, signOut, user],
+    [isReady, isSigningIn, membership, refresh, signIn, signOut, user, teams, selectTeam, isSwitching],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

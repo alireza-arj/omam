@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { calendarSystemSchema, currencySchema, monthKeySchema, payTypeSchema } from "./common";
+import { calendarSystemSchema, currencySchema, languageSchema, monthKeySchema, payTypeSchema } from "./common";
 import { sessionSchema } from "./sessions";
+import { memberSchema } from "./org";
 
 /** One member's totals for the month the report was asked for. */
 export const memberReportRowSchema = z.object({
@@ -17,6 +18,7 @@ export const memberReportRowSchema = z.object({
   currency: currencySchema,
   monthlyGoalHours: z.number().nonnegative(),
   completedMinutes: z.number().nonnegative(),
+  sessionCount: z.number().int().nonnegative(),
   workedDays: z.number().nonnegative(),
   onsiteMinutes: z.number().nonnegative(),
   remoteMinutes: z.number().nonnegative(),
@@ -30,8 +32,10 @@ export const monthlyReportSchema = z.object({
   from: z.string(),
   to: z.string(),
   currency: currencySchema,
+  organization: z.object({ id: z.string(), name: z.string() }),
   totals: z.object({
     completedMinutes: z.number().nonnegative(),
+    sessionCount: z.number().int().nonnegative(),
     /** Sum of the rows paid in the organization's own currency. */
     grossAmount: z.number(),
     /** Every currency present in the month, so a contractor is never dropped. */
@@ -52,6 +56,7 @@ export const memberDetailReportSchema = z.object({
   month: monthKeySchema,
   calendar: calendarSystemSchema,
   member: memberReportRowSchema,
+  profile: memberSchema,
   days: z.array(dailyBucketSchema),
   projects: z.array(
     z.object({
@@ -67,6 +72,8 @@ export const memberDetailReportSchema = z.object({
 export const reportQuerySchema = z.object({
   month: monthKeySchema.optional(),
   calendar: calendarSystemSchema.optional(),
+  language: languageSchema.optional(),
+  userId: z.string().optional(),
 });
 
 export const dashboardSchema = z.object({
@@ -85,6 +92,7 @@ export const dashboardSchema = z.object({
   ),
   memberCount: z.number().nonnegative(),
   monthCompletedMinutes: z.number().nonnegative(),
+  monthSessionCount: z.number().int().nonnegative(),
   monthGrossAmount: z.number(),
   trend: z.array(dailyBucketSchema),
 });

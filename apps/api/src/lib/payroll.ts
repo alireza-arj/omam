@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import type { CalendarSystem } from "@omam/calendar";
 import type { PayrollLineDto, PayrollPeriodDetailDto, PayrollPeriodDto } from "@omam/contracts";
 import { prisma } from "./prisma";
@@ -171,5 +172,13 @@ export async function isMonthLocked(organizationId: string, date: Date) {
     select: { month: true },
   });
 
+  return period?.month ?? null;
+}
+
+export async function isSessionLocked(organizationId: string, startAt: Date, endAt: Date | null, db: Pick<Prisma.TransactionClient, "payrollPeriod"> = prisma) {
+  const period = await db.payrollPeriod.findFirst({
+    where: { organizationId, status: { in: ["LOCKED", "PAID"] },
+      from: endAt && endAt > startAt ? { lt: endAt } : { lte: startAt }, to: { gte: startAt } }, select: { month: true },
+  });
   return period?.month ?? null;
 }

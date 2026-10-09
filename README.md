@@ -1,4 +1,4 @@
-# Omam
+# Tarazkar
 
 Time tracking for a development team. People clock their hours on their phone;
 whoever runs the team closes the month out as payroll. Time entries need no manager approval.
@@ -35,7 +35,7 @@ Latin in both, so a column of durations still lines up.
 ## Run it locally
 
 1. `bun install`
-2. Start PostgreSQL and create a database (`createdb omam`).
+2. Start PostgreSQL and create a database (`createdb tarazkar`).
 3. `cp apps/api/.env.example apps/api/.env` and set `DATABASE_URL`.
 4. `bun run --cwd apps/api db:migrate` then `bun run db:seed`.
 5. `bun run dev:api` — the API on `http://localhost:3001`.
@@ -49,8 +49,8 @@ Sign in to the panel with the owner from the seed
 
 1. In the panel, open **Invites** and create one per person.
 2. Each member installs the app, creates their device account, opens
-   **Profile → Team**, chooses *I have an invite*, and enters the server
-   address and their code.
+   **Profile → Team**, chooses *I have an invite*, and enters their username,
+   password and invite code. The app connects to the server automatically.
 3. Set each person's rate under **Members**. Payroll uses the rate set there,
    never the one a member sets for themselves.
 
@@ -85,8 +85,10 @@ them alone.
 
 ## Mobile API host
 
-- `EXPO_PUBLIC_API_URL` overrides the address the app uses; otherwise a member
-  types the server address once in **Profile → Team**.
+- Production web connects to `/api` on the current origin. Native and Electron
+  builds connect to `https://omam.ir/api` by default. Members never enter a server address.
+- `EXPO_PUBLIC_API_URL` optionally overrides the API address at build time.
+  Use an absolute HTTPS URL for native and Electron builds.
 - `EXPO_PUBLIC_API_PORT` is the development shortcut: the app resolves
   `localhost`, `10.0.2.2` on an Android emulator, or the browser's hostname on
   web.

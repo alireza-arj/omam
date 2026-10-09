@@ -3,14 +3,14 @@
   "private": true,
   "packageManager": "bun@1.3.1",
   "dependencies": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-native-reanimated": "4.1.7",
-    "react-native-worklets": "0.5.1"
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native-reanimated": "4.5.1",
+    "react-native-worklets": "0.10.1"
   },
   "overrides": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   },
   "workspaces": [
     "apps/*",
@@ -29,7 +29,7 @@
     "build:android": "bun run --cwd apps/mobile build:android",
     "build:android:apk": "bun run --cwd apps/mobile build:android:apk",
     "build:android:aab": "bun run --cwd apps/mobile build:android:aab",
-    "typecheck": "bun run --cwd apps/api typecheck && bun run --cwd apps/admin typecheck && bun run --cwd apps/mobile typecheck",
+    "typecheck": "bun run --cwd apps/api typecheck && bun run --cwd apps/admin typecheck && bun run --cwd apps/mobile typecheck && bun run --cwd apps/desktop typecheck",
     "db:generate": "bun run --cwd apps/api db:generate",
     "db:push": "bun run --cwd apps/api db:push",
     "db:migrate": "bun run --cwd apps/api db:migrate",
@@ -38,6 +38,13 @@
     "db:seed": "bun run --cwd apps/api db:seed",
     "db:deploy": "bun run --cwd apps/api db:deploy",
     "test:smoke": "bun run --cwd apps/api test:smoke",
-    "test": "bun test packages/calendar packages/i18n apps/mobile/src/lib/browser-database-access.test.ts apps/mobile/src/lib/session-lifecycle.test.ts"
-  }
+    "test": "bun test packages/calendar packages/i18n apps/mobile/src/lib/browser-database-access.test.ts apps/mobile/src/lib/session-lifecycle.test.ts apps/mobile/src/lib/sync/server-url.test.ts && bun run --cwd apps/desktop test",
+    "dev:desktop": "bun run --cwd apps/desktop dev",
+    "build:desktop": "bun run --cwd apps/desktop build",
+    "package:desktop": "bun run --cwd apps/desktop package",
+    "package:desktop:local": "bun run --cwd apps/desktop package:local"
+  },
+  "trustedDependencies": [
+    "electron"
+  ]
 }

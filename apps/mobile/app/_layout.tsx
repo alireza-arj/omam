@@ -1,14 +1,19 @@
 import "../global.css";
+import { isDesktop } from "../src/lib/desktop";
+import { desktopTokens } from "../src/design/taraz/tokens";
 import { Component, Suspense, type PropsWithChildren, type ReactNode } from "react";
 import { View } from "react-native";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { useReducedMotion } from "react-native-reanimated";
 import { AttendanceProvider } from "../src/providers/attendance-provider";
 import { AuthProvider } from "../src/providers/auth-provider";
 import { SyncProvider } from "../src/providers/sync-provider";
 import { DatabaseProvider } from "../src/providers/database-provider";
+import { SessionConflicts } from "../src/components/session-conflicts";
+import { SessionNotificationCoordinator } from "../src/components/session-notification-coordinator";
 import {
   Card,
   LanguageProvider,
@@ -82,6 +87,7 @@ class RootErrorBoundary extends Component<PropsWithChildren, { error: Error | nu
 function RootNavigation() {
   const { colors, isDark } = useTheme();
   const { fontsLoaded, fontError } = useTarazFonts();
+  const reduceMotion = useReducedMotion();
 
   if (!fontsLoaded && !fontError) {
     return <Splash />;
@@ -97,21 +103,23 @@ function RootNavigation() {
            * `refresh()` reaches both tabs.
            */}
           <AttendanceProvider>
+            <SessionNotificationCoordinator />
             {/* Sync sits under Attendance so a pull can refresh what is on screen. */}
             <SyncProvider>
+              <SessionConflicts />
               <StatusBar style={isDark ? "light" : "dark"} />
               <Stack
                 screenOptions={{
                   headerShown: false,
-                  animation: "fade",
+                  animation: reduceMotion || isDesktop() ? "none" : "fade",
                   animationTypeForReplace: "push",
                   animationDuration: motion.durFast,
-                  contentStyle: { backgroundColor: colors.surfaceApp },
+                  contentStyle: { backgroundColor: isDesktop() ? desktopTokens["--dt-clear"] : colors.surfaceApp },
                 }}
               >
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="session/[id]" options={{ animation: "slide_from_right" }} />
+                <Stack.Screen name="session/[id]" options={{ animation: reduceMotion || isDesktop() ? "none" : "slide_from_right" }} />
               </Stack>
             </SyncProvider>
           </AttendanceProvider>

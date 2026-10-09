@@ -1,4 +1,5 @@
-import type { SQLiteDatabase } from "expo-sqlite";
+import { TEAM_SCOPE } from "./scope";
+import type { SQLiteDatabase } from "../sqlite-context";
 import type { SyncPushResultDto, SyncResponseDto, SyncSessionInputDto } from "@omam/contracts";
 
 export type SyncStateRow = {
@@ -6,6 +7,7 @@ export type SyncStateRow = {
   serverUserId: string | null;
   serverUsername: string | null;
   organizationName: string | null;
+  organizationId: string | null;
   cursor: string | null;
   lastSyncAt: string | null;
   lastError: string | null;
@@ -28,18 +30,20 @@ export async function writeSyncState(
     serverUserId: patch.serverUserId ?? existing?.serverUserId ?? null,
     serverUsername: patch.serverUsername ?? existing?.serverUsername ?? null,
     organizationName: patch.organizationName ?? existing?.organizationName ?? null,
+    organizationId: patch.organizationId !== undefined ? patch.organizationId : (existing?.organizationId ?? null),
     cursor: patch.cursor !== undefined ? patch.cursor : (existing?.cursor ?? null),
     lastSyncAt: patch.lastSyncAt !== undefined ? patch.lastSyncAt : (existing?.lastSyncAt ?? null),
     lastError: patch.lastError !== undefined ? patch.lastError : (existing?.lastError ?? null),
   };
 
   await db.runAsync(
-    `INSERT INTO SyncState (userId, serverUserId, serverUsername, organizationName, cursor, lastSyncAt, lastError)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO SyncState (userId, serverUserId, serverUsername, organizationName, organizationId, cursor, lastSyncAt, lastError)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(userId) DO UPDATE SET
        serverUserId = excluded.serverUserId,
        serverUsername = excluded.serverUsername,
        organizationName = excluded.organizationName,
+       organizationId = excluded.organizationId,
        cursor = excluded.cursor,
        lastSyncAt = excluded.lastSyncAt,
        lastError = excluded.lastError`,
@@ -48,6 +52,7 @@ export async function writeSyncState(
       next.serverUserId,
       next.serverUsername,
       next.organizationName,
+      next.organizationId,
       next.cursor,
       next.lastSyncAt,
       next.lastError,
@@ -59,25 +64,28 @@ export async function writeSyncState(
 
 export async function clearSyncState(db: SQLiteDatabase, userId: string) {
   await db.runAsync("DELETE FROM SyncState WHERE userId = ?", [userId]);
-  // Unlinking leaves the history on the device; it is simply no longer tied to
-  // a server row, so a later link pushes all of it again.
-  await db.runAsync(
-    "UPDATE WorkSession SET dirty = 1, remoteId = NULL, syncedAt = NULL WHERE userId = ?",
-    [userId],
-  );
+
 }
 
 export async function countPending(db: SQLiteDatabase, userId: string) {
   const result = await db.getFirstAsync<{ count: number }>(
-    "SELECT COUNT(*) as count FROM WorkSession WHERE userId = ? AND dirty = 1",
+    `SELECT COUNT(*) as count FROM WorkSession WHERE userId = ? AND dirty = 1 AND syncError IS NULL AND ${TEAM_SCOPE}`,
     [userId],
   );
 
   return result?.count ?? 0;
 }
 
+export async function countRejected(db: SQLiteDatabase, userId: string) {
+  const result = await db.getFirstAsync<{ count: number }>(`SELECT COUNT(*) as count FROM WorkSession WHERE userId = ? AND syncError IS NOT NULL AND ${TEAM_SCOPE}`, [userId]);
+  return result?.count ?? 0;
+}
+
 type DirtyRow = {
   id: string;
+  deviceId: string | null;
+  deviceName: string | null;
+  source: SyncSessionInputDto["source"];
   startAt: string;
   endAt: string | null;
   category: "ONSITE" | "REMOTE";
@@ -92,16 +100,19 @@ export async function collectDirty(
   userId: string,
 ): Promise<SyncSessionInputDto[]> {
   const rows = await db.getAllAsync<DirtyRow>(
-    `SELECT id, startAt, endAt, category, note, projectId, deletedAt, updatedAt
+    `SELECT id, deviceId, deviceName, source, startAt, endAt, category, note, projectId, deletedAt, updatedAt
        FROM WorkSession
-      WHERE userId = ? AND dirty = 1
-      ORDER BY updatedAt ASC
+      WHERE userId = ? AND dirty = 1 AND syncError IS NULL AND ${TEAM_SCOPE}
+      ORDER BY CASE WHEN deletedAt IS NOT NULL THEN 0 ELSE 1 END, updatedAt ASC
       LIMIT ?`,
     [userId, PUSH_BATCH_SIZE],
   );
 
   return rows.map((row) => ({
     clientId: row.id,
+    deviceId: row.deviceId,
+    deviceName: row.deviceName,
+    source: row.source,
     startAt: row.startAt,
     endAt: row.endAt,
     category: row.category,
@@ -118,17 +129,20 @@ export async function collectDirty(
  * overwrites the local one — while a `rejected` row stays dirty so the member
  * can see it never landed.
  */
-export async function markPushed(db: SQLiteDatabase, results: SyncPushResultDto[]) {
+export async function markPushed(db: SQLiteDatabase, results: SyncPushResultDto[], pushed: SyncSessionInputDto[] = []) {
   const now = new Date().toISOString();
 
   for (const result of results) {
     if (result.outcome === "rejected") {
+      const snapshot = pushed.find((row) => row.clientId === result.clientId);
+      if (snapshot) await db.runAsync("UPDATE WorkSession SET syncError = ? WHERE id = ? AND updatedAt = ?", [result.reason ?? "REQUEST_FAILED", result.clientId, snapshot.updatedAt]);
       continue;
     }
 
+    const snapshot = pushed.find((row) => row.clientId === result.clientId);
     await db.runAsync(
-      "UPDATE WorkSession SET dirty = 0, syncedAt = ?, remoteId = COALESCE(?, remoteId) WHERE id = ?",
-      [now, result.serverId, result.clientId],
+      `UPDATE WorkSession SET dirty = 0, syncError = NULL, syncedAt = ?, remoteId = COALESCE(?, remoteId) WHERE id = ?${snapshot ? " AND updatedAt = ?" : ""}`,
+      snapshot ? [now, result.serverId, result.clientId, snapshot.updatedAt] : [now, result.serverId, result.clientId],
     );
   }
 }
@@ -144,6 +158,8 @@ export async function applyServerSessions(
   db: SQLiteDatabase,
   userId: string,
   sessions: SyncResponseDto["sessions"],
+  authoritativeIds: string[] = [],
+  pushed: SyncSessionInputDto[] = [],
 ) {
   const now = new Date().toISOString();
 
@@ -154,28 +170,31 @@ export async function applyServerSessions(
       id: string;
       dirty: number;
       updatedAt: string;
-    }>("SELECT id, dirty, updatedAt FROM WorkSession WHERE id = ? OR remoteId = ?", [
+    }>("SELECT id, dirty, updatedAt FROM WorkSession WHERE userId = ? AND (id = ? OR remoteId = ?)", [
+      userId,
       localId,
       session.id,
     ]);
 
+    if (session.deletedAt) {
+      if (existing) await db.runAsync("DELETE FROM WorkSession WHERE id = ?", [existing.id]);
+      continue;
+    }
+
     if (
       existing &&
+      !authoritativeIds.includes(session.id) &&
       existing.dirty === 1 &&
-      new Date(existing.updatedAt).getTime() > new Date(session.updatedAt).getTime()
+      (new Date(existing.updatedAt).getTime() > new Date(session.updatedAt).getTime() ||
+        pushed.some((snapshot) => snapshot.clientId === localId && snapshot.updatedAt !== existing.updatedAt))
     ) {
       continue;
     }
 
-    if (session.deletedAt) {
-      if (existing) {
-        await db.runAsync("DELETE FROM WorkSession WHERE id = ?", [existing.id]);
-      }
-
-      continue;
-    }
-
     const values = [
+      session.organizationId ?? null,
+      session.deviceId ?? null,
+      session.deviceName ?? null,
       session.startAt,
       session.endAt,
       session.durationMinutes,
@@ -194,10 +213,10 @@ export async function applyServerSessions(
     if (existing) {
       await db.runAsync(
         `UPDATE WorkSession
-            SET startAt = ?, endAt = ?, durationMinutes = ?, category = ?, note = ?,
+            SET organizationId = ?, deviceId = ?, deviceName = ?, startAt = ?, endAt = ?, durationMinutes = ?, category = ?, note = ?,
                 status = ?, source = ?, projectId = ?, projectName = ?,
                 projectColor = ?, remoteId = ?, updatedAt = ?, syncedAt = ?, dirty = 0,
-                deletedAt = NULL
+                deletedAt = NULL, syncError = NULL
           WHERE id = ?`,
         [...values, existing.id],
       );
@@ -206,10 +225,10 @@ export async function applyServerSessions(
 
     await db.runAsync(
       `INSERT INTO WorkSession
-         (id, userId, startAt, endAt, durationMinutes, category, note, status, source,
+         (id, userId, organizationId, deviceId, deviceName, startAt, endAt, durationMinutes, category, note, status, source,
           projectId, projectName, projectColor, remoteId, updatedAt, syncedAt,
           createdAt, dirty)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
       [localId, userId, ...values, session.createdAt],
     );
   }

@@ -1,7 +1,14 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { router } from "expo-router";
-import { useSQLiteContext } from "expo-sqlite";
+import { useSQLiteContext } from "../../src/lib/sqlite-context";
 import {
   Building2,
   CalendarDays,
@@ -19,7 +26,12 @@ import type { LucideIcon } from "lucide-react-native";
 import type { SessionDto } from "@omam/contracts";
 import { SessionItem } from "../../src/components/session-item";
 import { getSessions } from "../../src/lib/db/sessions";
-import { formatClock, formatCurrency, formatShortMinutes, joinMeta } from "../../src/lib/format";
+import {
+  formatClock,
+  formatCurrency,
+  formatShortMinutes,
+  joinMeta,
+} from "../../src/lib/format";
 import {
   formatRangeLabel,
   getPeriodGoalHours,
@@ -46,12 +58,14 @@ import {
   Stat,
   Text,
   layout,
+  motion,
   radius,
   useColors,
   useLanguage,
   useTabBarHeight,
   type SegmentOption,
 } from "../../src/design/taraz";
+import { Accordion as HerouiAccordion } from 'heroui-native';
 
 const locale = "en-US";
 const CHART_HEIGHT = 96;
@@ -71,7 +85,11 @@ export default function ReportScreen() {
   const tabBarHeight = useTabBarHeight();
 
   const periodOptions = useMemo<SegmentOption<ReportPeriod>[]>(
-    () => reportPeriods.map((period) => ({ value: period, label: t(PERIOD_LABEL[period]) })),
+    () =>
+      reportPeriods.map((period) => ({
+        value: period,
+        label: t(PERIOD_LABEL[period]),
+      })),
     [t],
   );
 
@@ -83,7 +101,10 @@ export default function ReportScreen() {
   const [offset, setOffset] = useState(0);
   const [rangeSessions, setRangeSessions] = useState<SessionDto[]>([]);
 
-  const range = useMemo(() => getPeriodRange(period, offset, calendar), [calendar, offset, period]);
+  const range = useMemo(
+    () => getPeriodRange(period, offset, calendar),
+    [calendar, offset, period],
+  );
   const rangeLabel = useMemo(
     () => formatRangeLabel(period, range, offset, calendar, language, t),
     [calendar, language, offset, period, range, t],
@@ -112,12 +133,23 @@ export default function ReportScreen() {
   }, [db, monthSessions, range.from, range.to, userId]);
 
   const totals = useMemo(
-    () => summarizeSessions(rangeSessions, settings.hourlyRate, period, range, calendar, language),
+    () =>
+      summarizeSessions(
+        rangeSessions,
+        settings.hourlyRate,
+        period,
+        range,
+        calendar,
+        language,
+      ),
     [calendar, language, period, range, rangeSessions, settings.hourlyRate],
   );
 
   const sortedSessions = useMemo(
-    () => [...rangeSessions].sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime()),
+    () =>
+      [...rangeSessions].sort(
+        (a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime(),
+      ),
     [rangeSessions],
   );
   const sessionDays = useMemo(
@@ -128,10 +160,14 @@ export default function ReportScreen() {
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), []);
 
   const goalHours = getPeriodGoalHours(period, settings.monthlyGoalHours);
-  const goalRatio = goalHours > 0 ? Math.min(1, totals.totalMinutes / (goalHours * 60)) : 0;
+  const goalRatio =
+    goalHours > 0 ? Math.min(1, totals.totalMinutes / (goalHours * 60)) : 0;
   const trackedHours = Math.round(totals.totalMinutes / 60);
 
-  const peakBucketMinutes = Math.max(1, ...totals.buckets.map((bucket) => bucket.minutes));
+  const peakBucketMinutes = Math.max(
+    1,
+    ...totals.buckets.map((bucket) => bucket.minutes),
+  );
   const labelEveryBucket = period !== "MONTH";
   const axisLabels = useMemo(() => {
     const { buckets } = totals;
@@ -140,12 +176,21 @@ export default function ReportScreen() {
       return [];
     }
 
-    return [buckets[0], buckets[Math.floor(buckets.length / 2)], buckets[buckets.length - 1]];
+    return [
+      buckets[0],
+      buckets[Math.floor(buckets.length / 2)],
+      buckets[buckets.length - 1],
+    ];
   }, [totals]);
 
-  const categoryTotal = totals.categoryMinutes.onsite + totals.categoryMinutes.remote;
-  const onsiteShare = categoryTotal ? totals.categoryMinutes.onsite / categoryTotal : 0;
-  const averageMinutes = totals.workedDays ? Math.round(totals.totalMinutes / totals.workedDays) : 0;
+  const categoryTotal =
+    totals.categoryMinutes.onsite + totals.categoryMinutes.remote;
+  const onsiteShare = categoryTotal
+    ? totals.categoryMinutes.onsite / categoryTotal
+    : 0;
+  const averageMinutes = totals.workedDays
+    ? Math.round(totals.totalMinutes / totals.workedDays)
+    : 0;
 
   function changePeriod(next: ReportPeriod) {
     setPeriod(next);
@@ -158,20 +203,45 @@ export default function ReportScreen() {
         title={t("report.title")}
         subtitle={rangeLabel}
         trailing={
-          <IconButton label={t("report.addSession")} variant="primary" onPress={() => openSession("new")}>
+          <IconButton
+            label={t("report.addSession")}
+            variant="primary"
+            onPress={() => openSession("new")}
+          >
             <Icon glyph={Plus} size={20} color={colors.textOnAccent} />
           </IconButton>
         }
       />
 
-      <SegmentedControl options={periodOptions} value={period} onChange={changePeriod} size="lg" full />
+      <SegmentedControl
+        options={periodOptions}
+        value={period}
+        onChange={changePeriod}
+        size="lg"
+        full
+      />
 
-      <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapDefault }}>
-        <IconButton label={t("report.previousPeriod")} round onPress={() => setOffset((current) => current - 1)}>
+      <View
+        style={{
+          alignItems: "center",
+          flexDirection: "row",
+          gap: layout.gapDefault,
+        }}
+      >
+        <IconButton
+          label={t("report.previousPeriod")}
+          round
+          onPress={() => setOffset((current) => current - 1)}
+        >
           <Icon glyph={ChevronLeft} size={20} color={colors.textTitle} />
         </IconButton>
 
-        <Text role="label" tone="title" numberOfLines={1} style={{ flex: 1, textAlign: "center" }}>
+        <Text
+          role="label"
+          tone="title"
+          numberOfLines={1}
+          style={{ flex: 1, textAlign: "center" }}
+        >
           {rangeLabel}
         </Text>
 
@@ -190,31 +260,41 @@ export default function ReportScreen() {
           mono
           label={t("report.tracked")}
           value={formatShortMinutes(totals.totalMinutes, language)}
-          hint={joinMeta(t("report.sessionCount", { count: totals.sessionCount }), rangeLabel)}
+          hint={joinMeta(
+            t("report.sessionCount", { count: totals.sessionCount }),
+            rangeLabel,
+          )}
           icon={<Icon glyph={Clock3} size={16} color={colors.textMuted} />}
         />
         <Stat
           mono
           label={t("report.earned")}
           value={formatCurrency(totals.totalIncome, settings.currency, t)}
-          hint={t("report.billed", { value: numberFormatter.format(trackedHours) })}
+          hint={t("report.billed", {
+            value: numberFormatter.format(trackedHours),
+          })}
           icon={<Icon glyph={Wallet} size={16} color={colors.textMuted} />}
         />
       </View>
 
       <Card style={{ gap: layout.gapDefault }}>
-        <Text role="title3">{period === "DAY" ? t("report.byHour") : t("report.byDay")}</Text>
+        <Text role="title3">
+          {period === "DAY" ? t("report.byHour") : t("report.byDay")}
+        </Text>
 
-        <View style={{ alignItems: "flex-end", flexDirection: "row", gap: 2, height: CHART_HEIGHT }}>
-          {totals.buckets.map((bucket) => (
-            <View
-              key={bucket.key}
-              style={{
-                backgroundColor: bucket.minutes ? colors.fillAccent : colors.fillQuiet,
-                borderRadius: radius.xs,
-                flex: 1,
-                height: Math.max(3, Math.round((bucket.minutes / peakBucketMinutes) * CHART_HEIGHT)),
-              }}
+        <View
+          style={{
+            alignItems: "flex-end",
+            flexDirection: "row",
+            gap: 2,
+            height: CHART_HEIGHT,
+          }}
+        >
+          {totals.buckets.map((bucket, index) => (
+            <ReportBar
+              key={index}
+              value={bucket.minutes / peakBucketMinutes}
+              color={bucket.minutes ? colors.fillAccent : colors.fillQuiet}
             />
           ))}
         </View>
@@ -234,7 +314,9 @@ export default function ReportScreen() {
             ))}
           </View>
         ) : (
-          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <View
+            style={{ flexDirection: "row", justifyContent: "space-between" }}
+          >
             {axisLabels.map((bucket, index) => (
               <Text key={`${bucket.key}-${index}`} role="caption" tone="faint">
                 {bucket.label}
@@ -245,7 +327,13 @@ export default function ReportScreen() {
       </Card>
 
       <Card style={{ gap: layout.gapDefault }}>
-        <View style={{ alignItems: "baseline", flexDirection: "row", justifyContent: "space-between" }}>
+        <View
+          style={{
+            alignItems: "baseline",
+            flexDirection: "row",
+            justifyContent: "space-between",
+          }}
+        >
           <Text role="title3">{t("report.goal")}</Text>
           <Text role="monoLg" tone="title">
             {Math.round(goalRatio * 100)}%
@@ -281,8 +369,12 @@ export default function ReportScreen() {
             overflow: "hidden",
           }}
         >
-          <View style={{ backgroundColor: colors.fillAccent, flex: onsiteShare }} />
-          <View style={{ backgroundColor: colors.textFaint, flex: 1 - onsiteShare }} />
+          <View
+            style={{ backgroundColor: colors.fillAccent, flex: onsiteShare }}
+          />
+          <View
+            style={{ backgroundColor: colors.textFaint, flex: 1 - onsiteShare }}
+          />
         </View>
 
         <View style={{ gap: layout.gapTight }}>
@@ -304,7 +396,9 @@ export default function ReportScreen() {
       <Card padded={false} style={{ paddingHorizontal: layout.padCard }}>
         <ListRow
           label={t("report.workedDays")}
-          leading={<Icon glyph={CalendarDays} size={20} color={colors.textMuted} />}
+          leading={
+            <Icon glyph={CalendarDays} size={20} color={colors.textMuted} />
+          }
           trailing={
             <Text role="mono" tone="body">
               {numberFormatter.format(totals.workedDays)}
@@ -315,7 +409,9 @@ export default function ReportScreen() {
         <ListRow
           label={t("report.averagePerDay")}
           hint={t("report.workedDaysOnly")}
-          leading={<Icon glyph={ListChecks} size={20} color={colors.textMuted} />}
+          leading={
+            <Icon glyph={ListChecks} size={20} color={colors.textMuted} />
+          }
           trailing={
             <Text role="mono" tone="body">
               {formatShortMinutes(averageMinutes, language)}
@@ -337,7 +433,10 @@ export default function ReportScreen() {
           label={t("report.lastCheckOut")}
           leading={<Icon glyph={LogOut} size={20} color={colors.textMuted} />}
           trailing={
-            <Text role="mono" tone={latestSession && !latestSession.endAt ? "accent" : "body"}>
+            <Text
+              role="mono"
+              tone={latestSession && !latestSession.endAt ? "accent" : "body"}
+            >
               {latestSession?.endAt
                 ? formatClock(latestSession.endAt)
                 : latestSession
@@ -348,48 +447,95 @@ export default function ReportScreen() {
         />
       </Card>
 
-      <Card padded={false}>
+      <View style={{ gap: layout.gapDefault }}>
+        <Text role="title3">{t("common.records")}</Text>
         {sessionDays.length ? (
-          <View style={{ padding: layout.padCard }}>
-            <Text role="title3" style={{ marginBottom: layout.gapTight }}>
-              {t("common.records")}
-            </Text>
-
-            {sessionDays.map((day, index) => (
-              <Fragment key={day.key}>
-                {index ? <Divider /> : null}
-                <Accordion
-                  title={day.label}
-                  meta={joinMeta(
-                    t("report.sessionCount", { count: day.sessions.length }),
-                    formatShortMinutes(day.totalMinutes, language),
-                  )}
+          sessionDays.map((day) => (
+            <Card key={day.key} style={{ paddingVertical: layout.gapTight }}>
+              <Accordion
+                title={day.label}
+                leading={
+                  <Icon
+                    glyph={CalendarDays}
+                    size={18}
+                    color={colors.textMuted}
+                  />
+                }
+                meta={joinMeta(
+                  t("report.sessionCount", { count: day.sessions.length }),
+                  formatShortMinutes(day.totalMinutes, language),
+                )}
+              >
+                <View
+                  style={{
+                    gap: layout.gapDefault,
+                    paddingBottom: layout.gapDefault,
+                  }}
                 >
-                  <View style={{ gap: layout.gapDefault, paddingBottom: layout.gapDefault }}>
-                    {day.sessions.map((session) => (
-                      <SessionItem
-                        key={session.id}
-                        session={session}
-                        showDate={false}
-                        onPress={() => openSession(session.id)}
-                      />
-                    ))}
-                  </View>
-                </Accordion>
-              </Fragment>
-            ))}
-          </View>
+                  {day.sessions.map((session) => (
+                    <SessionItem
+                      key={session.id}
+                      session={session}
+                      showDate={false}
+                      onPress={() => openSession(session.id)}
+                    />
+                  ))}
+                </View>
+              </Accordion>
+            </Card>
+          ))
         ) : (
-          <EmptyState
-            title={t("report.emptyTitle")}
-            description={t("report.emptyHint")}
-            icon={<Icon glyph={Clock3} size={20} color={colors.textMuted} />}
-          />
+          <Card padded={false}>
+            <EmptyState
+              title={t("report.emptyTitle")}
+              description={t("report.emptyHint")}
+              icon={<Icon glyph={Clock3} size={20} color={colors.textMuted} />}
+            />
+          </Card>
         )}
-      </Card>
+      </View>
 
       <View style={{ height: layout.gapDefault }} />
     </Screen>
+  );
+}
+
+function ReportBar({ value, color }: { value: number; color: string }) {
+  const reduceMotion = useReducedMotion();
+  const progress = useSharedValue(Math.max(0.03, value));
+
+  useEffect(() => {
+    progress.value = reduceMotion
+      ? Math.max(0.03, value)
+      : withTiming(Math.max(0.03, value), {
+          duration: motion.durNormal,
+          easing: Easing.bezier(
+            motion.easeInOut.x1,
+            motion.easeInOut.y1,
+            motion.easeInOut.x2,
+            motion.easeInOut.y2,
+          ),
+        });
+  }, [progress, reduceMotion, value]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleY: progress.value }],
+  }));
+
+  return (
+    <View style={{ flex: 1, height: CHART_HEIGHT, justifyContent: "flex-end" }}>
+      <Animated.View
+        style={[
+          {
+            backgroundColor: color,
+            borderRadius: radius.xs,
+            height: CHART_HEIGHT,
+            transformOrigin: "bottom",
+          },
+          animatedStyle,
+        ]}
+      />
+    </View>
   );
 }
 
@@ -404,8 +550,21 @@ function SplitRow({ glyph, label, value, swatch }: SplitRowProps) {
   const colors = useColors();
 
   return (
-    <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapTight }}>
-      <View style={{ backgroundColor: swatch, borderRadius: radius.full, height: 8, width: 8 }} />
+    <View
+      style={{
+        alignItems: "center",
+        flexDirection: "row",
+        gap: layout.gapTight,
+      }}
+    >
+      <View
+        style={{
+          backgroundColor: swatch,
+          borderRadius: radius.full,
+          height: 8,
+          width: 8,
+        }}
+      />
       <Icon glyph={glyph} size={16} color={colors.textMuted} />
       <Text role="body" tone="title" style={{ flex: 1 }}>
         {label}

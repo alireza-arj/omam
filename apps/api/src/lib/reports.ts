@@ -1,8 +1,9 @@
-import type { CalendarSystem } from "@omam/calendar";
+import { addDays, dayKey, workSegments, type CalendarSystem } from "@omam/calendar";
 import type { Currency, MemberReportRowDto, MonthlyReportDto } from "@omam/contracts";
 import { prisma } from "./prisma";
-import { hoursFromMinutes, localDayKey, monthWindow } from "./time";
+import { hoursFromMinutes, monthWindow } from "./time";
 import { notFound } from "./errors";
+import { serializeMember, serializeSession } from "./serialize";
 
 type Membership = Awaited<ReturnType<typeof loadMemberships>>[number];
 
@@ -40,6 +41,7 @@ function emptyRow(membership: Membership): MemberReportRowDto {
     currency: membership.currency,
     monthlyGoalHours: membership.monthlyGoalHours,
     completedMinutes: 0,
+    sessionCount: 0,
     workedDays: 0,
     onsiteMinutes: 0,
     remoteMinutes: 0,
@@ -65,11 +67,14 @@ export async function buildMonthlyReport(
       where: {
         organizationId,
         deletedAt: null,
-        startAt: { gte: window.from, lte: window.to },
+        status: "COMPLETED",
+        startAt: { lte: window.to },
+        endAt: { gt: window.from },
       },
       select: {
         userId: true,
         startAt: true,
+        endAt: true,
         durationMinutes: true,
         status: true,
         category: true,
@@ -95,10 +100,12 @@ export async function buildMonthlyReport(
       continue;
     }
 
-    const minutes = session.durationMinutes;
+    const segments = workSegments(session.startAt, session.endAt, window, calendar);
+    const minutes = segments.reduce((sum, segment) => sum + segment.minutes, 0);
 
     if (session.status === "COMPLETED") {
       row.completedMinutes += minutes;
+      row.sessionCount += 1;
 
       if (session.category === "REMOTE") {
         row.remoteMinutes += minutes;
@@ -107,7 +114,7 @@ export async function buildMonthlyReport(
       }
     }
 
-    workedDays.get(session.userId)?.add(localDayKey(session.startAt, calendar));
+    for (const segment of segments) workedDays.get(session.userId)?.add(segment.day);
   }
 
   const byCurrency = new Map<Currency, number>();
@@ -135,8 +142,10 @@ export async function buildMonthlyReport(
     from: window.from.toISOString(),
     to: window.to.toISOString(),
     currency: organization.currency,
+    organization: { id: organization.id, name: organization.name },
     totals: {
       completedMinutes,
+      sessionCount: result.reduce((sum, row) => sum + row.sessionCount, 0),
       grossAmount: Number((byCurrency.get(organization.currency) ?? 0).toFixed(2)),
       byCurrency: [...byCurrency.entries()].map(([currency, grossAmount]) => ({
         currency,
@@ -150,3 +159,45 @@ export async function buildMonthlyReport(
 }
 
 export { grossFor };
+
+export function dayBuckets(window: { from: Date; to: Date }, calendar: CalendarSystem) {
+  const buckets = new Map<string, number>();
+  for (let cursor = window.from; cursor <= window.to; cursor = addDays(cursor, 1)) {
+    buckets.set(dayKey(cursor, calendar), 0);
+  }
+  return buckets;
+}
+
+export async function buildMemberReport(organizationId: string, userId: string, month: string | undefined, calendar: CalendarSystem) {
+  const membership = await prisma.membership.findUnique({
+    where: { organizationId_userId: { organizationId, userId } }, include: { user: true },
+  });
+  if (!membership) throw notFound("Member not found.");
+  const window = monthWindow(month, calendar);
+  const sessions = await prisma.workSession.findMany({
+    where: { organizationId, userId, deletedAt: null, startAt: { lte: window.to },
+      OR: [{ endAt: { gt: window.from } }, { endAt: null, startAt: { gte: window.from } }] },
+    include: { project: true }, orderBy: [{ startAt: "desc" }, { id: "desc" }],
+  });
+  const member = emptyRow(membership);
+  const buckets = dayBuckets(window, calendar);
+  const workedDays = new Set<string>();
+  for (const session of sessions) {
+    if (session.status !== "COMPLETED") continue;
+    const segments = workSegments(session.startAt, session.endAt, window, calendar);
+    const minutes = segments.reduce((sum, segment) => sum + segment.minutes, 0);
+    member.completedMinutes += minutes;
+    member.sessionCount++;
+    if (session.category === "REMOTE") member.remoteMinutes += minutes;
+    else member.onsiteMinutes += minutes;
+    for (const segment of segments) {
+      if (segment.minutes > 0) workedDays.add(segment.day);
+      buckets.set(segment.day, (buckets.get(segment.day) ?? 0) + segment.minutes);
+    }
+  }
+  member.workedDays = workedDays.size;
+  member.grossAmount = grossFor(membership, member.completedMinutes);
+  return { month: window.month, calendar, member, profile: serializeMember(membership),
+    days: [...buckets].map(([day, minutes]) => ({ day, minutes })), projects: [],
+    sessions: sessions.map(serializeSession) };
+}

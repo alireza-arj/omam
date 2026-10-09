@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { Elysia } from "elysia";
-import { asCalendarSystem } from "@omam/calendar";
+import { asCalendarSystem, workSegments } from "@omam/calendar";
 import {
   createSessionInputSchema,
   timesheetQuerySchema,
@@ -11,7 +11,7 @@ import { requireOrganization, requireRole } from "../lib/auth";
 import { conflict, invalid, notFound, parseInput } from "../lib/errors";
 import { serializeSession } from "../lib/serialize";
 import { calculateSessionMinutes, monthWindow } from "../lib/time";
-import { isMonthLocked } from "../lib/payroll";
+import { isSessionLocked } from "../lib/payroll";
 import { recordAudit } from "../lib/audit";
 
 const include = { project: true, user: true } as const;
@@ -29,19 +29,9 @@ async function loadOrgSession(organizationId: string, id: string) {
   return session;
 }
 
-async function assertNotPaidOut(organizationId: string, ...dates: (Date | null)[]) {
-  for (const date of dates) {
-    if (!date) continue;
-
-    const lockedMonth = await isMonthLocked(organizationId, date);
-
-    if (lockedMonth) {
-      throw conflict(
-        `Payroll for ${lockedMonth} is closed, so that time cannot be changed.`,
-        "PAYROLL_LOCKED",
-      );
-    }
-  }
+async function assertNotPaidOut(organizationId: string, startAt: Date, endAt: Date | null = null) {
+  const lockedMonth = await isSessionLocked(organizationId, startAt, endAt);
+  if (lockedMonth) throw conflict("This month is locked.", "PAYROLL_LOCKED");
 }
 
 /** Read and edit of anyone's time. Everything here is manager-only. */
@@ -60,7 +50,8 @@ export const timesheetRoutes = new Elysia({ prefix: "/timesheets" })
     const where: Prisma.WorkSessionWhereInput = {
       organizationId: organization.id,
       deletedAt: null,
-      startAt: { gte: window.from, lte: window.to },
+      startAt: { lte: window.to },
+      AND: [{ OR: [{ endAt: { gt: window.from } }, { endAt: null, startAt: { gte: window.from } }] }],
       ...(filters.userId ? { userId: filters.userId } : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.projectId ? { projectId: filters.projectId } : {}),
@@ -86,18 +77,14 @@ export const timesheetRoutes = new Elysia({ prefix: "/timesheets" })
           skip: (page - 1) * filters.pageSize,
           take: filters.pageSize,
         });
-        const groups = await tx.workSession.groupBy({
-          by: ["status"],
-          where,
-          _sum: { durationMinutes: true },
-        });
+        const groups = await tx.workSession.findMany({ where, select: { status: true, startAt: true, endAt: true } });
         return { entries, total, groups, page };
       },
       { isolationLevel: "RepeatableRead" },
     );
     const totals = { completedMinutes: 0 };
     for (const group of groups) {
-      const minutes = group._sum.durationMinutes ?? 0;
+      const minutes = workSegments(group.startAt, group.endAt, window, calendar).reduce((sum, segment) => sum + segment.minutes, 0);
       if (group.status === "COMPLETED") totals.completedMinutes += minutes;
     }
 
@@ -130,8 +117,15 @@ export const timesheetRoutes = new Elysia({ prefix: "/timesheets" })
       throw invalid("The end time cannot be before the start time.");
     }
 
-    await assertNotPaidOut(organization.id, session.startAt, startAt, endAt);
+    await assertNotPaidOut(organization.id, session.startAt, session.endAt);
+    await assertNotPaidOut(organization.id, startAt, endAt);
 
+    if (payload.projectId && !(await prisma.project.findFirst({ where: { id: payload.projectId, organizationId: organization.id } }))) {
+      throw invalid("That project does not belong to this team.");
+    }
+    if (!endAt && await prisma.workSession.findFirst({ where: { userId: session.userId, organizationId: organization.id, endAt: null, deletedAt: null, id: { not: session.id } } })) {
+      throw conflict("There is already an active session.", "SESSION_ACTIVE");
+    }
     const updated = await prisma.workSession.update({
       where: { id: session.id },
       data: {
@@ -165,7 +159,7 @@ export const timesheetRoutes = new Elysia({ prefix: "/timesheets" })
     const organization = requireOrganization(principal);
     const session = await loadOrgSession(organization.id, params.id);
 
-    await assertNotPaidOut(organization.id, session.startAt);
+    await assertNotPaidOut(organization.id, session.startAt, session.endAt);
 
     await prisma.workSession.update({
       where: { id: session.id },

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { View } from "react-native";
-import { CloudOff, KeyRound, LockKeyhole, RefreshCw, Server, UserRound } from "lucide-react-native";
+import { CloudOff, KeyRound, LockKeyhole, RefreshCw, UserRound } from "lucide-react-native";
 import { formatDayLabel } from "@omam/calendar";
 import { translateError } from "@omam/i18n";
 import { useAttendance } from "../providers/attendance-provider";
@@ -13,6 +13,7 @@ import {
   Divider,
   Icon,
   Input,
+  MotionReveal,
   SegmentedControl,
   Text,
   layout,
@@ -44,7 +45,6 @@ export function TeamSyncCard() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("signIn");
-  const [serverUrl, setServerUrl] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
@@ -57,13 +57,12 @@ export function TeamSyncCard() {
     try {
       if (mode === "join") {
         await sync.joinWithInvite({
-          serverUrl,
           username: username.trim(),
           password,
           inviteCode: inviteCode.trim(),
         });
       } else {
-        await sync.signInAndLink({ serverUrl, username: username.trim(), password });
+        await sync.signInAndLink({ username: username.trim(), password });
       }
 
       setIsOpen(false);
@@ -76,13 +75,8 @@ export function TeamSyncCard() {
   }
 
   async function handleSync() {
-    await sync.syncNow();
-
-    showToast(
-      sync.lastError
-        ? { title: t("team.syncFailed"), description: sync.lastError, tone: "error" }
-        : { title: t("team.upToDate"), tone: "success" },
-    );
+    try { await sync.syncNow(); showToast({ title: t("team.upToDate"), tone: "success" }); }
+    catch (cause) { showToast({ title: errorText(cause), tone: "error" }); }
   }
 
   if (!sync.isLinked) {
@@ -96,19 +90,8 @@ export function TeamSyncCard() {
         </View>
 
         {isOpen ? (
-          <View style={{ gap: layout.gapDefault }}>
+          <MotionReveal style={{ gap: layout.gapDefault }}>
             <SegmentedControl options={modeOptions} value={mode} onChange={setMode} full />
-
-            <Input
-              label={t("team.serverAddress")}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              leading={<Icon glyph={Server} size={16} color={colors.textMuted} />}
-              placeholder={t("team.serverPlaceholder")}
-              value={serverUrl}
-              onChangeText={setServerUrl}
-            />
 
             <Input
               label={t("auth.username")}
@@ -131,16 +114,18 @@ export function TeamSyncCard() {
             />
 
             {mode === "join" ? (
-              <Input
-                label={t("team.inviteCode")}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                leading={<Icon glyph={KeyRound} size={16} color={colors.textMuted} />}
-                placeholder={t("team.invitePlaceholder")}
-                value={inviteCode}
-                onChangeText={setInviteCode}
-                hint={t("team.inviteHint")}
-              />
+              <MotionReveal>
+                <Input
+                  label={t("team.inviteCode")}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  leading={<Icon glyph={KeyRound} size={16} color={colors.textMuted} />}
+                  placeholder={t("team.invitePlaceholder")}
+                  value={inviteCode}
+                  onChangeText={setInviteCode}
+                  hint={t("team.inviteHint")}
+                />
+              </MotionReveal>
             ) : null}
 
             {error ? (
@@ -166,7 +151,7 @@ export function TeamSyncCard() {
               variant="ghost"
               onPress={() => setIsOpen(false)}
             />
-          </View>
+          </MotionReveal>
         ) : (
           <Button
             label={t("team.connect")}
@@ -199,6 +184,12 @@ export function TeamSyncCard() {
         )}
       </View>
 
+      {sync.teams.length > 1 ? <View style={{ gap: layout.gapTight }}>
+        <Text role="caption" tone="muted">{t("workspace.switchTeam")}</Text>
+        {sync.teams.map((team) => <Button key={team.organizationId} label={team.organizationName} variant={team.organizationId === sync.organizationId ? "quiet" : "outline"} full disabled={sync.isSyncing || sync.isLinking || team.organizationId === sync.organizationId} onPress={() => { void sync.selectTeam(team.organizationId).catch((cause) => showToast({ title: errorText(cause), tone: "error" })); }} />)}
+      </View> : null}
+      <Input label={t("team.inviteCode")} value={inviteCode} onChangeText={setInviteCode} placeholder={t("team.invitePlaceholder")} autoCapitalize="characters" hint={t("workspace.joinExistingHint")} />
+      <Button label={t("workspace.joinTeam")} variant="outline" full disabled={!inviteCode.trim() || sync.isSyncing || sync.isLinking} onPress={() => { void sync.joinTeam(inviteCode.trim()).then(() => { setInviteCode(""); showToast({ title: t("workspace.teamJoined"), tone: "success" }); }).catch((cause) => showToast({ title: errorText(cause), tone: "error" })); }} />
       <Divider />
 
       <View style={{ gap: 2 }}>
@@ -218,7 +209,7 @@ export function TeamSyncCard() {
 
         {sync.lastError ? (
           <Text role="caption" tone="accent">
-            {sync.lastError}
+            {translateError(sync.lastError, t)}
           </Text>
         ) : null}
       </View>

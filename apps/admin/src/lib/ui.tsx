@@ -37,6 +37,10 @@ export function ThemeProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    const surface = getComputedStyle(document.documentElement).getPropertyValue("--surface-app").trim();
+    document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((tag) => {
+      tag.content = surface;
+    });
 
     try {
       localStorage.setItem(THEME_KEY, theme);

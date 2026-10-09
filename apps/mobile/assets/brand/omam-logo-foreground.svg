@@ -1,0 +1,6 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Tarazkar adaptive icon foreground</title>
+  <circle cx="512" cy="512" r="276" stroke="#E31C47" stroke-width="72"/>
+  <path d="M512 512V350M512 512L650 590" stroke="#F5F7FA" stroke-width="68" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="512" cy="512" r="38" fill="#E31C47"/>
+</svg>

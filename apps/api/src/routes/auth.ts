@@ -55,7 +55,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
     });
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
-    const token = await createAuthSession(user.id, payload.deviceName);
+    const token = await createAuthSession(user.id, payload.deviceName, membership?.organizationId);
 
     return {
       token,
@@ -77,11 +77,11 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
     });
 
     if (!invite || invite.revokedAt || invite.acceptedAt) {
-      throw invalid("That invite code is not valid.");
+      throw new AppError(422, "That invite code is not valid.", "INVALID_INVITE");
     }
 
     if (invite.expiresAt.getTime() <= Date.now()) {
-      throw invalid("That invite code has expired.");
+      throw new AppError(422, "That invite code has expired.", "INVALID_INVITE");
     }
 
     if (await prisma.user.findUnique({ where: { username } })) {
@@ -99,6 +99,12 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
           lastLoginAt: new Date(),
         },
       });
+
+      const claimed = await tx.invite.updateMany({
+        where: { id: invite.id, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+        data: { acceptedAt: new Date(), acceptedById: created.id },
+      });
+      if (!claimed.count) throw new AppError(422, "That invite code is not valid.", "INVALID_INVITE");
 
       await tx.membership.create({
         data: {
@@ -123,11 +129,6 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         },
       });
 
-      await tx.invite.update({
-        where: { id: invite.id },
-        data: { acceptedAt: new Date(), acceptedById: created.id },
-      });
-
       return created;
     });
 
@@ -141,7 +142,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
     });
 
     const membership = await loadMembership(user.id);
-    const token = await createAuthSession(user.id, payload.deviceName);
+    const token = await createAuthSession(user.id, payload.deviceName, membership?.organizationId);
 
     return {
       token,
@@ -169,7 +170,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
 
     const updated = await prisma.user.update({
       where: { id: principal.user.id },
-      data: { nickname: payload.nickname.trim(), avatarUrl: nextAvatar },
+      data: { nickname: payload.nickname.trim(), ...(payload.avatarUrl !== undefined ? { avatarUrl: nextAvatar } : {}) },
     });
 
     return {
@@ -194,7 +195,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
     // Every other device holds a token minted against the old password.
     await revokeAllSessionsForUser(principal.user.id);
 
-    return { token: await createAuthSession(principal.user.id, "password-change") };
+    return { token: await createAuthSession(principal.user.id, "password-change", principal.membership?.organizationId) };
   })
 
   .post("/logout", async ({ headers, set }) => {

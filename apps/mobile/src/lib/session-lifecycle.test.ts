@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { Database, type SQLQueryBindings } from "bun:sqlite";
-import type { SQLiteDatabase } from "expo-sqlite";
+import type { SQLiteDatabase } from "./sqlite-context";
 import { DB_SCHEMA, initializeDatabase } from "./database";
-import { applyServerSessions, readSyncState, writeSyncState } from "./db/sync";
+import { applyServerSessions, readSyncState, writeSyncState, collectDirty, markPushed, countRejected } from "./db/sync";
 
 mock.module("./db/id", () => ({ generateId: () => crypto.randomUUID() }));
-const { clockIn, clockOut, createSession, updateSession, getMonthlySummary } = await import("./db/sessions");
+const { clockIn, clockOut, createSession, updateSession, deleteSession, getSessions, getMonthlySummary, getSessionConflicts, resolveSessionConflict } = await import("./db/sessions");
 
 const databases: Database[] = [];
 function database() {
@@ -16,6 +16,9 @@ function database() {
     runAsync: async (sql: string, params: SQLQueryBindings[] = []) => sqlite.query(sql).run(...params),
     getFirstAsync: async (sql: string, params: SQLQueryBindings[] = []) => sqlite.query(sql).get(...params),
     getAllAsync: async (sql: string, params: SQLQueryBindings[] = []) => sqlite.query(sql).all(...params),
+    runBatchAsync: async (statements: { sql: string; params?: SQLQueryBindings[] }[]) => {
+      sqlite.transaction(() => { for (const statement of statements) sqlite.query(statement.sql).run(...(statement.params ?? [])); })();
+    },
   } as unknown as SQLiteDatabase;
   return { sqlite, db };
 }
@@ -26,6 +29,77 @@ const startAt = "2026-09-06T09:00:00.000Z";
 const endAt = "2026-09-06T17:00:00.000Z";
 
 describe("time entries without approval", () => {
+  test("resolves two device timers atomically, queues deletion first, and preserves the winner's start", async () => {
+    const { db } = database();
+    await initializeDatabase(db, "Mac", "mac-device");
+    const mac = await clockIn(db, "user", startAt, "REMOTE");
+    expect(mac.deviceId).toBe("mac-device");
+    expect(mac.deviceName).toBe("Mac");
+    await applyServerSessions(db, "user", [{ ...mac, id: "phone-server", clientId: "phone", deviceId: "phone-device", deviceName: "iPhone" }]);
+    await db.runAsync("UPDATE WorkSession SET syncError = 'SESSION_CONFLICT' WHERE id = ?", [mac.id]);
+    const [conflict] = await getSessionConflicts(db, "user");
+    expect(conflict?.sessions).toHaveLength(2);
+    await resolveSessionConflict(db, "user", conflict!, "phone");
+    expect((await getSessions(db, "user")).map((row) => row.id)).toEqual(["phone"]);
+    const queued = await collectDirty(db, "user");
+    expect(queued.map((row) => row.clientId)).toEqual([mac.id, "phone"]);
+    expect(queued[0]?.deletedAt).toBeTruthy();
+    expect(queued[1]?.startAt).toBe(startAt);
+    expect(queued[1]?.deletedAt).toBeNull();
+  });
+
+  test("cannot resolve a conflict by deleting a payroll-locked session", async () => {
+    const { db } = database();
+    await initializeDatabase(db);
+    await writeSyncState(db, "user", { organizationId: "team" });
+    const mac = await clockIn(db, "user", startAt, "REMOTE");
+    await applyServerSessions(db, "user", [{ ...mac, id: "phone-server", clientId: "phone", deviceId: "phone-device", deviceName: "iPhone" }]);
+    await db.runAsync("UPDATE WorkSession SET syncError = 'SESSION_CONFLICT' WHERE id = ?", [mac.id]);
+    const [conflict] = await getSessionConflicts(db, "user");
+    await db.runAsync("INSERT INTO LockedPeriod VALUES ('team', '2026-09', '2026-09-01T00:00:00.000Z', '2026-09-30T23:59:59.999Z')");
+    await expect(resolveSessionConflict(db, "user", conflict!, "phone")).rejects.toThrow("PAYROLL_LOCKED");
+    expect(await getSessions(db, "user")).toHaveLength(2);
+    expect(await countRejected(db, "user")).toBe(1);
+  });
+
+  test("isolates local reads, edits, and queued changes by selected team", async () => {
+    const { db } = database();
+    await initializeDatabase(db);
+    await writeSyncState(db, "user", { organizationId: "team-a" });
+    const a = await createSession(db, "user", startAt, endAt, "ONSITE", null);
+    await writeSyncState(db, "user", { organizationId: "team-b" });
+    const b = await createSession(db, "user", startAt, endAt, "REMOTE", null);
+    expect((await getSessions(db, "user")).map((row) => row.id)).toEqual([b.id]);
+    expect((await collectDirty(db, "user")).map((row) => row.clientId)).toEqual([b.id]);
+    await expect(deleteSession(db, a.id, "user")).rejects.toThrow("SESSION_NOT_FOUND");
+    await writeSyncState(db, "user", { organizationId: "team-a" });
+    expect((await getSessions(db, "user")).map((row) => row.id)).toEqual([a.id]);
+  });
+  test("refuses local edits to any part of a locked month", async () => {
+    const { db } = database();
+    await initializeDatabase(db);
+    await writeSyncState(db, "user", { organizationId: "team" });
+    const row = await createSession(db, "user", startAt, endAt, "ONSITE", null);
+    await db.runAsync("INSERT INTO LockedPeriod VALUES ('team', '2026-09', '2026-09-01T00:00:00.000Z', '2026-09-30T23:59:59.999Z')");
+    await expect(deleteSession(db, row.id, "user")).rejects.toThrow("PAYROLL_LOCKED");
+    await expect(updateSession(db, row.id, "user", startAt, endAt, "REMOTE", null)).rejects.toThrow("PAYROLL_LOCKED");
+    await expect(createSession(db, "user", "2026-08-31T23:00:00.000Z", startAt, "ONSITE", null)).rejects.toThrow("PAYROLL_LOCKED");
+  });
+  test("preserves a concurrent edit, honors server deletion, and keeps rejected rows out of the backlog", async () => {
+    const { db } = database();
+    await initializeDatabase(db);
+    const row = await createSession(db, "user", startAt, endAt, "ONSITE", null);
+    const queued = await collectDirty(db, "user");
+    await db.runAsync("UPDATE WorkSession SET updatedAt = '2030-01-01T00:00:00.000Z' WHERE id = ?", [row.id]);
+    await markPushed(db, [{ clientId: row.id, serverId: "remote", outcome: "applied", reason: null }], queued);
+    expect(await collectDirty(db, "user")).toHaveLength(1);
+    const snapshot = await collectDirty(db, "user");
+    await markPushed(db, [{ clientId: row.id, serverId: null, outcome: "rejected", reason: "PAYROLL_LOCKED" }], snapshot);
+    expect(await collectDirty(db, "user")).toHaveLength(0);
+    expect(await countRejected(db, "user")).toBe(1);
+    await applyServerSessions(db, "user", [{ ...row, id: "remote", clientId: row.id, deletedAt: endAt, updatedAt: endAt }]);
+    expect(await getSessions(db, "user")).toHaveLength(0);
+  });
   test("upgrades every legacy status while preserving history, dirty state and deletions", async () => {
     const { sqlite, db } = database();
     sqlite.exec(DB_SCHEMA.replace("    legacyReviewStatus TEXT,\n", ""));

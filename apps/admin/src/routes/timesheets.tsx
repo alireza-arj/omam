@@ -1,5 +1,5 @@
+import { SessionActions } from "../components/session-actions";
 import {
-  ActionMenu,
   Avatar,
   Card,
   EmptyState,
@@ -17,13 +17,12 @@ import { useSearchParams } from "react-router-dom";
 import { useReportMonth, reportLink } from "../lib/report-month";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { WorkSessionStatus } from "@omam/contracts";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
 import { displayName, formatDate, formatDuration, formatTime } from "../lib/format";
 import { PageHeader } from "./layout";
 import { MonthPicker } from "../components/controls";
@@ -32,8 +31,6 @@ const STATUSES: (WorkSessionStatus | "ALL")[] = ["ALL", "COMPLETED", "OPEN"];
 
 export function TimesheetsPage() {
   const { calendar } = useSession();
-  const toast = useToast();
-  const queryClient = useQueryClient();
   const { language, t } = useLanguage();
 
   const [month, setMonth] = useReportMonth(calendar);
@@ -75,22 +72,6 @@ export function TimesheetsPage() {
       }),
   });
 
-  function invalidate() {
-    queryClient.invalidateQueries({ queryKey: ["timesheets"] });
-    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-    queryClient.invalidateQueries({ queryKey: ["report"] });
-    queryClient.invalidateQueries({ queryKey: ["member-report"] });
-  }
-
-  const remove = useMutation({
-    mutationFn: (id: string) => api.deleteTimesheet(id),
-    onSuccess: () => {
-      toast(t("admin.timesheets.deleted"), "success");
-      invalidate();
-    },
-    onError: (error) => toast(translateError(error, t), "error"),
-  });
-
   const entries = timesheets.data?.entries ?? [];
   const collection = {
     search,
@@ -108,7 +89,8 @@ export function TimesheetsPage() {
   return (
     <>
       <PageHeader
-        title={t("admin.nav.timesheets")}
+        title={t("workspace.sessions")}
+        subtitle={t("workspace.sessionHint")}
         actions={
           <MonthPicker
             month={month}
@@ -195,7 +177,7 @@ export function TimesheetsPage() {
                     <Table.Column isRowHeader>{t("admin.timesheets.member")}</Table.Column>
                     <Table.Column>{t("admin.timesheets.day")}</Table.Column>
                     <Table.Column className="num">{t("admin.timesheets.duration")}</Table.Column>
-                    <Table.Column>{t("admin.timesheets.project")}</Table.Column>
+                    <Table.Column>{t("admin.timesheets.where")}</Table.Column>
                     <Table.Column>{t("admin.timesheets.note")}</Table.Column>
                     <Table.Column>{t("admin.timesheets.status")}</Table.Column>
                     <Table.Column className="tight" />
@@ -226,17 +208,7 @@ export function TimesheetsPage() {
                           {formatDuration(entry.durationMinutes, language)}
                         </Table.Cell>
                         <Table.Cell>
-                          <div className="stack gap-2">
-                            {entry.project ? (
-                              <span className="row gap-3">
-                                <span className="dot" style={{ color: entry.project.color }} aria-hidden />
-                                {entry.project.name}
-                              </span>
-                            ) : (
-                              <span className="faint">—</span>
-                            )}
-                            <span className="t-caption muted">{t(`category.${entry.category}`)}</span>
-                          </div>
+                          <span className="t-body-sm muted">{t(`category.${entry.category}`)}</span>
                         </Table.Cell>
                         <Table.Cell className="muted note-column">
                           {entry.note ?? <span className="faint">—</span>}
@@ -245,18 +217,7 @@ export function TimesheetsPage() {
                           <StatusBadge status={entry.status} />
                         </Table.Cell>
                         <Table.Cell className="tight">
-                          <ActionMenu
-                            label={t("admin.table.actionsFor", { name: displayName(entry) })}
-                            disabled={remove.isPending}
-                            items={[
-                              {
-                                label: t("common.delete"),
-                                onAction: () => {
-                                  if (confirm(t("admin.timesheets.confirmDelete"))) remove.mutate(entry.id);
-                                },
-                              },
-                            ]}
-                          />
+                          <SessionActions session={entry} />
                         </Table.Cell>
                       </Table.Row>
                     ))}

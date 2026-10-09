@@ -1,8 +1,17 @@
 import type { ReactNode } from "react";
 import { type StyleProp, type ViewStyle } from "react-native";
+import { Easing } from "react-native-reanimated";
 import { Tabs } from "heroui-native/tabs";
 import { useLanguage } from "../i18n";
-import { layout, typeRolesByLanguage } from "../tokens";
+import { layout, motion, typeRolesByLanguage } from "../tokens";
+
+const indicatorTiming = {
+  type: "timing" as const,
+  config: {
+    duration: motion.durFast,
+    easing: Easing.bezier(motion.easeInOut.x1, motion.easeInOut.y1, motion.easeInOut.x2, motion.easeInOut.y2),
+  },
+};
 
 export type SegmentOption<T extends string> = {
   value: T;
@@ -33,7 +42,7 @@ export function SegmentedControl<T extends string>({
       style={[{ alignSelf: full ? "stretch" : "flex-start" }, style]}
     >
       <Tabs.List style={full ? { width: "100%" } : undefined}>
-        <Tabs.Indicator />
+        <Tabs.Indicator animation={{ width: indicatorTiming, height: indicatorTiming, translateX: indicatorTiming }} />
         {options.map((option) => (
           <Tabs.Trigger
             key={option.value}

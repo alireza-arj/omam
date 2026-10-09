@@ -195,7 +195,7 @@ export function PayrollPage() {
                       exportPayroll(
                         `/payroll/periods/${period.id}/export.csv`,
                         {},
-                        `omam-payroll-${period.month}.csv`,
+                        `tarazkar-payroll-${period.month}.csv`,
                       )
                     }
                   >

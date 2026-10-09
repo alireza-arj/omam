@@ -1,5 +1,5 @@
 /**
- * Taraz — the Omam design layer.
+ * Taraz — the Tarazkar design layer.
  *
  * A React Native port of the Moview design system: cool white paper, blue-grey
  * ink, one hot crimson reserved for actions. Screens import from here and
@@ -13,6 +13,7 @@ export { useTarazFonts, typefaces } from "./fonts";
 export { LanguageProvider, useLanguage, useTranslation } from "./i18n";
 
 export { Accordion } from "./components/accordion";
+export { MotionReveal } from "./components/motion-reveal";
 export { Avatar } from "./components/avatar";
 export { Badge } from "./components/badge";
 export { Button } from "./components/button";

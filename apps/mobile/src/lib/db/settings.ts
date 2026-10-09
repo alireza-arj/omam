@@ -1,4 +1,4 @@
-import type { SQLiteDatabase } from "expo-sqlite";
+import type { SQLiteDatabase } from "../sqlite-context";
 import { asCalendarSystem, DEFAULT_CALENDAR } from "@omam/calendar";
 import { DEFAULT_LANGUAGE, asLanguage } from "@omam/i18n";
 import type { SettingsDto, UpdateSettingsInputDto } from "@omam/contracts";

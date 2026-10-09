@@ -1,131 +1,92 @@
-import { useState } from "react";
-import { LANGUAGE_LABEL } from "@omam/i18n";
-import { NavLink, Outlet } from "react-router-dom";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { LANGUAGE_LABEL, type TranslationKey } from "@omam/i18n";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { useIsMutating } from "@tanstack/react-query";
+import { translateError } from "@omam/i18n";
 import { useSession } from "../lib/session";
-import type { TranslationKey } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
-import { useTheme } from "../lib/ui";
+import { useTheme, useToast } from "../lib/ui";
 import { displayName } from "../lib/format";
-import { ActionMenu, Avatar, Button } from "../components/ui";
+import { ActionMenu, Button, Select } from "../components/ui";
+import { Icon, type IconName } from "../components/icons";
 
-type NavItem = {
-  to: string;
-  key: TranslationKey;
-  end?: boolean;
-};
-
-const NAV: NavItem[] = [
-  { to: "/", key: "admin.nav.overview", end: true },
-  { to: "/timesheets", key: "admin.nav.timesheets" },
-  { to: "/report", key: "admin.nav.report" },
-  { to: "/payroll", key: "admin.nav.payroll" },
-];
-
-const TEAM_NAV: NavItem[] = [
-  { to: "/members", key: "admin.nav.members" },
-  { to: "/invites", key: "admin.nav.invites" },
-  { to: "/projects", key: "admin.nav.projects" },
-  { to: "/settings", key: "admin.nav.settings" },
-  { to: "/audit", key: "admin.nav.audit" },
+const NAV: { to: string; key: TranslationKey; icon: IconName }[] = [
+  { to: "/", key: "workspace.overview", icon: "overview" },
+  { to: "/report", key: "workspace.monthlyReport", icon: "report" },
+  { to: "/timesheets", key: "workspace.sessions", icon: "sessions" },
+  { to: "/members", key: "workspace.members", icon: "members" },
+  { to: "/teams", key: "workspace.teams", icon: "teams" },
 ];
 
 export function Shell() {
-  const { user, membership, signOut } = useSession();
+  const { user, membership, signOut, teams, selectTeam, isSwitching } = useSession();
   const { theme, toggle } = useTheme();
   const { language, setLanguage, t } = useLanguage();
-
+  const location = useLocation();
+  const toast = useToast();
+  const mutating = useIsMutating();
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [clip, setClip] = useState("inset(0 0 100% 0)");
+  const [pointerMotion, setPointerMotion] = useState(false);
+  const nav = useRef<HTMLDivElement>(null);
+  const main = useRef<HTMLElement>(null);
+  const activeIndex = Math.max(0, NAV.findIndex((item) => item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to)));
+  useLayoutEffect(() => {
+    main.current?.scrollTo({ top: 0 });
+  }, [location.pathname, membership?.organizationId]);
+  useLayoutEffect(() => {
+    const root = nav.current;
+    if (!root) return;
+    const measure = () => {
+      const item = root.querySelector<HTMLAnchorElement>("a.active");
+      if (!item) return;
+      const outer = root.getBoundingClientRect();
+      const rect = item.getBoundingClientRect();
+      setClip(`inset(${rect.top - outer.top}px ${outer.right - rect.right}px ${outer.bottom - rect.bottom}px ${rect.left - outer.left}px round var(--nav-radius))`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [location.pathname, navigationOpen, language]);
 
-
-  return (
-    <div className="shell">
-      <a className="skip-link" href="#main-content">
-        {t("admin.table.skip")}
-      </a>
-      <aside className="sidebar" data-open={navigationOpen}>
-        <div className="sidebar-brand stack gap-2">
-          <span className="t-label muted">{t("admin.brand")}</span>
-          <span className="t-title3">{membership?.organizationName ?? t("team.title")}</span>
-        </div>
-
-        <Button
-          variant="ghost"
-          className="navigation-toggle"
-          aria-expanded={navigationOpen}
-          aria-controls="main-navigation"
-          onClick={() => setNavigationOpen(!navigationOpen)}
-        >
-          {t("admin.table.navigation")}
-        </Button>
-
-        <nav
-          id="main-navigation"
-          className="nav"
-          aria-label={t("admin.table.navigation")}
-          onClick={() => setNavigationOpen(false)}
-        >
-          {NAV.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>
-              {t(item.key)}
-            </NavLink>
-          ))}
-
-          <span className="nav-group-label">{t("admin.nav.team")}</span>
-
-          {TEAM_NAV.map((item) => (
-            <NavLink key={item.to} to={item.to}>
-              {t(item.key)}
-            </NavLink>
-          ))}
+  return <div className="shell workspace-shell">
+    <a className="skip-link" href="#main-content">{t("admin.table.skip")}</a>
+    <aside className="sidebar workspace-sidebar" data-open={navigationOpen}>
+      <Link to="/" className="brand-mark" aria-label={t("admin.brand")} title={t("admin.brand")}><Icon name="sessions" /></Link>
+      <Button variant="ghost" className="navigation-toggle" aria-expanded={navigationOpen} aria-controls="main-navigation" aria-label={t("admin.table.navigation")} onClick={() => setNavigationOpen(!navigationOpen)}><Icon name="menu" /></Button>
+      <div className="workspace-nav" ref={nav} data-motion={pointerMotion}>
+        <nav id="main-navigation" className="nav" aria-label={t("admin.table.navigation")} onPointerDown={() => setPointerMotion(true)} onKeyDown={() => setPointerMotion(false)}>
+          {NAV.map((item) => <NavLink key={item.to} to={item.to} end={item.to === "/"} className="rail-link" title={t(item.key)} aria-label={t(item.key)} onClick={() => setNavigationOpen(false)}><Icon name={item.icon} /><span className="rail-label">{t(item.key)}</span></NavLink>)}
         </nav>
-
-        <div className="sidebar-account">
-          <ActionMenu
-            label={t("admin.table.account")}
-            items={[
-              {
-                label: LANGUAGE_LABEL[language === "fa" ? "en" : "fa"],
-                onAction: () => setLanguage(language === "fa" ? "en" : "fa"),
-              },
-              {
-                label: theme === "dark" ? t("profile.themeLight") : t("profile.themeDark"),
-                onAction: toggle,
-              },
-              { label: t("profile.signOut"), onAction: signOut },
-            ]}
-          >
-            <Avatar name={user ? displayName(user) : "?"} src={user?.avatarUrl} size="sm" />
-            <span className="stack grow">
-              <span className="t-label">{user ? displayName(user) : ""}</span>
-              <span className="t-caption muted">{membership ? t(`role.${membership.role}`) : ""}</span>
-            </span>
-          </ActionMenu>
+        <div className="nav-active-copy" aria-hidden="true" style={{ clipPath: clip }}>
+          {NAV.map((item) => <span key={item.to} className="rail-link"><Icon name={item.icon} /><span className="rail-label">{t(item.key)}</span></span>)}
         </div>
-      </aside>
-
-      <main className="main" id="main-content" tabIndex={-1}>
-        <Outlet />
-      </main>
-    </div>
-  );
+      </div>
+      <div className="sidebar-account">
+        <ActionMenu label={t("admin.nav.settings")} showChevron={false} items={[
+          { label: LANGUAGE_LABEL[language === "fa" ? "en" : "fa"], onAction: () => setLanguage(language === "fa" ? "en" : "fa") },
+          { label: theme === "dark" ? t("profile.themeLight") : t("profile.themeDark"), onAction: toggle },
+          { label: t("profile.signOut"), onAction: signOut },
+        ]}><Icon name="settings" /></ActionMenu>
+      </div>
+    </aside>
+    <main ref={main} className="main" id="main-content" tabIndex={-1}>
+      <div className="workspace-topbar">
+        <div className="breadcrumb"><span className="t-label">{t("admin.brand")}</span><span className="faint">/</span><span className="muted">{t(NAV[activeIndex].key)}</span></div>
+        <div className="row gap-6 topbar-tools">
+          <Select aria-label={t("workspace.selectTeam")} value={membership?.organizationId} disabled={isSwitching || mutating > 0} onValueChange={(id) => { void selectTeam(id).catch((error) => toast(translateError(error, t), "error")); }}>
+            {teams.map((team) => <option key={team.organizationId} value={team.organizationId}>{team.organizationName}</option>)}
+          </Select>
+          <span className="account-name t-caption muted">{user ? displayName(user) : ""}</span>
+        </div>
+      </div>
+      <div className="workspace-content" key={membership?.organizationId}><Outlet /></div>
+    </main>
+  </div>;
 }
 
-export function PageHeader({
-  title,
-  subtitle,
-  actions,
-}: {
-  title: string;
-  subtitle?: string;
-  actions?: React.ReactNode;
-}) {
-  return (
-    <header className="page-header">
-      <div className="stack gap-2">
-        <h1>{title}</h1>
-        {subtitle ? <span className="t-body-sm muted">{subtitle}</span> : null}
-      </div>
-      {actions ? <div className="row gap-5 wrap">{actions}</div> : null}
-    </header>
-  );
+export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
+  const { membership } = useSession();
+  return <header className="page-header"><div className="stack gap-3"><span className="page-eyebrow">{membership?.organizationName}</span><h1>{title}</h1>{subtitle ? <p className="t-body-sm muted">{subtitle}</p> : null}</div>{actions ? <div className="row gap-5 wrap">{actions}</div> : null}</header>;
 }

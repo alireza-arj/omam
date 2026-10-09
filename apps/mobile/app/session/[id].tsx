@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useSQLiteContext } from "expo-sqlite";
+import { useSQLiteContext } from "../../src/lib/sqlite-context";
 import { Building2, ChevronLeft, Laptop, Trash2 } from "lucide-react-native";
 import { dayKey, formatFullDate } from "@omam/calendar";
 import { translateError } from "@omam/i18n";

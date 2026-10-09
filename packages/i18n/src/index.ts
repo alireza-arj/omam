@@ -1,5 +1,5 @@
 /**
- * Omam — languages.
+ * Tarazkar — languages.
  *
  * `en` is the source of truth: its shape types every other dictionary, so a
  * missing or misspelled key is a build error rather than a blank label.
@@ -180,7 +180,8 @@ export function formatNumber(value: number, fractionDigits = 0) {
  * through as-is, so a server message still reaches the reader.
  */
 export function translateError(error: unknown, t: Translator, fallbackKey: TranslationKey = "common.somethingWrong") {
-  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : null;
+  const message = code ?? (error instanceof Error ? error.message : typeof error === "string" ? error : "");
 
   if (!message) {
     return t(fallbackKey);

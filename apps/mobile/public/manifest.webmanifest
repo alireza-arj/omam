@@ -1,6 +1,6 @@
 {
-  "name": "Omam",
-  "short_name": "Omam",
+  "name": "Tarazkar",
+  "short_name": "Tarazkar",
   "description": "Offline-first attendance and work session tracking.",
   "start_url": "/",
   "scope": "/",

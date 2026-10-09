@@ -1,3 +1,4 @@
+import { isDesktop } from "../src/lib/desktop";
 import { Redirect } from "expo-router";
 import { useAuth } from "../src/providers/auth-provider";
 
@@ -13,7 +14,7 @@ export default function RootIndex() {
       return <Redirect href="/(auth)/profile" />;
     }
 
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href={isDesktop() ? "/desktop" : "/(tabs)"} />;
   }
 
   return <Redirect href="/(auth)" />;

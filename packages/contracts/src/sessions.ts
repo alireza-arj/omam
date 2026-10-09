@@ -17,7 +17,10 @@ export const sessionProjectSchema = z.object({
 export const sessionSchema = z.object({
   id: z.string(),
   userId: z.string(),
+  organizationId: z.string().nullable().optional(),
   clientId: z.string().nullable(),
+  deviceId: z.string().nullable().optional(),
+  deviceName: z.string().nullable().optional(),
   startAt: z.string(),
   endAt: z.string().nullable(),
   durationMinutes: z.number().nonnegative(),

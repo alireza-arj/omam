@@ -7,7 +7,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from "../../lib/storage";
 import {
   DEFAULT_LANGUAGE,
   asLanguage,

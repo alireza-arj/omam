@@ -19,7 +19,7 @@ import {
 import { CollectionToolbar, Pagination } from "../components/collection";
 import { useCollection } from "../lib/collection";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MemberDto, UpdateMemberInputDto } from "@omam/contracts";
 import { api } from "../lib/api";
@@ -27,12 +27,13 @@ import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
 import { useToast } from "../lib/ui";
-import { currencyLabel, displayName, formatMoney } from "../lib/format";
+import { displayName } from "../lib/format";
 import { PageHeader } from "./layout";
 
 type Draft = UpdateMemberInputDto;
 
 export function MembersPage() {
+  const navigate = useNavigate();
   const { can } = useSession();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -76,9 +77,6 @@ export function MembersPage() {
       status: member.status,
       employeeCode: member.employeeCode,
       jobTitle: member.jobTitle,
-      payType: member.payType,
-      hourlyRate: member.hourlyRate,
-      monthlySalary: member.monthlySalary,
       monthlyGoalHours: member.monthlyGoalHours,
     });
   }
@@ -90,9 +88,10 @@ export function MembersPage() {
   return (
     <>
       <PageHeader
-        title={t("admin.nav.members")}
+        title={t("workspace.members")}
+        subtitle={t("workspace.membersHint")}
         actions={
-          <ButtonLink primary to="/invites">
+          <ButtonLink primary to="/teams/invites">
             {t("admin.members.inviteSomeone")}
           </ButtonLink>
         }
@@ -118,7 +117,7 @@ export function MembersPage() {
                     <Table.Column isRowHeader>{t("admin.timesheets.member")}</Table.Column>
                     <Table.Column>{t("admin.members.code")}</Table.Column>
                     <Table.Column>{t("admin.members.role")}</Table.Column>
-                    <Table.Column>{t("admin.members.pay")}</Table.Column>
+                    <Table.Column>{t("admin.members.jobTitle")}</Table.Column>
                     <Table.Column className="num">{t("admin.members.goal")}</Table.Column>
                     <Table.Column>{t("admin.members.status")}</Table.Column>
                     <Table.Column className="tight" />
@@ -142,13 +141,7 @@ export function MembersPage() {
                           <RoleBadge role={member.role} />
                         </Table.Cell>
                         <Table.Cell className="t-mono">
-                          {member.payType === "MONTHLY"
-                            ? t("payType.perMonth", {
-                                amount: formatMoney(member.monthlySalary, member.currency, t),
-                              })
-                            : t("payType.perHour", {
-                                amount: formatMoney(member.hourlyRate, member.currency, t),
-                              })}
+                          {member.jobTitle ?? t("common.none")}
                         </Table.Cell>
                         <Table.Cell className="num t-mono muted">
                           {t("units.hoursShort", { value: member.monthlyGoalHours })}
@@ -166,6 +159,7 @@ export function MembersPage() {
                           <ActionMenu
                             label={t("admin.table.actionsFor", { name: displayName(member) })}
                             items={[
+                              { label: t("workspace.viewProfile"), onAction: () => { navigate(`/members/${member.userId}`); } },
                               { label: t("common.edit"), onAction: () => startEdit(member) },
                               {
                                 label: t("admin.members.resetPassword"),
@@ -247,41 +241,6 @@ export function MembersPage() {
                 </Select>
               </Field>
             </div>
-
-            <Field label={t("admin.invites.payType")}>
-              <Select
-                value={draft.payType}
-                onValueChange={(value) => setDraft({ ...draft, payType: value as Draft["payType"] })}
-              >
-                <option value="HOURLY">{t("payType.HOURLY")}</option>
-                <option value="MONTHLY">{t("payType.MONTHLY")}</option>
-              </Select>
-            </Field>
-
-            {draft.payType === "MONTHLY" ? (
-              <Field
-                label={t("admin.members.monthlySalary", { currency: currencyLabel(editing.currency, t) })}
-              >
-                <Input
-                  type="number"
-                  min={0}
-                  value={draft.monthlySalary ?? 0}
-                  onChange={(event) => setDraft({ ...draft, monthlySalary: Number(event.target.value) })}
-                />
-              </Field>
-            ) : (
-              <Field
-                label={t("admin.members.hourlyRate", { currency: currencyLabel(editing.currency, t) })}
-                hint={t("admin.members.hourlyRateHint")}
-              >
-                <Input
-                  type="number"
-                  min={0}
-                  value={draft.hourlyRate ?? 0}
-                  onChange={(event) => setDraft({ ...draft, hourlyRate: Number(event.target.value) })}
-                />
-              </Field>
-            )}
 
             <Field label={t("admin.members.monthlyGoalHours")}>
               <Input

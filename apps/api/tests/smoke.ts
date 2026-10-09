@@ -41,6 +41,9 @@ const owner = await call("POST", "/auth/login", { body: { username: "owner", pas
 check("owner login", owner.status === 200 && !!owner.json.token, owner.json);
 const ownerToken = owner.json.token;
 check("owner is OWNER", owner.json.membership?.role === "OWNER", owner.json.membership);
+const isolatedTeam = await call("POST", "/team/organizations", { token: ownerToken, body: { name: `Smoke ${RUN}`, calendar: "JALALI", language: "en" } });
+check("isolated smoke team created", isolatedTeam.status === 200, isolatedTeam.json);
+check("smoke team selected", (await call("POST", "/team/select", { token: ownerToken, body: { organizationId: isolatedTeam.json.organizationId } })).status === 200);
 
 check("bad password rejected", (await call("POST", "/auth/login", { body: { username: "owner", password: "wrongpass" } })).status === 401);
 check("no token is 401", (await call("GET", "/team/members")).status === 401);
@@ -55,7 +58,7 @@ const devToken = dev.json.token;
 check("invite cannot be reused", (await call("POST", "/auth/register", { body: { username: `other_${RUN}`, password: "devpass123", inviteCode: invite.json.code } })).status === 422);
 check("member cannot list team", (await call("GET", "/team/members", { token: devToken })).status === 403);
 
-const project = await call("POST", "/projects", { token: ownerToken, body: { name: `Omam API ${RUN}`, color: "#B4213C" } });
+const project = await call("POST", "/projects", { token: ownerToken, body: { name: `Tarazkar API ${RUN}`, color: "#B4213C" } });
 check("project created", project.status === 200, project.json);
 
 const day = (offset: number, hour: number) => {
@@ -114,6 +117,12 @@ check("report worked days = 3", sara?.workedDays === 3, sara?.workedDays);
 
 const csv = await fetch(`${BASE}/reports/monthly.csv`, { headers: { Authorization: `Bearer ${ownerToken}` } });
 check("csv export", csv.status === 200 && (await csv.text()).includes(DEV_USERNAME));
+
+const memberReport = await call("GET", `/reports/members/${devUserId}`, { token: ownerToken });
+check("member report", memberReport.status === 200 && memberReport.json.profile.username === DEV_USERNAME, memberReport.json);
+const memberCsv = await fetch(`${BASE}/reports/members/${devUserId}/export.csv`, { headers: { Authorization: `Bearer ${devToken}` } });
+check("member csv export", memberCsv.status === 200 && memberCsv.headers.get("content-type")?.includes("text/csv") === true && (await memberCsv.text()).includes("Auth routes"));
+check("member cannot export another member", (await call("GET", `/reports/members/${owner.json.user.id}/export.csv`, { token: devToken })).status === 403);
 
 const built = await call("POST", "/payroll/periods", { token: ownerToken, body: { month: report.json.month } });
 check("payroll built", built.status === 200 && built.json.lines.length >= 1, built.json?.message);

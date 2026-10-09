@@ -1,6 +1,9 @@
 import { Component, useEffect, useState, useSyncExternalStore, type PropsWithChildren } from "react";
 import { SQLiteProvider } from "expo-sqlite";
 import { Button, Card, Screen, Spinner, Text, layout, useLanguage } from "../design/taraz";
+import { isDesktop } from "../lib/desktop";
+import { DesktopDatabaseProvider } from "./desktop-database-provider";
+import { ExpoDatabaseContext } from "../lib/sqlite-context";
 import { DATABASE_NAME, initializeDatabase } from "../lib/database";
 import { getBrowserDatabaseAccess, isDatabaseAccessConflict } from "../lib/browser-database-access";
 
@@ -37,7 +40,7 @@ class DatabaseErrorBoundary extends Component<PropsWithChildren, { error: Error 
   }
 }
 
-export function DatabaseProvider({ children }: PropsWithChildren) {
+function BrowserDatabaseProvider({ children }: PropsWithChildren) {
   const [access] = useState(getBrowserDatabaseAccess);
   const status = useSyncExternalStore(access.subscribe, access.getSnapshot, () => "loading" as const);
   useEffect(() => { access.start(); }, [access]);
@@ -46,8 +49,12 @@ export function DatabaseProvider({ children }: PropsWithChildren) {
   return (
     <DatabaseErrorBoundary>
       <SQLiteProvider databaseName={DATABASE_NAME} onInit={initializeDatabase} useSuspense>
-        {children}
+        <ExpoDatabaseContext>{children}</ExpoDatabaseContext>
       </SQLiteProvider>
     </DatabaseErrorBoundary>
   );
+}
+
+export function DatabaseProvider({ children }: PropsWithChildren) {
+  return isDesktop() ? <DesktopDatabaseProvider>{children}</DesktopDatabaseProvider> : <BrowserDatabaseProvider>{children}</BrowserDatabaseProvider>;
 }

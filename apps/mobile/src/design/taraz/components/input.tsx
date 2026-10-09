@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { type TextInputProps, type StyleProp, type ViewStyle, type TextStyle } from "react-native";
+import { Platform, type TextInputProps, type StyleProp, type ViewStyle, type TextStyle } from "react-native";
 import { TextField } from "heroui-native/text-field";
 import { Input as HeroInput } from "heroui-native/input";
 import { InputGroup } from "heroui-native/input-group";
@@ -10,7 +10,7 @@ import { FieldError } from "heroui-native/field-error";
 import { Text } from "./text";
 import { LayoutDirection } from "uniwind";
 import { useLanguage } from "../i18n";
-import { layout, typeRolesByLanguage } from "../tokens";
+import { fontSize, layout, typeRolesByLanguage } from "../tokens";
 
 export type InputProps = Omit<TextInputProps, "style"> & {
   label?: string;
@@ -32,6 +32,7 @@ export function Input({
   const rtlText = freeText && isRtl;
   const inputStyle: TextStyle = {
     ...roles[size === "sm" ? "bodySm" : "body"],
+    ...(Platform.OS === "web" ? { fontSize: fontSize.inputWebMin } : null),
     minHeight: layout.tapMin,
     height: "auto",
     writingDirection: rtlText ? "rtl" : "ltr",

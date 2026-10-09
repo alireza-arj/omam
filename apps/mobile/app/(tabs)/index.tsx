@@ -11,6 +11,7 @@ import { useAttendance } from "../../src/providers/attendance-provider";
 import {
   Button,
   Icon,
+  MotionReveal,
   Screen,
   SegmentedControl,
   Text,
@@ -69,7 +70,7 @@ export default function TodayScreen() {
     : 0;
 
   const timecode = isRunning ? formatDurationHms(elapsedSeconds) : formatWallClock(now);
-  const dialSize = useMemo(() => Math.min(Math.max(width * 0.72, 232), 300), [width]);
+  const dialSize = useMemo(() => Math.min(Math.max(width * 0.68, 220), 288), [width]);
 
   const categoryOptions = useMemo<SegmentOption<WorkSessionCategory>[]>(
     () => [
@@ -96,12 +97,14 @@ export default function TodayScreen() {
       if (summary.activeSession) {
         setOptimisticStartAt(null);
         await clockOut();
+        showToast({ title: t("today.clockedOutTitle"), description: t("today.clockedOutBody"), tone: "success" });
 
         return;
       }
 
       setOptimisticStartAt(new Date().toISOString());
       await clockIn(selectedCategory);
+      showToast({ title: t("today.clockedInTitle"), description: t("today.clockedInBody"), tone: "success" });
     } catch (error) {
       if (!summary.activeSession) {
         setOptimisticStartAt(null);
@@ -116,39 +119,48 @@ export default function TodayScreen() {
   }
 
   return (
-    <Screen scroll center bottomInset={tabBarHeight} gap={layout.gapSection}>
-      <View style={{ alignItems: "center", gap: 2 }}>
+    <Screen scroll center bottomInset={tabBarHeight} gap={layout.gapLoose} contentStyle={{ paddingTop: layout.padSection, paddingBottom: tabBarHeight + layout.gapLoose }}>
+      <View style={{ alignItems: "center", gap: layout.gapTight }}>
         <Text role="overline" tone="muted">
           {displayDate}
         </Text>
-        <Text role="monoDisplay" tone="title">
-          {timecode}
-        </Text>
-        <Text role="caption" tone="muted">
-          {isRunning ? t("today.running") : t("today.idle")}
-        </Text>
       </View>
 
-      <SessionDial
-        size={dialSize}
-        isRunning={isRunning}
-        elapsedSeconds={elapsedSeconds}
-        currentDate={now}
-      />
+      <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: layout.gapDefault }}>
+        <SessionDial
+          size={dialSize}
+          isRunning={isRunning}
+          elapsedSeconds={elapsedSeconds}
+          currentDate={now}
+        />
+      </View>
 
-      <View style={{ alignItems: "center", gap: layout.gapLoose }}>
+      <View style={{ alignItems: "center", gap: layout.gapTight }}>
+        <Text role="monoDisplay" tone="title" style={{ textAlign: "center" }}>
+          {timecode}
+        </Text>
+        <MotionReveal key={isRunning ? "running" : "idle"}>
+          <Text role="bodySm" tone={isRunning ? "accent" : "muted"} style={{ textAlign: "center" }}>
+            {isRunning ? t("today.running") : t("today.idle")}
+          </Text>
+        </MotionReveal>
+      </View>
+
+      <View style={{ alignItems: "center", alignSelf: "stretch", gap: layout.gapLoose, paddingTop: layout.gapLoose }}>
         <SegmentedControl
           options={categoryOptions}
           value={activeCategory}
           onChange={setSelectedCategory}
           disabled={isRunning || isMutating}
           size="lg"
+          full
         />
 
         <Button
           label={isMutating ? t("common.saving") : isRunning ? t("today.stop") : t("today.start")}
           size="lg"
           pill
+          full
           loading={isMutating}
           variant={isRunning ? "secondary" : "primary"}
           onPress={handleToggle}
@@ -160,7 +172,7 @@ export default function TodayScreen() {
               filled
             />
           }
-          style={{ minWidth: 184 }}
+          style={{ minHeight: layout.controlLg + layout.gapLoose }}
         />
       </View>
     </Screen>

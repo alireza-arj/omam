@@ -197,5 +197,5 @@ export const payrollRoutes = new Elysia({ prefix: "/payroll" })
       ]),
     );
 
-    return csvResponse(`omam-payroll-${detail.period.month}.csv`, body);
+    return csvResponse(`tarazkar-payroll-${detail.period.month}.csv`, body);
   });

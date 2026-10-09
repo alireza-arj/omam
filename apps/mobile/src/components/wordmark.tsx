@@ -28,7 +28,7 @@ export function Wordmark({ size = 30, color, style }: Props) {
         style,
       ]}
     >
-      Omam
+      Tarazkar
     </RNText>
   );
 }

@@ -1,11 +1,11 @@
 # Taraz + HeroUI
 
-Taraz is OMAM's theme and localization layer over [HeroUI Native](https://heroui.com/docs/native/getting-started/quick-start).
+Taraz is Tarazkar's theme and localization layer over [HeroUI Native](https://heroui.com/docs/native/getting-started/quick-start).
 Screens keep importing from `src/design/taraz`; the shared adapters render the real HeroUI components.
 
 ## Components
 
-| OMAM component | HeroUI implementation |
+| Tarazkar component | HeroUI implementation |
 | --- | --- |
 | Button, IconButton | Button, Spinner |
 | Input | TextField, Label, Input, InputGroup, TextArea, Description, FieldError |

@@ -193,7 +193,7 @@ export function Progress({ value }: { value: number }) {
   const t = useT();
   const percent = Math.min(100, Math.max(0, Number.isFinite(value) ? value * 100 : 0));
   return (
-    <ProgressBar value={percent} aria-label={t("common.progress")} size="sm">
+    <ProgressBar value={percent} aria-label={t("common.progress")} aria-valuetext={`${Math.round(percent)}%`} size="sm">
       <ProgressBar.Track>
         <ProgressBar.Fill />
       </ProgressBar.Track>
@@ -438,10 +438,12 @@ export function ActionMenu({
   children,
   items,
   disabled = false,
+  showChevron = true,
 }: {
   label: string;
   children?: ReactNode;
   disabled?: boolean;
+  showChevron?: boolean;
   items: { label: string; onAction: () => void; disabled?: boolean }[];
 }) {
   const t = useT();
@@ -453,7 +455,7 @@ export function ActionMenu({
         isDisabled={disabled}
       >
         {children ?? t("admin.table.actions")}
-        <span aria-hidden>⌄</span>
+        {showChevron ? <span aria-hidden>⌄</span> : null}
       </Dropdown.Trigger>
       <Dropdown.Popover>
         <Dropdown.Menu aria-label={label}>

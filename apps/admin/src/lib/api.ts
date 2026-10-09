@@ -1,5 +1,8 @@
 import type {
   AuditLogsResponseDto,
+  AuthMembershipDto,
+  TeamsResponseDto,
+  CreateOrganizationInputDto,
   AuthResponseDto,
   CreateInviteInputDto,
   CreateProjectInputDto,
@@ -28,7 +31,7 @@ import type {
   UpdateProjectInputDto,
 } from "@omam/contracts";
 
-export const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3001";
+export const API_URL = ((import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3001").replace(/\/+$/, "");
 
 const TOKEN_KEY = "omam.admin.token";
 
@@ -70,7 +73,7 @@ type RequestOptions = {
 };
 
 function buildUrl(path: string, query?: RequestOptions["query"]) {
-  const url = new URL(path, API_URL);
+  const url = new URL(`${API_URL}${path}`, window.location.origin);
 
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value !== undefined && value !== null && value !== "") {
@@ -122,7 +125,8 @@ export async function downloadCsv(path: string, query: RequestOptions["query"], 
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, "EXPORT_FAILED");
+    if (response.status === 401) writeToken(null);
+    throw new ApiError(response.status, "EXPORT_FAILED", response.status === 401 ? "SESSION_EXPIRED" : "EXPORT_FAILED");
   }
 
   const blob = await response.blob();
@@ -156,6 +160,10 @@ export const api = {
   settings: () => request<SettingsDto>("/settings"),
   updateSettings: (body: UpdateSettingsInputDto) =>
     request<SettingsDto>("/settings", { method: "PATCH", body }),
+
+  teams: () => request<TeamsResponseDto>("/team/organizations"),
+  createTeam: (body: CreateOrganizationInputDto) => request<AuthMembershipDto>("/team/organizations", { method: "POST", body }),
+  selectTeam: (organizationId: string) => request<AuthMembershipDto>("/team/select", { method: "POST", body: { organizationId } }),
 
   organization: () => request<OrganizationDto>("/team/organization"),
   updateOrganization: (body: UpdateOrganizationInputDto) =>

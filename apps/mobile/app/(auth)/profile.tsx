@@ -1,5 +1,6 @@
+import { isDesktop } from "../../src/lib/desktop";
 import { useMemo, useState } from "react";
-import { View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { Redirect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -40,7 +41,7 @@ export default function ProfileSetupScreen() {
   }
 
   if (!needsProfileSetup) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href={isDesktop() ? "/desktop" : "/(tabs)"} />;
   }
 
   async function pickAvatar() {
@@ -99,59 +100,64 @@ export default function ProfileSetupScreen() {
       style={{ backgroundColor: colors.surfaceApp, flex: 1 }}
       edges={["top", "bottom"]}
     >
-      <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: layout.padPage }}>
-        <Card
-          elevation={2}
-          style={{
-            alignSelf: "center",
-            gap: layout.gapLoose,
-            maxWidth: 460,
-            padding: layout.padSection,
-            width: "100%",
-          }}
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: layout.padPage, paddingVertical: layout.gapDefault }}
+          keyboardShouldPersistTaps="handled"
         >
-          <View style={{ gap: 2 }}>
-            <Text role="overline" tone="muted">
-              {t("auth.setupOverline")}
-            </Text>
-            <Text role="title1">{t("auth.setupTitle")}</Text>
-            <Text role="bodySm" tone="muted">
-              {t("auth.setupSubtitle")}
-            </Text>
-          </View>
+          <Card
+            elevation={2}
+            style={{
+              alignSelf: "center",
+              gap: layout.gapLoose,
+              maxWidth: 460,
+              padding: layout.padSection,
+              width: "100%",
+            }}
+          >
+            <View style={{ gap: 2 }}>
+              <Text role="overline" tone="muted">
+                {t("auth.setupOverline")}
+              </Text>
+              <Text role="title1">{t("auth.setupTitle")}</Text>
+              <Text role="bodySm" tone="muted">
+                {t("auth.setupSubtitle")}
+              </Text>
+            </View>
 
-          <View style={{ alignItems: "center", gap: layout.gapDefault }}>
-            <Avatar uri={avatarUrl} name={nickname || user?.username} size={88} />
-            <Button
-              label={t("auth.uploadPhoto")}
-              variant="quiet"
-              size="sm"
-              onPress={pickAvatar}
-              icon={<Icon glyph={Camera} size={16} color={colors.textTitle} />}
-              style={{ alignSelf: "center" }}
+            <View style={{ alignItems: "center", gap: layout.gapDefault }}>
+              <Avatar uri={avatarUrl} name={nickname || user?.username} size={88} />
+              <Button
+                label={t("auth.uploadPhoto")}
+                variant="quiet"
+                size="sm"
+                onPress={pickAvatar}
+                icon={<Icon glyph={Camera} size={16} color={colors.textTitle} />}
+                style={{ alignSelf: "center" }}
+              />
+            </View>
+
+            <Input
+              label={t("auth.nickname")}
+              freeText
+              autoCapitalize="words"
+              value={nickname}
+              onChangeText={setNickname}
+              placeholder={t("auth.nicknamePlaceholder")}
+              hint={isIncomplete ? t("auth.nicknameRule") : undefined}
             />
-          </View>
 
-          <Input
-            label={t("auth.nickname")}
-            freeText
-            autoCapitalize="words"
-            value={nickname}
-            onChangeText={setNickname}
-            placeholder={t("auth.nicknamePlaceholder")}
-            hint={isIncomplete ? t("auth.nicknameRule") : undefined}
-          />
-
-          <Button
-            label={t("auth.saveProfile")}
-            full
-            size="lg"
-            disabled={isIncomplete}
-            loading={isMutating}
-            onPress={handleSave}
-          />
-        </Card>
-      </View>
+            <Button
+              label={t("auth.saveProfile")}
+              full
+              size="lg"
+              disabled={isIncomplete}
+              loading={isMutating}
+              onPress={handleSave}
+            />
+          </Card>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

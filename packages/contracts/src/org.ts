@@ -33,6 +33,15 @@ export const updateOrganizationInputSchema = z.object({
   monthlyGoalHours: z.number().nonnegative().max(744).optional(),
 });
 
+export const createOrganizationInputSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  calendar: calendarSystemSchema.default("JALALI"),
+  language: languageSchema.default("fa"),
+});
+
+export const selectOrganizationInputSchema = z.object({ organizationId: z.string().min(1) });
+export const joinTeamInputSchema = z.object({ inviteCode: z.string().trim().min(6).max(40) });
+
 export const memberSchema = z.object({
   membershipId: z.string(),
   userId: z.string(),
@@ -152,6 +161,7 @@ export const auditLogsResponseSchema = z.object({
 });
 
 export type OrganizationDto = z.infer<typeof organizationSchema>;
+export type CreateOrganizationInputDto = z.infer<typeof createOrganizationInputSchema>;
 export type UpdateOrganizationInputDto = z.infer<typeof updateOrganizationInputSchema>;
 export type MemberDto = z.infer<typeof memberSchema>;
 export type MembersResponseDto = z.infer<typeof membersResponseSchema>;

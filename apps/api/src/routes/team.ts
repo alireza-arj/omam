@@ -1,13 +1,17 @@
 import { Elysia } from "elysia";
-import { randomInt } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import {
   createInviteInputSchema,
+  createOrganizationInputSchema,
+  selectOrganizationInputSchema,
+  joinTeamInputSchema,
   resetMemberPasswordInputSchema,
   updateMemberInputSchema,
   updateOrganizationInputSchema,
   type MemberDto,
 } from "@omam/contracts";
 import type { Membership, Organization, User } from "@prisma/client";
+import { serializeMember } from "../lib/serialize";
 import { prisma } from "../lib/prisma";
 import { authenticated } from "../lib/context";
 import {
@@ -15,8 +19,9 @@ import {
   requireOrganization,
   requireRole,
   revokeAllSessionsForUser,
+  serializeMembership,
 } from "../lib/auth";
-import { conflict, forbidden, invalid, notFound, parseInput } from "../lib/errors";
+import { AppError, conflict, forbidden, invalid, notFound, parseInput } from "../lib/errors";
 import { recordAudit } from "../lib/audit";
 
 /** No 0/O/1/I: these codes get read aloud and typed on a phone. */
@@ -48,28 +53,6 @@ function serializeOrganization(organization: Organization) {
   };
 }
 
-function serializeMember(membership: Membership & { user: User }): MemberDto {
-  return {
-    membershipId: membership.id,
-    userId: membership.userId,
-    username: membership.user.username,
-    nickname: membership.user.nickname,
-    avatarUrl: membership.user.avatarUrl,
-    email: membership.user.email,
-    role: membership.role,
-    status: membership.status,
-    employeeCode: membership.employeeCode,
-    jobTitle: membership.jobTitle,
-    payType: membership.payType,
-    hourlyRate: membership.hourlyRate,
-    monthlySalary: membership.monthlySalary,
-    currency: membership.currency,
-    monthlyGoalHours: membership.monthlyGoalHours,
-    joinedAt: membership.joinedAt.toISOString(),
-    leftAt: membership.leftAt?.toISOString() ?? null,
-    lastLoginAt: membership.user.lastLoginAt?.toISOString() ?? null,
-  };
-}
 
 async function loadMembership(organizationId: string, membershipId: string) {
   const membership = await prisma.membership.findFirst({
@@ -101,6 +84,68 @@ async function assertNotLastOwner(organizationId: string, membership: Membership
 
 export const teamRoutes = new Elysia({ prefix: "/team" })
   .use(authenticated)
+
+  .get("/organizations", async ({ principal }) => ({
+    memberships: (await prisma.membership.findMany({
+      where: { userId: principal.user.id, status: "ACTIVE" },
+      include: { organization: true },
+      orderBy: { createdAt: "asc" },
+    })).map(serializeMembership),
+  }))
+
+  .post("/organizations", async ({ principal, body }) => {
+    requireRole(principal, "MANAGER");
+    const payload = parseInput(createOrganizationInputSchema, body);
+    const membership = await prisma.$transaction(async (tx) => {
+      const organization = await tx.organization.create({
+        data: { ...payload, slug: `team-${randomUUID().slice(0, 12)}` },
+      });
+      return tx.membership.create({
+        data: { organizationId: organization.id, userId: principal.user.id, role: "OWNER" },
+        include: { organization: true },
+      });
+    });
+    await recordAudit({ organizationId: membership.organizationId, actorId: principal.user.id,
+      action: "organization.created", targetType: "organization", targetId: membership.organizationId });
+    return serializeMembership(membership);
+  })
+
+  .post("/select", async ({ principal, body }) => {
+    const payload = parseInput(selectOrganizationInputSchema, body);
+    const membership = await prisma.membership.findFirst({
+      where: { userId: principal.user.id, organizationId: payload.organizationId, status: "ACTIVE" },
+      include: { organization: true },
+    });
+    if (!membership) throw forbidden("You do not belong to this team.");
+    await prisma.authSession.update({ where: { id: principal.sessionId }, data: { organizationId: membership.organizationId } });
+    return serializeMembership(membership);
+  })
+
+  .post("/join", async ({ principal, body }) => {
+    const payload = parseInput(joinTeamInputSchema, body);
+    const invite = await prisma.invite.findUnique({ where: { code: payload.inviteCode.toUpperCase() }, include: { organization: true } });
+    if (!invite || invite.revokedAt || invite.acceptedAt || invite.expiresAt <= new Date()) {
+      throw new AppError(422, "That invite code is not valid.", "INVALID_INVITE");
+    }
+    const membership = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.invite.updateMany({
+        where: { id: invite.id, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+        data: { acceptedAt: new Date(), acceptedById: principal.user.id },
+      });
+      if (!claimed.count) throw conflict("That invite has already been used.", "INVALID_INVITE");
+      const existing = await tx.membership.findUnique({ where: { organizationId_userId: { organizationId: invite.organizationId, userId: principal.user.id } } });
+      if (existing) throw conflict("This account already belongs to this team.", "ALREADY_IN_TEAM");
+      return tx.membership.create({
+        data: { organizationId: invite.organizationId, userId: principal.user.id, role: invite.role,
+          payType: invite.payType, hourlyRate: invite.hourlyRate, monthlySalary: invite.monthlySalary,
+          currency: invite.organization.currency, monthlyGoalHours: invite.organization.monthlyGoalHours },
+        include: { organization: true },
+      });
+    });
+    await recordAudit({ organizationId: membership.organizationId, actorId: principal.user.id,
+      action: "member.joined", targetType: "membership", targetId: membership.id });
+    return serializeMembership(membership);
+  })
 
   .get("/organization", ({ principal }) => serializeOrganization(requireOrganization(principal)))
 
@@ -196,7 +241,10 @@ export const teamRoutes = new Elysia({ prefix: "/team" })
     // Suspension has to reach the phone in the member's pocket, not just the
     // next login.
     if (updated.status === "SUSPENDED") {
-      await revokeAllSessionsForUser(updated.userId);
+      await prisma.authSession.updateMany({
+        where: { userId: updated.userId, organizationId: organization.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
     }
 
     await recordAudit({

@@ -33,7 +33,7 @@ createRoot(document.getElementById("root")!).render(
         <QueryClientProvider client={queryClient}>
           <SessionProvider>
             <ToastProvider>
-              <BrowserRouter>
+              <BrowserRouter basename={import.meta.env.BASE_URL}>
                 <HeroRouting />
               </BrowserRouter>
             </ToastProvider>

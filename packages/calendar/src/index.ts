@@ -475,3 +475,26 @@ export function formatFullDate(
 
   return `${formatDayMonth(date, calendar, language)} ${year}`;
 }
+
+export function workSegments(
+  start: Date,
+  end: Date | null,
+  range: { from: Date; to: Date },
+  calendar: CalendarSystem,
+): { day: string; minutes: number }[] {
+  if (!end) return [];
+  const from = Math.max(start.getTime(), range.from.getTime());
+  const until = Math.min(end.getTime(), range.to.getTime() + 1);
+  if (until <= from) return [];
+  const segments: { day: string; minutes: number }[] = [];
+  let cursor = from;
+  while (cursor < until) {
+    const next = new Date(cursor);
+    next.setHours(24, 0, 0, 0);
+    const boundary = Math.min(until, next.getTime());
+    const minutes = Math.round((boundary - from) / 60000) - Math.round((cursor - from) / 60000);
+    segments.push({ day: dayKey(new Date(cursor), calendar), minutes });
+    cursor = boundary;
+  }
+  return segments;
+}

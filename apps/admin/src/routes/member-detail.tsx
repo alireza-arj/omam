@@ -1,212 +1,67 @@
-import {
-  Avatar,
-  ButtonLink,
-  Card,
-  CardHeader,
-  EmptyState,
-  ErrorState,
-  Loading,
-  Progress,
-  Stat,
-  StatusBadge,
-  Table,
-  TableScroll,
-} from "../components/ui";
-import { CollectionToolbar, Pagination } from "../components/collection";
-import { useCollection } from "../lib/collection";
-import { useReportMonth } from "../lib/report-month";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../lib/api";
-import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
-import { useLanguage } from "../lib/i18n";
-
-import { displayName, formatDate, formatDuration, formatMoney, formatTime } from "../lib/format";
-import { PageHeader } from "./layout";
+import { Avatar, Badge, Button, ButtonLink, Card, CardHeader, EmptyState, ErrorState, Loading, Progress, RoleBadge, StatusBadge, Table, TableScroll } from "../components/ui";
+import { Icon } from "../components/icons";
+import { SessionActions } from "../components/session-actions";
 import { DayBars, MonthPicker } from "../components/controls";
+import { CollectionToolbar, Pagination } from "../components/collection";
+import { Metric } from "./dashboard";
+import { useCollection } from "../lib/collection";
+import { useReportMonth } from "../lib/report-month";
+import { api, downloadCsv } from "../lib/api";
+import { useSession } from "../lib/session";
+import { useLanguage } from "../lib/i18n";
+import { useToast } from "../lib/ui";
+import { displayName, formatDate, formatDateTime, formatDuration, formatTime } from "../lib/format";
+import { PageHeader } from "./layout";
 
 export function MemberDetailPage() {
   const { userId = "" } = useParams();
-  const { calendar } = useSession();
+  const { calendar, membership } = useSession();
   const { language, t } = useLanguage();
+  const toast = useToast();
   const [month, setMonth] = useReportMonth(calendar);
-
-  const report = useQuery({
-    queryKey: ["member-report", userId, month, calendar],
-    queryFn: () => api.memberReport(userId, { month, calendar }),
-  });
-
-  const member = report.data?.member;
-  const goalMinutes = (member?.monthlyGoalHours ?? 0) * 60;
-
-  const collection = useCollection(
-    report.data?.sessions ?? [],
-    (row) =>
-      [
-        row.note,
-        row.project?.name,
-        t(`category.${row.category}`),
-        formatDate(row.startAt, calendar, language),
-      ].join(" "),
-    `${month}:${userId}`,
-  );
-
-  return (
-    <>
-      <PageHeader
-        title={member ? displayName(member) : t("admin.memberDetail.member")}
-        subtitle={member?.jobTitle ?? undefined}
-        actions={
-          <>
-            <MonthPicker month={month} calendar={calendar} onChange={setMonth} />
-            <ButtonLink to="/members">{t("admin.memberDetail.allMembers")}</ButtonLink>
-          </>
-        }
-      />
-
-      <div className="page-body">
-        {report.isPending ? <Loading /> : null}
-        {report.isError ? (
-          <ErrorState message={translateError(report.error, t)} onRetry={() => report.refetch()} />
-        ) : null}
-
-        {report.data && member ? (
-          <>
-            <Card className="summary-card">
-              <div className="row gap-7 wrap">
-                <Avatar name={displayName(member)} src={member.avatarUrl} size="lg" />
-                <div className="stack gap-2 grow">
-                  <span className="t-body-sm muted">
-                    @{member.username}
-                    {member.employeeCode ? ` · ${member.employeeCode}` : ""} ·{" "}
-                    {member.payType === "MONTHLY"
-                      ? t("payType.perMonth", {
-                          amount: formatMoney(member.monthlySalary, member.currency, t),
-                        })
-                      : t("payType.perHour", {
-                          amount: formatMoney(member.hourlyRate, member.currency, t),
-                        })}
-                  </span>
-                </div>
-              </div>
-
-              <hr className="divider" style={{ margin: "var(--space-8) 0" }} />
-
-              <div className="stat-grid">
-                <Stat
-                  label={t("admin.memberDetail.completed")}
-                  value={formatDuration(member.completedMinutes, language)}
-                />
-                <Stat label={t("admin.memberDetail.workedDays")} value={member.workedDays} />
-                <Stat
-                  label={t("admin.memberDetail.earned")}
-                  value={formatMoney(member.grossAmount, member.currency, t)}
-                />
-              </div>
-
-              {goalMinutes > 0 ? (
-                <div className="goal-summary stack gap-4">
-                  <div className="row between t-caption muted">
-                    <span>{t("admin.memberDetail.towardsGoal", { goal: member.monthlyGoalHours })}</span>
-                    <span className="t-mono">
-                      {Math.round((member.completedMinutes / goalMinutes) * 100)}%
-                    </span>
-                  </div>
-                  <Progress value={member.completedMinutes / goalMinutes} />
-                </div>
-              ) : null}
-            </Card>
-
-            <div className="detail-grid">
-              <Card flush className="grow">
-                <CardHeader title={t("admin.memberDetail.perDay")} />
-                <div className="card-body">
-                  <DayBars days={report.data.days} />
-                </div>
-              </Card>
-
-              <Card flush>
-                <CardHeader title={t("admin.memberDetail.byProject")} />
-                <div className="card-body stack gap-6">
-                  {report.data.projects.length ? (
-                    report.data.projects.map((project) => (
-                      <div key={project.projectId ?? "none"} className="stack gap-3">
-                        <div className="row between">
-                          <span className="row gap-4 t-body-sm">
-                            <span className="dot" style={{ color: project.color }} aria-hidden />
-                            {/* The API names an untagged bucket in English; the panel says it. */}
-                            {project.projectId ? project.name : t("admin.memberDetail.untagged")}
-                          </span>
-                          <span className="t-mono muted">{formatDuration(project.minutes, language)}</span>
-                        </div>
-                        <Progress value={project.minutes / Math.max(1, member.completedMinutes)} />
-                      </div>
-                    ))
-                  ) : (
-                    <span className="t-body-sm muted">{t("admin.memberDetail.noCompleted")}</span>
-                  )}
-                </div>
-              </Card>
-            </div>
-
-            <Card flush>
-              <CollectionToolbar search={collection.search} onSearch={collection.setSearch} />
-              {collection.search && !collection.total && report.data ? (
-                <EmptyState title={t("admin.table.noResults")} hint={t("admin.table.searchHint")} />
-              ) : null}
-              {collection.total > 0 ? (
-                <TableScroll>
-                  <Table>
-                    <Table.Content aria-label={t("common.records")} className="omam-data">
-                      <Table.Header>
-                        <Table.Column isRowHeader>{t("admin.timesheets.day")}</Table.Column>
-                        <Table.Column>{t("admin.timesheets.hours")}</Table.Column>
-                        <Table.Column className="num">{t("admin.timesheets.duration")}</Table.Column>
-                        <Table.Column>{t("admin.timesheets.where")}</Table.Column>
-                        <Table.Column>{t("admin.timesheets.project")}</Table.Column>
-                        <Table.Column>{t("admin.timesheets.note")}</Table.Column>
-                        <Table.Column>{t("admin.timesheets.status")}</Table.Column>
-                      </Table.Header>
-                      <Table.Body>
-                        {collection.rows.map((session) => (
-                          <Table.Row id={session.id} key={session.id}>
-                            <Table.Cell className="muted">
-                              {formatDate(session.startAt, calendar, language)}
-                            </Table.Cell>
-                            <Table.Cell className="t-mono timecode muted">
-                              {formatTime(session.startAt)}
-                              {session.endAt
-                                ? ` – ${formatTime(session.endAt)}`
-                                : ` – ${t("admin.timesheets.running")}`}
-                            </Table.Cell>
-                            <Table.Cell className="num t-mono">
-                              {formatDuration(session.durationMinutes, language)}
-                            </Table.Cell>
-                            <Table.Cell className="muted">{t(`category.${session.category}`)}</Table.Cell>
-                            <Table.Cell>
-                              {session.project?.name ?? <span className="faint">—</span>}
-                            </Table.Cell>
-                            <Table.Cell className="muted note-column">
-                              {session.note ?? <span className="faint">—</span>}
-                            </Table.Cell>
-                            <Table.Cell>
-                              <StatusBadge status={session.status} />
-                            </Table.Cell>
-                          </Table.Row>
-                        ))}
-                      </Table.Body>
-                    </Table.Content>
-                  </Table>
-                </TableScroll>
-              ) : !collection.search ? (
-                <EmptyState title={t("admin.memberDetail.noTime")} />
-              ) : null}
-              <Pagination {...collection} />
-            </Card>
-          </>
-        ) : null}
-      </div>
-    </>
-  );
+  const [exporting, setExporting] = useState(false);
+  const report = useQuery({ queryKey: ["member-report", userId, month, calendar], queryFn: () => api.memberReport(userId, { month, calendar }), refetchInterval: 30_000 });
+  const data = report.data;
+  const collection = useCollection(data?.sessions ?? [], (session) => [formatDate(session.startAt, calendar, language), session.note, t(`category.${session.category}`), t(`status.${session.status}`)].join(" "), `${userId}:${month}`);
+  async function exportCsv(detail: boolean) {
+    setExporting(true);
+    try {
+      await downloadCsv(detail ? `/reports/members/${userId}/export.csv` : "/reports/monthly.csv", { month, calendar, language, userId }, `omam-${membership?.organizationSlug}-${data?.profile.username}-${month}${detail ? "-sessions" : ""}.csv`);
+      toast(t("admin.report.exported"), "success");
+    } catch (cause) { toast(translateError(cause, t), "error"); }
+    finally { setExporting(false); }
+  }
+  return <>
+    <PageHeader title={data ? displayName(data.profile) : t("workspace.profile")} subtitle={t("workspace.memberDetails")} actions={<><MonthPicker month={month} calendar={calendar} onChange={setMonth} /><Button variant="primary" loading={exporting} disabled={!data} onClick={() => exportCsv(false)}><Icon name="download" />{t("workspace.exportSummary")}</Button></>} />
+    <div className="page-body">
+      {report.isPending ? <Loading /> : null}
+      {report.isError ? <ErrorState message={translateError(report.error, t)} onRetry={() => report.refetch()} /> : null}
+      {data ? <>
+        <div className="profile-grid">
+          <Card className="profile-card"><div className="row gap-7"><Avatar name={displayName(data.profile)} src={data.profile.avatarUrl} size="lg" /><div className="stack gap-4"><h2 className="t-title3">{displayName(data.profile)}</h2><span className="t-caption muted"><bdi>@{data.profile.username}</bdi></span><div className="row gap-4"><RoleBadge role={data.profile.role} /><Badge tone={data.profile.status === "ACTIVE" ? "success" : "neutral"} dot>{t(data.profile.status === "ACTIVE" ? "admin.members.active" : "admin.members.suspended")}</Badge></div></div></div>
+            <dl className="profile-facts">{[
+              [t("admin.members.jobTitle"), data.profile.jobTitle ?? t("common.none")],
+              [t("admin.members.code"), data.profile.employeeCode ?? t("common.none")],
+              [t("workspace.email"), data.profile.email ?? t("workspace.noEmail")],
+              [t("workspace.joined"), formatDateTime(data.profile.joinedAt, calendar, language)],
+              [t("workspace.lastLogin"), data.profile.lastLoginAt ? formatDateTime(data.profile.lastLoginAt, calendar, language) : t("workspace.noLogin")],
+            ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd><bdi>{value}</bdi></dd></div>)}</dl>
+            <ButtonLink to="/members">{t("workspace.manageTeam")}</ButtonLink>
+          </Card>
+          <div className="profile-activity stack gap-9"><div className="metric-grid report-metrics"><Metric icon="sessions" label={t("workspace.trackedHours")} value={formatDuration(data.member.completedMinutes, language)} /><Metric icon="report" label={t("workspace.completedSessions")} value={data.member.sessionCount} /><Metric icon="overview" label={t("admin.report.days")} value={data.member.workedDays} /></div>
+            <Card flush><CardHeader title={t("admin.memberDetail.perDay")} subtitle={t("workspace.periodHint")} /><div className="card-body"><DayBars days={data.days} /></div></Card>
+          </div>
+        </div>
+        <Card className="member-breakdown"><div className="stat-grid"><div className="stack gap-3"><span className="t-caption muted">{t("admin.report.onsite")}</span><bdi className="t-title3 t-mono">{formatDuration(data.member.onsiteMinutes, language)}</bdi></div><div className="stack gap-3"><span className="t-caption muted">{t("admin.report.remote")}</span><bdi className="t-title3 t-mono">{formatDuration(data.member.remoteMinutes, language)}</bdi></div><div className="stack gap-4"><div className="row between t-caption muted"><span>{t("admin.report.towardsGoal")}</span><bdi>{t("units.hoursShort", { value: data.member.monthlyGoalHours })}</bdi></div><Progress value={data.member.monthlyGoalHours ? data.member.completedMinutes / (data.member.monthlyGoalHours * 60) : 0} /></div></div></Card>
+        <Card flush><CardHeader title={t("workspace.sessions")} actions={<Button variant="outline" disabled={!data.sessions.length || exporting} onClick={() => exportCsv(true)}><Icon name="download" />{t("workspace.exportSessions")}</Button>} /><CollectionToolbar search={collection.search} onSearch={collection.setSearch} />
+          {collection.total ? <TableScroll><Table><Table.Content aria-label={t("workspace.sessions")} className="omam-data"><Table.Header><Table.Column isRowHeader>{t("admin.timesheets.day")}</Table.Column><Table.Column>{t("admin.timesheets.hours")}</Table.Column><Table.Column className="num">{t("admin.timesheets.duration")}</Table.Column><Table.Column>{t("admin.timesheets.where")}</Table.Column><Table.Column>{t("admin.timesheets.note")}</Table.Column><Table.Column>{t("admin.timesheets.status")}</Table.Column><Table.Column className="tight" /></Table.Header><Table.Body>{collection.rows.map((session) => <Table.Row key={session.id} id={session.id}><Table.Cell>{formatDate(session.startAt, calendar, language)}</Table.Cell><Table.Cell className="t-mono timecode muted">{formatTime(session.startAt)} – {session.endAt ? formatTime(session.endAt) : t("status.OPEN")}</Table.Cell><Table.Cell className="num t-mono">{formatDuration(session.durationMinutes, language)}</Table.Cell><Table.Cell className="muted">{t(`category.${session.category}`)}</Table.Cell><Table.Cell className="muted note-column">{session.note ?? t("common.none")}</Table.Cell><Table.Cell><StatusBadge status={session.status} /></Table.Cell><Table.Cell><SessionActions session={session} /></Table.Cell></Table.Row>)}</Table.Body></Table.Content></Table></TableScroll> : <EmptyState title={t(collection.search ? "admin.table.noResults" : "workspace.noActivity")} />}
+          <Pagination {...collection} />
+        </Card>
+      </> : null}
+    </div>
+  </>;
 }

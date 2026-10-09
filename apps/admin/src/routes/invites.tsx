@@ -24,7 +24,7 @@ import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
 import { useToast } from "../lib/ui";
-import { currencyLabel, formatDate, formatMoney } from "../lib/format";
+import { formatDate } from "../lib/format";
 import { PageHeader } from "./layout";
 
 const EMPTY: CreateInviteInputDto = {
@@ -37,7 +37,7 @@ const EMPTY: CreateInviteInputDto = {
 };
 
 export function InvitesPage() {
-  const { calendar, can, membership } = useSession();
+  const { calendar, can } = useSession();
   const toast = useToast();
   const queryClient = useQueryClient();
   const { language, t } = useLanguage();
@@ -92,7 +92,8 @@ export function InvitesPage() {
   return (
     <>
       <PageHeader
-        title={t("admin.nav.invites")}
+        title={t("workspace.inviteMembers")}
+        subtitle={t("workspace.inviteHint")}
         actions={
           <Button variant="primary" onClick={() => setCreating(true)}>
             {t("admin.invites.newInvite")}
@@ -120,7 +121,6 @@ export function InvitesPage() {
                     <Table.Column isRowHeader>{t("admin.invites.code")}</Table.Column>
                     <Table.Column>{t("admin.invites.for")}</Table.Column>
                     <Table.Column>{t("admin.invites.role")}</Table.Column>
-                    <Table.Column>{t("admin.invites.pay")}</Table.Column>
                     <Table.Column>{t("admin.invites.expires")}</Table.Column>
                     <Table.Column>{t("admin.invites.status")}</Table.Column>
                     <Table.Column className="tight" />
@@ -141,15 +141,7 @@ export function InvitesPage() {
                           <Table.Cell>
                             <RoleBadge role={invite.role} />
                           </Table.Cell>
-                          <Table.Cell className="t-mono muted">
-                            {invite.payType === "MONTHLY"
-                              ? t("payType.perMonth", {
-                                  amount: formatMoney(invite.monthlySalary, membership?.currency ?? "IRR", t),
-                                })
-                              : t("payType.perHour", {
-                                  amount: formatMoney(invite.hourlyRate, membership?.currency ?? "IRR", t),
-                                })}
-                          </Table.Cell>
+
                           <Table.Cell className="muted">
                             {formatDate(invite.expiresAt, calendar, language)}
                           </Table.Cell>
@@ -229,50 +221,7 @@ export function InvitesPage() {
               </Select>
             </Field>
 
-            <Field label={t("admin.invites.payType")}>
-              <Select
-                value={draft.payType}
-                onValueChange={(value) =>
-                  setDraft({
-                    ...draft,
-                    payType: value as CreateInviteInputDto["payType"],
-                  })
-                }
-              >
-                <option value="HOURLY">{t("payType.HOURLY")}</option>
-                <option value="MONTHLY">{t("payType.MONTHLY")}</option>
-              </Select>
-            </Field>
           </div>
-
-          {draft.payType === "MONTHLY" ? (
-            <Field
-              label={t("admin.invites.monthlySalary", {
-                currency: currencyLabel(membership?.currency ?? "IRR", t),
-              })}
-            >
-              <Input
-                type="number"
-                min={0}
-                value={draft.monthlySalary}
-                onChange={(event) => setDraft({ ...draft, monthlySalary: Number(event.target.value) })}
-              />
-            </Field>
-          ) : (
-            <Field
-              label={t("admin.invites.hourlyRate", {
-                currency: currencyLabel(membership?.currency ?? "IRR", t),
-              })}
-              hint={t("admin.invites.hourlyRateHint")}
-            >
-              <Input
-                type="number"
-                min={0}
-                value={draft.hourlyRate}
-                onChange={(event) => setDraft({ ...draft, hourlyRate: Number(event.target.value) })}
-              />
-            </Field>
-          )}
 
           <Field label={t("admin.invites.expiresIn")}>
             <Input

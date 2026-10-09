@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "types": ["node", "bun"], "noEmit": true },
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "electron-builder.config.ts"]
+}

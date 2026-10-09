@@ -20,3 +20,8 @@ apps/mobile/dist
 
 expo-env.d.ts
 # @end expo-cli
+apps/desktop/renderer
+apps/desktop/release
+deployment/electron/*.dmg
+deployment/electron/*.zip
+deployment/electron/*.blockmap

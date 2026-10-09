@@ -1,34 +1,23 @@
 import { Platform } from "react-native";
+import { configuredServerUrl } from "./server-url";
 import type { Translator } from "@omam/i18n";
-import type { AuthResponseDto, SyncRequestDto, SyncResponseDto } from "@omam/contracts";
+import type { AuthResponseDto, AuthMembershipDto, SessionUserResponseDto, TeamsResponseDto, CompleteProfileInputDto, SyncRequestDto, SyncResponseDto } from "@omam/contracts";
 
-/**
- * Where the team server lives.
- *
- * The address the member types wins, because a deployed team server is not
- * something the bundle can guess. The env values are the convenience path for
- * running the API next to Metro during development.
- */
-export function resolveServerUrl(stored: string | null | undefined) {
-  const explicit = stored?.trim() || process.env.EXPO_PUBLIC_API_URL?.trim();
-
-  if (explicit) {
-    return explicit.replace(/\/+$/, "");
-  }
-
-  const port = process.env.EXPO_PUBLIC_API_PORT?.trim() || "3001";
-
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    return `${window.location.protocol}//${window.location.hostname}:${port}`;
-  }
-
-  return `http://${Platform.OS === "android" ? "10.0.2.2" : "localhost"}:${port}`;
+export function resolveServerUrl() {
+  return configuredServerUrl({
+    platform: Platform.OS,
+    origin: typeof window !== "undefined" ? window.location.origin : undefined,
+    isDevelopment: __DEV__,
+    apiUrl: process.env.EXPO_PUBLIC_API_URL,
+    apiPort: process.env.EXPO_PUBLIC_API_PORT,
+  });
 }
 
 export class SyncError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    readonly code?: string,
   ) {
     super(message);
     this.name = "SyncError";
@@ -62,8 +51,8 @@ async function call<T>(
   } catch (cause) {
     throw new SyncError(
       cause instanceof Error && cause.name === "AbortError"
-        ? t("team.timedOut")
-        : t("team.unreachable"),
+        ? "SERVER_TIMEOUT"
+        : "SERVER_UNREACHABLE",
     );
   } finally {
     clearTimeout(timeout);
@@ -73,9 +62,9 @@ async function call<T>(
   const payload = text ? (JSON.parse(text) as unknown) : null;
 
   if (!response.ok) {
-    const detail = payload as { message?: string } | null;
+    const detail = payload as { message?: string; code?: string } | null;
 
-    throw new SyncError(detail?.message ?? t("team.rejected"), response.status);
+    throw new SyncError(detail?.code ?? "REQUEST_FAILED", response.status, detail?.code);
   }
 
   return payload as T;
@@ -112,3 +101,14 @@ export function pushAndPull(
 ) {
   return call<SyncResponseDto>(baseUrl, "/sync", t, { method: "POST", token, body });
 }
+
+export const serverTeams = (baseUrl: string, token: string, t: Translator) =>
+  call<TeamsResponseDto>(baseUrl, "/team/organizations", t, { token });
+export const selectServerTeam = (baseUrl: string, token: string, organizationId: string, t: Translator) =>
+  call<AuthMembershipDto>(baseUrl, "/team/select", t, { method: "POST", token, body: { organizationId } });
+export const joinServerTeam = (baseUrl: string, token: string, inviteCode: string, t: Translator) =>
+  call<AuthMembershipDto>(baseUrl, "/team/join", t, { method: "POST", token, body: { inviteCode } });
+export const updateServerProfile = (baseUrl: string, token: string, body: CompleteProfileInputDto, t: Translator) =>
+  call<SessionUserResponseDto>(baseUrl, "/auth/profile", t, { method: "PATCH", token, body });
+export const changeServerPassword = (baseUrl: string, token: string, currentPassword: string, nextPassword: string, t: Translator) =>
+  call<{ token: string }>(baseUrl, "/auth/change-password", t, { method: "POST", token, body: { currentPassword, nextPassword } });

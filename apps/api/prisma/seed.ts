@@ -7,10 +7,10 @@ import { hashPassword, normalizeUsername } from "../src/lib/auth";
  * an invite code the owner issues from the admin panel, so this runs once.
  */
 async function main() {
-  const name = process.env.SEED_ORG_NAME?.trim() || "Omam Team";
-  const slug = (process.env.SEED_ORG_SLUG?.trim() || "omam").toLowerCase();
+  const name = process.env.SEED_ORG_NAME?.trim() || "Tarazkar Team";
+  const slug = (process.env.SEED_ORG_SLUG?.trim() || "tarazkar").toLowerCase();
   const username = normalizeUsername(process.env.SEED_OWNER_USERNAME?.trim() || "owner");
-  const password = process.env.SEED_OWNER_PASSWORD?.trim() || "changeme123";
+  const password = process.env.SEED_OWNER_PASSWORD?.trim() || (process.env.NODE_ENV === "production" ? "" : "changeme123");
 
   const organization = await prisma.organization.upsert({
     where: { slug },
@@ -24,6 +24,8 @@ async function main() {
     console.log(`Owner "${username}" already exists — leaving it untouched.`);
     return;
   }
+
+  if (!password) throw new Error("SEED_OWNER_PASSWORD_REQUIRED");
 
   const owner = await prisma.user.create({
     data: {

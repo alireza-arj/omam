@@ -51,6 +51,7 @@ export const authResponseSchema = z.object({
 });
 
 export const sessionUserResponseSchema = authResponseSchema.omit({ token: true });
+export const teamsResponseSchema = z.object({ memberships: z.array(authMembershipSchema) });
 
 export const loginInputSchema = z.object({
   username: usernameSchema,
@@ -78,6 +79,7 @@ export const changePasswordInputSchema = z.object({
 });
 
 export type AuthUserDto = z.infer<typeof authUserSchema>;
+export type TeamsResponseDto = z.infer<typeof teamsResponseSchema>;
 export type AuthMembershipDto = z.infer<typeof authMembershipSchema>;
 export type AuthResponseDto = z.infer<typeof authResponseSchema>;
 export type SessionUserResponseDto = z.infer<typeof sessionUserResponseSchema>;

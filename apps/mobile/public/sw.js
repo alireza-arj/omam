@@ -1,4 +1,4 @@
-const CACHE_NAME = "omam-pwa-v1";
+const CACHE_NAME = "tarazkar-pwa-v2";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -20,7 +20,9 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") {
+  const url = new URL(event.request.url);
+  if (event.request.method !== "GET" || url.origin !== self.location.origin ||
+      ["/api", "/admin", "/electron"].some((path) => url.pathname === path || url.pathname.startsWith(`${path}/`))) {
     return;
   }
 

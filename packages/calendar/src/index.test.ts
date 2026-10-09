@@ -16,12 +16,29 @@ import {
   startOfWeek,
   toDate,
   toParts,
+  workSegments,
 } from "./index";
 
 /** Local-time helper: these functions are all timezone-relative by design. */
 function local(year: number, month: number, day: number, hours = 0, minutes = 0) {
   return new Date(year, month - 1, day, hours, minutes);
 }
+
+describe("reporting completed time", () => {
+  test("splits a completed session at midnight and across Gregorian months", () => {
+    const start = local(2026, 9, 30, 23, 30);
+    const end = local(2026, 10, 1, 1, 30);
+    expect(workSegments(start, end, monthRange("2026-09", "GREGORIAN"), "GREGORIAN")).toEqual([{ day: "2026-09-30", minutes: 30 }]);
+    expect(workSegments(start, end, monthRange("2026-10", "GREGORIAN"), "GREGORIAN")).toEqual([{ day: "2026-10-01", minutes: 90 }]);
+  });
+  test("uses the Jalali month boundary and excludes running sessions", () => {
+    const start = local(2026, 9, 22, 23);
+    const end = local(2026, 9, 23, 2);
+    expect(workSegments(start, end, monthRange("1405-06", "JALALI"), "JALALI")).toEqual([{ day: "1405-06-31", minutes: 60 }]);
+    expect(workSegments(start, end, monthRange("1405-07", "JALALI"), "JALALI")).toEqual([{ day: "1405-07-01", minutes: 120 }]);
+    expect(workSegments(start, null, monthRange("1405-06", "JALALI"), "JALALI")).toEqual([]);
+  });
+});
 
 describe("jalali conversion", () => {
   test("matches known anchors", () => {

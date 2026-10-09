@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { asCalendarSystem } from "@omam/calendar";
+import { asCalendarSystem, workSegments } from "@omam/calendar";
 import {
   clockInInputSchema,
   clockOutInputSchema,
@@ -13,8 +13,8 @@ import { authenticated } from "../lib/context";
 import { requireOrganization } from "../lib/auth";
 import { conflict, invalid, notFound, parseInput } from "../lib/errors";
 import { serializeSession } from "../lib/serialize";
-import { calculateSessionMinutes, hoursFromMinutes, localDayKey, monthWindow } from "../lib/time";
-import { isMonthLocked } from "../lib/payroll";
+import { calculateSessionMinutes, hoursFromMinutes, monthWindow } from "../lib/time";
+import { isSessionLocked } from "../lib/payroll";
 
 const includeProject = { project: true } as const;
 
@@ -22,19 +22,9 @@ const includeProject = { project: true } as const;
  * A session inside a locked payroll month is history — editing it would change
  * a total that has already been paid out.
  */
-async function assertMonthEditable(organizationId: string, ...dates: (Date | null)[]) {
-  for (const date of dates) {
-    if (!date) continue;
-
-    const lockedMonth = await isMonthLocked(organizationId, date);
-
-    if (lockedMonth) {
-      throw conflict(
-        `Payroll for ${lockedMonth} is closed, so that time cannot be changed.`,
-        "PAYROLL_LOCKED",
-      );
-    }
-  }
+async function assertMonthEditable(organizationId: string, startAt: Date, endAt: Date | null = null) {
+  const lockedMonth = await isSessionLocked(organizationId, startAt, endAt);
+  if (lockedMonth) throw conflict("This month is locked.", "PAYROLL_LOCKED");
 }
 
 async function assertProjectBelongs(organizationId: string, projectId: string | null | undefined) {
@@ -58,9 +48,9 @@ function assertOrder(startAt: Date, endAt: Date | null) {
   }
 }
 
-async function ownSession(userId: string, id: string) {
+async function ownSession(userId: string, organizationId: string, id: string) {
   const session = await prisma.workSession.findFirst({
-    where: { id, userId, deletedAt: null },
+    where: { id, userId, organizationId, deletedAt: null },
     include: includeProject,
   });
 
@@ -106,7 +96,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
     const payload = parseInput(clockInInputSchema, body);
 
     const active = await prisma.workSession.findFirst({
-      where: { userId: principal.user.id, endAt: null, deletedAt: null },
+      where: { organizationId: organization.id, userId: principal.user.id, endAt: null, deletedAt: null },
     });
 
     if (active) {
@@ -137,7 +127,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
   .post("/:id/clock-out", async ({ principal, params, body }) => {
     const organization = requireOrganization(principal);
     const payload = parseInput(clockOutInputSchema, body);
-    const session = await ownSession(principal.user.id, params.id);
+    const session = await ownSession(principal.user.id, organization.id, params.id);
 
     if (session.endAt) {
       throw conflict("That session is already closed.", "SESSION_CLOSED");
@@ -172,7 +162,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
 
     if (!endAt) {
       const active = await prisma.workSession.findFirst({
-        where: { userId: principal.user.id, endAt: null, deletedAt: null },
+        where: { organizationId: organization.id, userId: principal.user.id, endAt: null, deletedAt: null },
       });
 
       if (active) {
@@ -202,12 +192,17 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
   .patch("/:id", async ({ principal, params, body }) => {
     const organization = requireOrganization(principal);
     const payload = parseInput(updateSessionInputSchema, body);
-    const session = await ownSession(principal.user.id, params.id);
+    const session = await ownSession(principal.user.id, organization.id, params.id);
     const startAt = new Date(payload.startAt);
     const endAt = payload.endAt ? new Date(payload.endAt) : null;
 
     assertOrder(startAt, endAt);
-    await assertMonthEditable(organization.id, session.startAt, startAt, endAt);
+    await assertMonthEditable(organization.id, session.startAt, session.endAt);
+    await assertMonthEditable(organization.id, startAt, endAt);
+
+    if (!endAt && await prisma.workSession.findFirst({ where: { organizationId: organization.id, userId: principal.user.id, endAt: null, deletedAt: null, id: { not: session.id } } })) {
+      throw conflict("There is already an active session.", "SESSION_ACTIVE");
+    }
 
     const updated = await prisma.workSession.update({
       where: { id: session.id },
@@ -228,9 +223,9 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
 
   .delete("/:id", async ({ principal, params, set }) => {
     const organization = requireOrganization(principal);
-    const session = await ownSession(principal.user.id, params.id);
+    const session = await ownSession(principal.user.id, organization.id, params.id);
 
-    await assertMonthEditable(organization.id, session.startAt);
+    await assertMonthEditable(organization.id, session.startAt, session.endAt);
 
     // Soft delete: a hard one is invisible to an offline device, which would
     // push the row straight back on its next sync.
@@ -260,13 +255,16 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
       prisma.workSession.findMany({
         where: {
           userId: principal.user.id,
+          organizationId: organization.id,
           deletedAt: null,
-          startAt: { gte: window.from, lte: window.to },
+          startAt: { lte: window.to },
+          endAt: { gt: window.from },
+          status: "COMPLETED",
         },
         include: includeProject,
       }),
       prisma.workSession.findFirst({
-        where: { userId: principal.user.id, endAt: null, deletedAt: null },
+        where: { organizationId: organization.id, userId: principal.user.id, endAt: null, deletedAt: null },
         include: includeProject,
         orderBy: { startAt: "desc" },
       }),
@@ -278,22 +276,16 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
     let completedMinutes = 0;
 
     for (const session of sessions) {
-      workedDays.add(localDayKey(session.startAt, calendar));
-
-      if (!session.endAt) {
-        continue;
-      }
-
-      totalMinutes += session.durationMinutes;
-
-      if (session.status === "COMPLETED") {
-        completedMinutes += session.durationMinutes;
-      }
+      const segments = workSegments(session.startAt, session.endAt, window, calendar);
+      const minutes = segments.reduce((sum, segment) => sum + segment.minutes, 0);
+      for (const segment of segments) if (segment.minutes > 0) workedDays.add(segment.day);
+      totalMinutes += minutes;
+      completedMinutes += minutes;
 
       if (session.category === "REMOTE") {
-        categoryMinutes.remote += session.durationMinutes;
+        categoryMinutes.remote += minutes;
       } else {
-        categoryMinutes.onsite += session.durationMinutes;
+        categoryMinutes.onsite += minutes;
       }
     }
 

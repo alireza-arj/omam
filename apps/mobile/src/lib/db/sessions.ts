@@ -1,5 +1,5 @@
-import type { SQLiteDatabase } from "expo-sqlite";
-import { dayKey, monthRange, type CalendarSystem } from "@omam/calendar";
+import type { SQLiteDatabase } from "../sqlite-context";
+import { dayKey, monthRange, workSegments, type CalendarSystem } from "@omam/calendar";
 import type {
   SessionDto,
   WorkSessionCategory,
@@ -7,6 +7,7 @@ import type {
   WorkSessionStatus,
 } from "@omam/contracts";
 import { generateId } from "./id";
+import { TEAM_SCOPE } from "./scope";
 
 function now() {
   return new Date().toISOString();
@@ -19,6 +20,9 @@ function calculateSessionMinutes(startAt: string, endAt: string): number {
 export type SessionRow = {
   id: string;
   userId: string;
+  organizationId: string | null;
+  deviceId: string | null;
+  deviceName: string | null;
   startAt: string;
   endAt: string | null;
   durationMinutes: number;
@@ -45,7 +49,10 @@ export function toSessionDto(row: SessionRow): SessionDto {
   return {
     id: row.id,
     userId: row.userId,
+    organizationId: row.organizationId,
     clientId: row.id,
+    deviceId: row.deviceId,
+    deviceName: row.deviceName,
     startAt: row.startAt,
     endAt: row.endAt,
     durationMinutes: row.durationMinutes,
@@ -68,13 +75,20 @@ export function toSessionDto(row: SessionRow): SessionDto {
 /** Deleted rows stay until the server has seen the deletion. */
 const LIVE = "deletedAt IS NULL";
 
+async function assertEditable(db: SQLiteDatabase, userId: string, startAt: string, endAt: string | null) {
+  const locked = await db.getFirstAsync<{ month: string }>(
+    `SELECT month FROM LockedPeriod WHERE organizationId = (SELECT organizationId FROM SyncState WHERE userId = ?)
+      AND fromAt ${endAt && endAt > startAt ? "<" : "<="} ? AND toAt >= ? LIMIT 1`, [userId, endAt ?? startAt, startAt]);
+  if (locked) throw new Error("PAYROLL_LOCKED");
+}
+
 export async function getSessions(db: SQLiteDatabase, userId: string, from?: string, to?: string) {
-  let query = `SELECT * FROM WorkSession WHERE userId = ? AND ${LIVE}`;
+  let query = `SELECT * FROM WorkSession WHERE userId = ? AND ${LIVE} AND ${TEAM_SCOPE}`;
   const params: (string | number)[] = [userId];
 
   if (from) {
-    query += " AND startAt >= ?";
-    params.push(from);
+    query += " AND (endAt > ? OR (endAt IS NULL AND startAt >= ?))";
+    params.push(from, from);
   }
   if (to) {
     query += " AND startAt <= ?";
@@ -89,7 +103,7 @@ export async function getSessions(db: SQLiteDatabase, userId: string, from?: str
 
 export async function getActiveSession(db: SQLiteDatabase, userId: string) {
   const row = await db.getFirstAsync<SessionRow>(
-    `SELECT * FROM WorkSession WHERE userId = ? AND endAt IS NULL AND ${LIVE} ORDER BY startAt DESC`,
+    `SELECT * FROM WorkSession WHERE userId = ? AND endAt IS NULL AND ${LIVE} AND ${TEAM_SCOPE} ORDER BY startAt DESC`,
     [userId],
   );
   return row ? toSessionDto(row) : null;
@@ -101,7 +115,7 @@ async function readSession(db: SQLiteDatabase, id: string) {
 
 async function requireOwnSession(db: SQLiteDatabase, sessionId: string, userId: string) {
   const row = await db.getFirstAsync<SessionRow>(
-    `SELECT * FROM WorkSession WHERE id = ? AND userId = ? AND ${LIVE}`,
+    `SELECT * FROM WorkSession WHERE id = ? AND userId = ? AND ${LIVE} AND ${TEAM_SCOPE}`,
     [sessionId, userId],
   );
 
@@ -124,12 +138,13 @@ export async function clockIn(
     throw new Error("SESSION_ACTIVE");
   }
 
+  await assertEditable(db, userId, startAt, null);
   const id = generateId();
   const ts = now();
 
   await db.runAsync(
-    "INSERT INTO WorkSession (id, userId, startAt, durationMinutes, category, note, createdAt, updatedAt, status, source, dirty) VALUES (?, ?, ?, 0, ?, ?, ?, ?, 'OPEN', 'TIMER', 1)",
-    [id, userId, startAt, category, note ?? null, ts, ts],
+    "INSERT INTO WorkSession (id, userId, organizationId, deviceId, deviceName, startAt, durationMinutes, category, note, createdAt, updatedAt, status, source, dirty) VALUES (?, ?, (SELECT organizationId FROM SyncState WHERE userId = ?), (SELECT id FROM AppDevice LIMIT 1), (SELECT name FROM AppDevice LIMIT 1), ?, 0, ?, ?, ?, ?, 'OPEN', 'TIMER', 1)",
+    [id, userId, userId, startAt, category, note ?? null, ts, ts],
   );
 
   return toSessionDto(await readSession(db, id));
@@ -142,13 +157,14 @@ export async function clockOut(db: SQLiteDatabase, sessionId: string, userId: st
     throw new Error("SESSION_ALREADY_ENDED");
   }
 
+  await assertEditable(db, userId, session.startAt, endAt);
   const endDate = new Date(endAt);
   if (endDate.getTime() < new Date(session.startAt).getTime()) {
     throw new Error("END_BEFORE_START");
   }
 
   await db.runAsync(
-    "UPDATE WorkSession SET endAt = ?, durationMinutes = ?, updatedAt = ?, status = 'COMPLETED', dirty = 1 WHERE id = ?",
+    "UPDATE WorkSession SET endAt = ?, durationMinutes = ?, updatedAt = ?, status = 'COMPLETED', dirty = 1, syncError = NULL WHERE id = ?",
     [endAt, calculateSessionMinutes(session.startAt, endAt), now(), sessionId],
   );
 
@@ -166,13 +182,15 @@ export async function updateSession(
 ) {
   const session = await requireOwnSession(db, sessionId, userId);
 
+  await assertEditable(db, userId, session.startAt, session.endAt);
+  await assertEditable(db, userId, startAt, endAt);
   const endDate = endAt ? new Date(endAt) : null;
   if (endDate && endDate.getTime() < new Date(startAt).getTime()) {
     throw new Error("END_BEFORE_START");
   }
 
   await db.runAsync(
-    "UPDATE WorkSession SET startAt = ?, endAt = ?, durationMinutes = ?, category = ?, note = ?, updatedAt = ?, status = ?, dirty = 1 WHERE id = ?",
+    "UPDATE WorkSession SET startAt = ?, endAt = ?, durationMinutes = ?, category = ?, note = ?, updatedAt = ?, status = ?, dirty = 1, syncError = NULL WHERE id = ?",
     [
       startAt,
       endAt,
@@ -190,7 +208,7 @@ export async function updateSession(
 
 export async function getSessionById(db: SQLiteDatabase, sessionId: string, userId: string) {
   const row = await db.getFirstAsync<SessionRow>(
-    `SELECT * FROM WorkSession WHERE id = ? AND userId = ? AND ${LIVE}`,
+    `SELECT * FROM WorkSession WHERE id = ? AND userId = ? AND ${LIVE} AND ${TEAM_SCOPE}`,
     [sessionId, userId],
   );
 
@@ -205,6 +223,7 @@ export async function createSession(
   category: WorkSessionCategory,
   note: string | null,
 ) {
+  await assertEditable(db, userId, startAt, endAt);
   const endDate = endAt ? new Date(endAt) : null;
 
   if (endDate && endDate.getTime() < new Date(startAt).getTime()) {
@@ -223,9 +242,10 @@ export async function createSession(
   const ts = now();
 
   await db.runAsync(
-    "INSERT INTO WorkSession (id, userId, startAt, endAt, durationMinutes, category, note, createdAt, updatedAt, status, source, dirty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'MANUAL', 1)",
+    "INSERT INTO WorkSession (id, userId, organizationId, deviceId, deviceName, startAt, endAt, durationMinutes, category, note, createdAt, updatedAt, status, source, dirty) VALUES (?, ?, (SELECT organizationId FROM SyncState WHERE userId = ?), (SELECT id FROM AppDevice LIMIT 1), (SELECT name FROM AppDevice LIMIT 1), ?, ?, ?, ?, ?, ?, ?, ?, 'MANUAL', 1)",
     [
       id,
+      userId,
       userId,
       startAt,
       endAt,
@@ -247,18 +267,45 @@ export async function createSession(
  */
 export async function deleteSession(db: SQLiteDatabase, sessionId: string, userId: string) {
   const session = await requireOwnSession(db, sessionId, userId);
+  await assertEditable(db, userId, session.startAt, session.endAt);
   const ts = now();
 
-  // A row the server has never seen has nothing to tell it about.
-  if (!session.remoteId && !session.syncedAt) {
-    await db.runAsync("DELETE FROM WorkSession WHERE id = ?", [sessionId]);
-    return;
-  }
-
   await db.runAsync(
-    "UPDATE WorkSession SET deletedAt = ?, updatedAt = ?, dirty = 1 WHERE id = ?",
+    "UPDATE WorkSession SET deletedAt = ?, updatedAt = ?, dirty = 1, syncError = NULL WHERE id = ?",
     [ts, ts, sessionId],
   );
+}
+
+export type SessionConflict = { sessions: SessionDto[] };
+
+export async function getSessionConflicts(db: SQLiteDatabase, userId: string): Promise<SessionConflict[]> {
+  const rejected = await db.getAllAsync<SessionRow>(`SELECT * FROM WorkSession WHERE userId = ? AND syncError = 'SESSION_CONFLICT' AND ${LIVE} AND ${TEAM_SCOPE}`, [userId]);
+  const conflicts: SessionConflict[] = [];
+  for (const incoming of rejected) {
+    const overlapping = await db.getAllAsync<SessionRow>(
+      `SELECT * FROM WorkSession WHERE userId = ? AND id != ? AND ${LIVE} AND ${TEAM_SCOPE}
+       AND (endAt IS NULL OR endAt > ?) AND (? IS NULL OR startAt < ?)
+       AND (deviceId IS NULL OR ? IS NULL OR deviceId != ?)
+       AND (source = 'TIMER' OR endAt IS NULL) ORDER BY startAt`,
+      [userId, incoming.id, incoming.startAt, incoming.endAt, incoming.endAt, incoming.deviceId, incoming.deviceId],
+    );
+    if (overlapping.length) conflicts.push({ sessions: [incoming, ...overlapping].map(toSessionDto) });
+    else await db.runAsync("UPDATE WorkSession SET syncError = NULL WHERE id = ?", [incoming.id]);
+  }
+  return conflicts;
+}
+
+export async function resolveSessionConflict(db: SQLiteDatabase, userId: string, conflict: SessionConflict, keepId: string) {
+  if (!conflict.sessions.some((session) => session.id === keepId)) throw new Error("SESSION_NOT_FOUND");
+  const rows = await Promise.all(conflict.sessions.map((session) => requireOwnSession(db, session.id, userId)));
+  for (const row of rows) await assertEditable(db, userId, row.startAt, row.endAt);
+  const stamp = now();
+  await db.runBatchAsync(rows.map((row) => ({
+    sql: row.id === keepId
+      ? "UPDATE WorkSession SET dirty = 1, syncError = NULL, updatedAt = ? WHERE id = ?"
+      : "UPDATE WorkSession SET deletedAt = ?, updatedAt = ?, dirty = 1, syncError = NULL WHERE id = ?",
+    params: row.id === keepId ? [stamp, row.id] : [stamp, stamp, row.id],
+  })));
 }
 
 export async function getMonthlySummary(
@@ -280,8 +327,8 @@ export async function getMonthlySummary(
   const range = monthRange(month, calendar);
 
   const sessions = await db.getAllAsync<SessionRow>(
-    `SELECT * FROM WorkSession WHERE userId = ? AND startAt >= ? AND startAt <= ? AND ${LIVE}`,
-    [userId, range.from.toISOString(), range.to.toISOString()],
+    `SELECT * FROM WorkSession WHERE userId = ? AND (endAt > ? OR (endAt IS NULL AND startAt >= ?)) AND startAt <= ? AND ${LIVE} AND ${TEAM_SCOPE}`,
+    [userId, range.from.toISOString(), range.from.toISOString(), range.to.toISOString()],
   );
 
   const settings = await db.getFirstAsync<{ hourlyRate: number }>(
@@ -300,14 +347,13 @@ export async function getMonthlySummary(
   const workedDaysSet = new Set<string>();
 
   for (const session of sessions) {
-    workedDaysSet.add(dayKey(new Date(session.startAt), calendar));
-
     if (!session.endAt) {
       continue;
     }
 
-    const minutes =
-      session.durationMinutes || calculateSessionMinutes(session.startAt, session.endAt);
+    const segments = workSegments(new Date(session.startAt), new Date(session.endAt), range, calendar);
+    const minutes = segments.reduce((sum, segment) => sum + segment.minutes, 0);
+    for (const segment of segments) if (segment.minutes > 0) workedDaysSet.add(segment.day);
 
     totalMinutes += minutes;
 

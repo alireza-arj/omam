@@ -1,7 +1,8 @@
+import { notifyAttendanceChanged } from "../lib/attendance-events";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useSQLiteContext } from "expo-sqlite";
-import type { SQLiteDatabase } from "expo-sqlite";
+import AsyncStorage from "../lib/storage";
+import { useSQLiteContext } from "../lib/sqlite-context";
+import type { SQLiteDatabase } from "../lib/sqlite-context";
 import type { AuthUserDto, CompleteProfileInputDto } from "@omam/contracts";
 import {
   getUserByUsername,
@@ -16,6 +17,9 @@ import {
   verifyPassword,
 } from "../lib/db/auth";
 import { discardAvatar, isValidAvatarValue, migrateAvatar } from "../lib/avatar";
+import { signInToServer, registerOnServer, resolveServerUrl, selectServerTeam, changeServerPassword } from "../lib/sync/client";
+import { readSyncState } from "../lib/db/sync";
+import { linkKey, storeTeamAuth, type StoredLink } from "../lib/sync/link";
 import { useLanguage } from "../design/taraz";
 
 const AUTH_STORAGE_KEY = "@omam:loggedIn";
@@ -33,6 +37,7 @@ type AuthContextValue = {
   hasAccounts: boolean;
   signIn: (username: string, password: string) => Promise<void>;
   signUp: (username: string, password: string) => Promise<void>;
+  signInTeam: (input: { username: string; password: string; inviteCode?: string }) => Promise<void>;
   signOut: () => Promise<void>;
   completeProfile: (payload: CompleteProfileInputDto) => Promise<AuthUserDto>;
   changePassword: (currentPassword: string, nextPassword: string) => Promise<void>;
@@ -62,7 +67,7 @@ async function readUser(db: SQLiteDatabase, userId: string): Promise<AuthUserDto
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const db = useSQLiteContext();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [user, setUser] = useState<AuthUserDto | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
@@ -184,6 +189,43 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [db, language, refreshAccountCount, startSession],
   );
 
+  const signInTeam = useCallback(async (input: { username: string; password: string; inviteCode?: string }) => {
+    setIsMutating(true);
+    try {
+      const serverUrl = resolveServerUrl();
+      const cached = await getUserByUsername(db, input.username);
+      let auth;
+      try {
+        auth = input.inviteCode
+          ? await registerOnServer(serverUrl, { username: input.username, password: input.password, inviteCode: input.inviteCode }, t)
+          : await signInToServer(serverUrl, input.username, input.password, t);
+      } catch (cause) {
+        if (!input.inviteCode && cached && cause instanceof Error && ["SERVER_UNREACHABLE", "SERVER_TIMEOUT"].includes(cause.message)) {
+          const stored = await AsyncStorage.getItem(linkKey(cached.id));
+          if (stored && (JSON.parse(stored) as StoredLink).serverUrl === serverUrl && await verifyPassword(input.password, cached.passwordHash)) {
+            await startSession(cached.id);
+            return;
+          }
+        }
+        throw cause;
+      }
+      if (!auth.membership) throw new Error("TEAM_REQUIRED");
+      const existing = await getUserByUsername(db, auth.user.username);
+      const local = existing ?? await createUser(db, auth.user.username, await hashPassword(input.password), language);
+      const state = await readSyncState(db, local.id);
+      if (state?.organizationId && state.serverUserId === auth.user.id && state.organizationId !== auth.membership.organizationId) {
+        try { auth.membership = await selectServerTeam(serverUrl, auth.token, state.organizationId, t); }
+        catch (cause) { if (!(cause instanceof Error && "status" in cause && cause.status === 403)) throw cause; }
+      }
+      await storeTeamAuth(db, local.id, serverUrl, auth);
+      await updateUserPasswordHash(db, local.id, await hashPassword(input.password));
+      const pendingProfile = await db.getFirstAsync<{ profileDirty: number }>("SELECT profileDirty FROM User WHERE id = ?", [local.id]);
+      if (auth.user.nickname && !pendingProfile?.profileDirty) await updateUserProfile(db, local.id, auth.user.nickname, auth.user.avatarUrl);
+      await startSession(local.id);
+      await refreshAccountCount();
+    } finally { setIsMutating(false); }
+  }, [db, language, refreshAccountCount, startSession, t]);
+
   const signOut = useCallback(async () => {
     setIsMutating(true);
 
@@ -214,12 +256,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
         const previousAvatar = user.avatarUrl;
         const updated = await updateUserProfile(db, user.id, payload.nickname.trim(), nextAvatar);
+        await db.runAsync("UPDATE User SET profileDirty = 1 WHERE id = ?", [user.id]);
 
         if (previousAvatar && previousAvatar !== nextAvatar) {
           discardAvatar(previousAvatar);
         }
 
         adopt(updated);
+        notifyAttendanceChanged();
 
         return updated;
       } finally {
@@ -244,12 +288,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
           throw new Error("WRONG_CURRENT_PASSWORD");
         }
 
+        const stored = await AsyncStorage.getItem(linkKey(user.id));
+        if (stored) {
+          const link = JSON.parse(stored) as StoredLink;
+          const response = await changeServerPassword(link.serverUrl, link.token, currentPassword, nextPassword, t);
+          await AsyncStorage.setItem(linkKey(user.id), JSON.stringify({ ...link, token: response.token }));
+        }
         await updateUserPasswordHash(db, user.id, await hashPassword(nextPassword));
       } finally {
         setIsMutating(false);
       }
     },
-    [db, user],
+    [db, t, user],
   );
 
   const value = useMemo<AuthContextValue>(
@@ -262,6 +312,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       hasAccounts,
       signIn,
       signUp,
+      signInTeam,
       signOut,
       completeProfile,
       changePassword,
@@ -276,6 +327,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signIn,
       signOut,
       signUp,
+      signInTeam,
       user,
     ],
   );

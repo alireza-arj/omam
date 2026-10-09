@@ -6,3 +6,5 @@ export * from "./org";
 export * from "./reports";
 export * from "./payroll";
 export * from "./sync";
+
+export * from "./desktop";

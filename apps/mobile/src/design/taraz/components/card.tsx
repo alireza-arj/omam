@@ -18,7 +18,7 @@ export function Card({ children, elevation = 1, padded = true, glass = false, on
   const card = (
     <HeroCard
       variant={elevation === 0 ? "secondary" : "default"}
-      style={[{ padding: padded ? layout.padCard : 0 }, glass ? { backgroundColor: "transparent" } : null, style]}
+      style={[{ borderRadius: radius.card, padding: padded ? layout.padCard : 0 }, glass ? { backgroundColor: "transparent" } : null, style]}
     >
       {children}
     </HeroCard>

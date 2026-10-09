@@ -3,14 +3,14 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-omam}
+      POSTGRES_USER: ${POSTGRES_USER:-tarazkar}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-omam}
+      POSTGRES_DB: ${POSTGRES_DB:-tarazkar}
       TZ: ${TZ:-Asia/Tehran}
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-omam} -d ${POSTGRES_DB:-omam}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tarazkar} -d ${POSTGRES_DB:-tarazkar}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -24,14 +24,14 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-omam}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-omam}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tarazkar}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-tarazkar}?schema=public
       HOST: 0.0.0.0
       PORT: 3001
       TZ: ${TZ:-Asia/Tehran}
       # Comma-separated origins. Narrow this to the panel's URL in production.
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
-      SEED_ORG_NAME: ${SEED_ORG_NAME:-Omam Team}
-      SEED_ORG_SLUG: ${SEED_ORG_SLUG:-omam}
+      SEED_ORG_NAME: ${SEED_ORG_NAME:-Tarazkar Team}
+      SEED_ORG_SLUG: ${SEED_ORG_SLUG:-tarazkar}
       SEED_OWNER_USERNAME: ${SEED_OWNER_USERNAME:-owner}
       SEED_OWNER_PASSWORD: ${SEED_OWNER_PASSWORD:?set SEED_OWNER_PASSWORD in .env}
     ports:

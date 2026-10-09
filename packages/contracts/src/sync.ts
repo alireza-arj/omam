@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isoDateTime, workSessionCategorySchema } from "./common";
+import { isoDateTime, workSessionCategorySchema, workSessionSourceSchema } from "./common";
 import { sessionSchema } from "./sessions";
 import { settingsSchema } from "./settings";
 
@@ -10,6 +10,9 @@ import { settingsSchema } from "./settings";
  */
 export const syncSessionInputSchema = z.object({
   clientId: z.string().min(1).max(64),
+  deviceId: z.string().max(64).nullable().optional(),
+  deviceName: z.string().max(80).nullable().optional(),
+  source: workSessionSourceSchema.optional(),
   startAt: isoDateTime,
   endAt: isoDateTime.nullable(),
   category: workSessionCategorySchema.default("ONSITE"),
@@ -45,6 +48,7 @@ export const syncResponseSchema = z.object({
   results: z.array(syncPushResultSchema),
   /** Every server row that changed since `since`, deletions included. */
   sessions: z.array(sessionSchema.extend({ deletedAt: z.string().nullable() })),
+  conflicts: z.array(z.object({ clientId: z.string(), sessionIds: z.array(z.string()) })).optional(),
   settings: settingsSchema,
   organization: z
     .object({
@@ -52,6 +56,7 @@ export const syncResponseSchema = z.object({
       name: z.string(),
     })
     .nullable(),
+  lockedPeriods: z.array(z.object({ month: z.string(), from: z.string(), to: z.string() })).optional(),
 });
 
 export type SyncSessionInputDto = z.infer<typeof syncSessionInputSchema>;

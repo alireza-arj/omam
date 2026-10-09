@@ -1,17 +1,19 @@
-import type { SQLiteDatabase } from "expo-sqlite";
+import type { DatabaseQueries as SQLiteDatabase } from "./sqlite-context";
 
 const DATABASE_NAME = "omam.db";
 
 /** Bump when a migration is added below. */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 7;
 
 export const DB_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS AppDevice (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS User (
     id TEXT PRIMARY KEY NOT NULL,
     username TEXT UNIQUE NOT NULL,
     passwordHash TEXT NOT NULL,
     nickname TEXT,
     avatarUrl TEXT,
+    profileDirty INTEGER NOT NULL DEFAULT 0,
     createdAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL
   );
@@ -31,6 +33,8 @@ export const DB_SCHEMA = `
   CREATE TABLE IF NOT EXISTS WorkSession (
     id TEXT PRIMARY KEY NOT NULL,
     userId TEXT NOT NULL,
+    deviceId TEXT,
+    deviceName TEXT,
     startAt TEXT NOT NULL,
     endAt TEXT,
     durationMinutes INTEGER DEFAULT 0,
@@ -39,6 +43,7 @@ export const DB_SCHEMA = `
     createdAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL,
     remoteId TEXT,
+    organizationId TEXT,
     legacyReviewStatus TEXT,
     status TEXT NOT NULL DEFAULT 'OPEN',
     source TEXT NOT NULL DEFAULT 'TIMER',
@@ -46,8 +51,17 @@ export const DB_SCHEMA = `
     projectName TEXT,
     projectColor TEXT,
     dirty INTEGER NOT NULL DEFAULT 1,
+    syncError TEXT,
     deletedAt TEXT,
     syncedAt TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS LockedPeriod (
+    organizationId TEXT NOT NULL,
+    month TEXT NOT NULL,
+    fromAt TEXT NOT NULL,
+    toAt TEXT NOT NULL,
+    PRIMARY KEY (organizationId, month)
   );
 
   CREATE TABLE IF NOT EXISTS SyncState (
@@ -55,6 +69,7 @@ export const DB_SCHEMA = `
     serverUserId TEXT,
     serverUsername TEXT,
     organizationName TEXT,
+    organizationId TEXT,
     cursor TEXT,
     lastSyncAt TEXT,
     lastError TEXT
@@ -142,8 +157,11 @@ async function backfillDurations(db: SQLiteDatabase) {
   );
 }
 
-export async function initializeDatabase(db: SQLiteDatabase) {
+export async function initializeDatabase(db: SQLiteDatabase, deviceName = "Browser", deviceId?: string) {
   await db.execAsync(DB_SCHEMA);
+  if (!(await db.getFirstAsync("SELECT id FROM AppDevice LIMIT 1"))) {
+    await db.runAsync("INSERT INTO AppDevice (id, name) VALUES (?, ?)", [deviceId ?? crypto.randomUUID(), deviceName]);
+  }
 
   if (!(await hasColumn(db, "WorkSession", "category"))) {
     await db.execAsync("ALTER TABLE WorkSession ADD COLUMN category TEXT NOT NULL DEFAULT 'ONSITE'");
@@ -195,6 +213,22 @@ export async function initializeDatabase(db: SQLiteDatabase) {
     "UPDATE WorkSession SET status = CASE WHEN endAt IS NULL THEN 'OPEN' ELSE 'COMPLETED' END",
   );
 
+  if (!(await hasColumn(db, "WorkSession", "organizationId"))) {
+    await db.execAsync("ALTER TABLE WorkSession ADD COLUMN organizationId TEXT");
+  }
+  if (!(await hasColumn(db, "SyncState", "organizationId"))) {
+    await db.execAsync("ALTER TABLE SyncState ADD COLUMN organizationId TEXT");
+  }
+  if (!(await hasColumn(db, "WorkSession", "syncError"))) {
+    await db.execAsync("ALTER TABLE WorkSession ADD COLUMN syncError TEXT");
+  }
+  if (!(await hasColumn(db, "User", "profileDirty"))) {
+    await db.execAsync("ALTER TABLE User ADD COLUMN profileDirty INTEGER NOT NULL DEFAULT 0");
+  }
+  await db.execAsync("CREATE INDEX IF NOT EXISTS WorkSession_team ON WorkSession (userId, organizationId, startAt)");
+  for (const column of ["deviceId", "deviceName"]) {
+    if (!(await hasColumn(db, "WorkSession", column))) await db.execAsync(`ALTER TABLE WorkSession ADD COLUMN ${column} TEXT`);
+  }
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
 

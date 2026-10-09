@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Omam",
+    "name": "Tarazkar",
     "slug": "omam",
     "version": "1.0.0",
     "scheme": "omam",
@@ -12,11 +12,12 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Omam to access your photos so you can choose an avatar."
+          "photosPermission": "Allow Tarazkar to access your photos so you can choose an avatar."
         }
       ],
       "expo-sqlite",
-      "expo-font"
+      "expo-font",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
@@ -24,7 +25,7 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Allow Omam to access your photos so you can choose an avatar."
+        "NSPhotoLibraryUsageDescription": "Allow Tarazkar to access your photos so you can choose an avatar."
       }
     },
     "android": {
@@ -35,7 +36,7 @@
         "android.permission.READ_EXTERNAL_STORAGE"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/brand/app-icon.png",
+        "foregroundImage": "./assets/brand/app-icon-foreground.png",
         "backgroundColor": "#0B0E12"
       }
     },

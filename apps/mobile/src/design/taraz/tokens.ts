@@ -188,13 +188,13 @@ export const space = {
 export const layout = {
   padControlX: 12,
   padControlY: 7,
-  padCard: 14,
+  padCard: 18,
   padSection: 20,
-  padPage: 20,
+  padPage: 24,
   gapTight: 6,
-  gapDefault: 10,
-  gapLoose: 16,
-  gapSection: 32,
+  gapDefault: 12,
+  gapLoose: 20,
+  gapSection: 36,
   controlSm: 28,
   controlMd: 34,
   controlLg: 44,
@@ -217,7 +217,7 @@ export const radius = {
   "3xl": 34,
   full: 999,
   control: 10,
-  card: 14,
+  card: 20,
   sheet: 24,
   pill: 999,
 } as const;
@@ -225,6 +225,7 @@ export const radius = {
 /* ── motion ──────────────────────────────────────────────────────────────── */
 
 export const motion = {
+  easePopover: { x1: 0.23, y1: 1, x2: 0.32, y2: 1 },
   durInstant: 80,
   durFast: 140,
   durNormal: 220,
@@ -234,7 +235,27 @@ export const motion = {
   pressScaleLarge: 0.985,
   /* cubic-bezier(.32,.72,0,1) — the one easing family */
   easeStandard: { x1: 0.32, y1: 0.72, x2: 0, y2: 1 },
+  easeInOut: { x1: 0.77, y1: 0, x2: 0.175, y2: 1 },
   easeOut: { x1: 0.16, y1: 1, x2: 0.3, y2: 1 },
+} as const;
+
+export const desktopTokens = {
+  "--dt-embedded-scale": "0.875",
+  "--dt-clear": "transparent",
+  "--dt-xs": "0.25rem", "--dt-sm": "0.5rem", "--dt-md": "0.75rem",
+  "--dt-lg": "1rem", "--dt-xl": "1.5rem", "--dt-2xl": "2rem", "--dt-3xl": "2.5rem",
+  "--dt-caption": "0.6875rem", "--dt-small": "0.75rem", "--dt-body": "0.8125rem",
+  "--dt-title": "1rem", "--dt-heading": "1.5rem", "--dt-timer": "3.5rem",
+  "--dt-leading": "1.5", "--dt-tight-leading": "1.12", "--dt-tracking": "-0.035em",
+  "--dt-radius": "1.125rem", "--dt-radius-sm": "0.625rem", "--dt-radius-xs": "0.375rem",
+  "--dt-control": "2.5rem", "--dt-hit": "2rem", "--dt-stroke": "1px", "--dt-dot": "0.3125rem",
+  "--dt-blur": "24px", "--dt-panel-width": "420px", "--dt-panel-height": "640px",
+  "--dt-font": "system-ui, -apple-system, sans-serif",
+  "--dt-mono": "IBMPlexMono_400Regular, ui-monospace, monospace",
+  "--dt-persian": "Vazirmatn_400Regular, sans-serif",
+  "--dt-fast": `${motion.durFast}ms`, "--dt-normal": `${motion.durNormal}ms`,
+  "--dt-press": String(motion.pressScale),
+  "--dt-ease": `cubic-bezier(${Object.values(motion.easePopover).join(",")})`,
 } as const;
 
 /* ── elevation ───────────────────────────────────────────────────────────── */
@@ -328,6 +349,7 @@ export const fontSize = {
   xs: 12,
   sm: 13,
   base: 15,
+  inputWebMin: 16,
   md: 17,
   lg: 20,
   xl: 24,

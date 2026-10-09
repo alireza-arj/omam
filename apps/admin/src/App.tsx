@@ -1,3 +1,4 @@
+import { TeamsPage } from "./routes/teams";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useLanguage } from "./lib/i18n";
 import { useSession } from "./lib/session";
@@ -9,11 +10,7 @@ import { TimesheetsPage } from "./routes/timesheets";
 import { MembersPage } from "./routes/members";
 import { MemberDetailPage } from "./routes/member-detail";
 import { ReportPage } from "./routes/report";
-import { PayrollPage } from "./routes/payroll";
-import { ProjectsPage } from "./routes/projects";
 import { InvitesPage } from "./routes/invites";
-import { SettingsPage } from "./routes/settings";
-import { AuditPage } from "./routes/audit";
 
 export function App() {
   const { user, isReady } = useSession();
@@ -43,11 +40,8 @@ export function App() {
         <Route path="/members" element={<MembersPage />} />
         <Route path="/members/:userId" element={<MemberDetailPage />} />
         <Route path="/report" element={<ReportPage />} />
-        <Route path="/payroll" element={<PayrollPage />} />
-        <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/invites" element={<InvitesPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/audit" element={<AuditPage />} />
+        <Route path="/teams" element={<TeamsPage />} />
+        <Route path="/teams/invites" element={<InvitesPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

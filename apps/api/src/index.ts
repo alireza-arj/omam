@@ -66,7 +66,7 @@ const app = new Elysia()
   .get("/health", async () => {
     await prisma.$queryRaw`SELECT 1`;
 
-    return { ok: true, service: "omam-api", time: new Date().toISOString() };
+    return { ok: true, service: "tarazkar-api", time: new Date().toISOString() };
   })
   .use(authRoutes)
   .use(settingsRoutes)

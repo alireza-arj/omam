@@ -74,12 +74,13 @@ export function serializeMembership(
   };
 }
 
-export async function createAuthSession(userId: string, deviceName?: string) {
+export async function createAuthSession(userId: string, deviceName?: string, organizationId?: string) {
   const token = randomBytes(32).toString("base64url");
 
   await prisma.authSession.create({
     data: {
       userId,
+      organizationId,
       tokenHash: hashToken(token),
       deviceName: deviceName?.trim() || null,
       lastUsedAt: new Date(),
@@ -107,7 +108,7 @@ export function parseBearerToken(authorizationHeader: string | undefined) {
 export type Principal = {
   sessionId: string;
   user: User;
-  /** The single organization this account belongs to, if any. */
+  /** The team selected for this device's authenticated session. */
   membership: (Membership & { organization: Organization }) | null;
 };
 
@@ -145,7 +146,9 @@ export async function authenticateByBearerToken(token: string): Promise<Principa
   return {
     sessionId: session.id,
     user,
-    membership: memberships[0] ?? null,
+    membership: session.organizationId
+      ? memberships.find((entry) => entry.organizationId === session.organizationId) ?? null
+      : memberships[0] ?? null,
   };
 }
 

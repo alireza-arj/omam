@@ -1,8 +1,16 @@
 import { useState, type ReactNode } from "react";
 import { type StyleProp, type ViewStyle } from "react-native";
 import { Accordion as HeroAccordion } from "heroui-native/accordion";
+import { Easing, FadeIn, FadeOut } from "react-native-reanimated";
 import { Text } from "./text";
-import { layout, type TypeRole } from "../tokens";
+import { layout, motion, type TypeRole } from "../tokens";
+
+const contentEntering = FadeIn.duration(motion.durNormal).easing(
+  Easing.bezier(motion.easeOut.x1, motion.easeOut.y1, motion.easeOut.x2, motion.easeOut.y2),
+);
+const contentExiting = FadeOut.duration(motion.durFast).easing(
+  Easing.bezier(motion.easeOut.x1, motion.easeOut.y1, motion.easeOut.x2, motion.easeOut.y2),
+);
 
 export type AccordionProps = {
   title: string;
@@ -42,7 +50,12 @@ export function Accordion({
           {meta ? <Text role="mono" tone="muted">{meta}</Text> : null}
           <HeroAccordion.Indicator />
         </HeroAccordion.Trigger>
-        <HeroAccordion.Content style={{ paddingHorizontal: 0 }}>{children}</HeroAccordion.Content>
+        <HeroAccordion.Content
+          animation={{ entering: { value: contentEntering }, exiting: { value: contentExiting } }}
+          style={{ paddingHorizontal: 0 }}
+        >
+          {children}
+        </HeroAccordion.Content>
       </HeroAccordion.Item>
     </HeroAccordion>
   );

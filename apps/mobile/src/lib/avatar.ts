@@ -133,3 +133,9 @@ export function isValidAvatarValue(value: string): boolean {
     value.startsWith("data:image/") || value.startsWith("file://") || /^https?:\/\//i.test(value)
   );
 }
+
+export async function avatarForServer(value: string | null) {
+  if (!value?.startsWith("file://")) return value;
+  const file = new File(value);
+  return `data:${file.type || "image/jpeg"};base64,${await file.base64()}`;
+}

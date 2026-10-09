@@ -7,6 +7,6 @@ export default defineConfig({
     seed: "bun run prisma/seed.ts",
   },
   datasource: {
-    url: process.env.DATABASE_URL ?? "postgresql://postgres@localhost:5432/omam",
+    url: process.env.DATABASE_URL ?? "postgresql://postgres@localhost:5432/tarazkar",
   },
 });

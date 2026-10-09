@@ -3,6 +3,7 @@ import {
   formatDayLabel,
   formatDayMonth,
   formatMonthLabel,
+  formatFullDate,
   monthKey,
   monthRange,
   type CalendarSystem,
@@ -61,7 +62,7 @@ export function formatDayWithWeekday(iso: string, calendar: CalendarSystem, lang
 }
 
 export function formatDateTime(iso: string, calendar: CalendarSystem, language: Language) {
-  return `${formatDate(iso, calendar, language)} · ${formatTime(iso)}`;
+  return `${formatFullDate(new Date(iso), calendar, language)} · ${formatTime(iso)}`;
 }
 
 export function monthLabel(month: string, calendar: CalendarSystem, language: Language) {
