@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Building2, Laptop, Play, Square } from "lucide-react-native";
 import { formatDayMonth, formatWeekday } from "@omam/calendar";
 import { translateError } from "@omam/i18n";
@@ -16,6 +17,7 @@ import {
   SegmentedControl,
   Text,
   layout,
+  space,
   useColors,
   useTabBarHeight,
   useLanguage,
@@ -36,7 +38,8 @@ export default function TodayScreen() {
   const { summary, calendar, clockIn, clockOut, isMutating } = useAttendance();
   const { showToast } = useToast();
   const { language, t } = useLanguage();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const colors = useColors();
   const tabBarHeight = useTabBarHeight();
 
@@ -70,7 +73,16 @@ export default function TodayScreen() {
     : 0;
 
   const timecode = isRunning ? formatDurationHms(elapsedSeconds) : formatWallClock(now);
-  const dialSize = useMemo(() => Math.min(Math.max(width * 0.68, 220), 288), [width]);
+  const contentWidth = Math.min(width - layout.padPage * 2, layout.mobileContentMaxWidth);
+  const availableHeight = height - insets.top - tabBarHeight;
+  const dialSize = Math.min(
+    contentWidth,
+    layout.todayDialMax,
+    Math.max(
+      layout.todayDialMin,
+      Math.min(width * layout.todayDialWidthRatio, availableHeight * layout.todayDialHeightRatio),
+    ),
+  );
 
   const categoryOptions = useMemo<SegmentOption<WorkSessionCategory>[]>(
     () => [
@@ -78,14 +90,14 @@ export default function TodayScreen() {
         value: "ONSITE",
         label: t("category.ONSITE"),
         icon: (active) => (
-          <Icon glyph={Building2} size={16} color={active ? colors.textTitle : colors.textMuted} />
+          <Icon glyph={Building2} size={space[7]} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
       {
         value: "REMOTE",
         label: t("category.REMOTE"),
         icon: (active) => (
-          <Icon glyph={Laptop} size={16} color={active ? colors.textTitle : colors.textMuted} />
+          <Icon glyph={Laptop} size={space[7]} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
     ],
@@ -119,34 +131,39 @@ export default function TodayScreen() {
   }
 
   return (
-    <Screen scroll center bottomInset={tabBarHeight} gap={layout.gapLoose} contentStyle={{ paddingTop: layout.padSection, paddingBottom: tabBarHeight + layout.gapLoose }}>
+    <Screen
+      scroll
+      center
+      bottomInset={tabBarHeight}
+      gap={layout.gapLoose}
+      contentStyle={{ paddingTop: layout.padSection, justifyContent: "space-between" }}
+    >
       <View style={{ alignItems: "center", gap: layout.gapTight }}>
         <Text role="overline" tone="muted">
           {displayDate}
         </Text>
       </View>
 
-      <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: layout.gapDefault }}>
+      <View style={{ alignItems: "center", justifyContent: "center", flexGrow: 1, gap: layout.gapLoose, paddingVertical: layout.gapTight }}>
         <SessionDial
           size={dialSize}
           isRunning={isRunning}
           elapsedSeconds={elapsedSeconds}
           currentDate={now}
         />
-      </View>
-
-      <View style={{ alignItems: "center", gap: layout.gapTight }}>
-        <Text role="monoDisplay" tone="title" style={{ textAlign: "center" }}>
-          {timecode}
-        </Text>
-        <MotionReveal key={isRunning ? "running" : "idle"}>
-          <Text role="bodySm" tone={isRunning ? "accent" : "muted"} style={{ textAlign: "center" }}>
-            {isRunning ? t("today.running") : t("today.idle")}
+        <View style={{ alignItems: "center", gap: layout.gapTight }}>
+          <Text role="monoDisplay" tone="title" style={{ textAlign: "center" }}>
+            {timecode}
           </Text>
-        </MotionReveal>
+          <MotionReveal key={isRunning ? "running" : "idle"}>
+            <Text role="bodySm" tone={isRunning ? "accent" : "muted"} style={{ textAlign: "center" }}>
+              {isRunning ? t("today.running") : t("today.idle")}
+            </Text>
+          </MotionReveal>
+        </View>
       </View>
 
-      <View style={{ alignItems: "center", alignSelf: "stretch", gap: layout.gapLoose, paddingTop: layout.gapLoose }}>
+      <View style={{ alignItems: "center", width: "100%", maxWidth: layout.mobileContentMaxWidth, gap: layout.gapDefault }}>
         <SegmentedControl
           options={categoryOptions}
           value={activeCategory}
@@ -167,12 +184,12 @@ export default function TodayScreen() {
           icon={
             <Icon
               glyph={isRunning ? Square : Play}
-              size={18}
+              size={space[8]}
               color={isRunning ? colors.textTitle : colors.textOnAccent}
               filled
             />
           }
-          style={{ minHeight: layout.controlLg + layout.gapLoose }}
+          style={{ minHeight: layout.todayActionHeight }}
         />
       </View>
     </Screen>

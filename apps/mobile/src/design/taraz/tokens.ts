@@ -201,7 +201,13 @@ export const layout = {
   tapMin: 44,
   dialogMaxWidth: 420,
   startupMaxWidth: 520,
-  tabBarContentHeight: 56,
+  mobileContentMaxWidth: 420,
+  todayDialMin: 180,
+  todayDialMax: 264,
+  todayDialWidthRatio: 0.62,
+  todayDialHeightRatio: 0.36,
+  todayActionHeight: 56,
+  tabBarContentHeight: 52,
   hairline: StyleSheet.hairlineWidth,
 } as const;
 

@@ -29,7 +29,7 @@ export function TabBar({ state, descriptors, navigation, items }: TabBarProps) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.bar, { bottom: Math.max(insets.bottom, layout.gapDefault), backgroundColor: colors.surfaceGlassStrong }, shadow(3, colors)]}>
+    <View style={[styles.bar, { bottom: insets.bottom + layout.gapDefault, backgroundColor: colors.surfaceGlassStrong }, shadow(3, colors)]}>
     <Glass strong style={styles.material}>
       <Tabs
         value={state.routes[state.index].key}
@@ -55,7 +55,7 @@ export function TabBar({ state, descriptors, navigation, items }: TabBarProps) {
                 value={route.key}
                 accessibilityLabel={descriptors[route.key]?.options.tabBarAccessibilityLabel ?? item.label}
                 onLongPress={() => navigation.emit({ type: "tabLongPress", target: route.key })}
-                style={{ alignItems: "center", flex: 1, flexDirection: "column", gap: space[1], minHeight: layout.tabBarContentHeight }}
+                style={{ alignItems: "center", flex: 1, flexDirection: "column", gap: space[1], minHeight: layout.tabBarContentHeight, paddingVertical: space[2] }}
               >
                 <Icon glyph={item.glyph} size={space[9]} color={tint} />
                 <Tabs.Label style={[typeRolesByLanguage[language].caption, { color: tint }]}>{item.label}</Tabs.Label>
@@ -70,11 +70,11 @@ export function TabBar({ state, descriptors, navigation, items }: TabBarProps) {
 }
 
 const styles = StyleSheet.create({
-  bar: { start: layout.padPage, end: layout.padPage, position: "absolute", borderRadius: radius.pill },
+  bar: { start: layout.padPage, end: layout.padPage, position: "absolute", borderRadius: radius.pill, maxWidth: layout.mobileContentMaxWidth, marginHorizontal: "auto" },
   material: { borderRadius: radius.pill, paddingHorizontal: space[4], paddingVertical: space[2] },
 });
 
 export function useTabBarHeight() {
   const insets = useSafeAreaInsets();
-  return space[2] * 2 + layout.tabBarContentHeight + Math.max(insets.bottom, layout.gapDefault) + layout.gapLoose;
+  return space[2] * 2 + layout.tabBarContentHeight + layout.hairline * 2 + insets.bottom + layout.gapDefault + layout.gapLoose;
 }
