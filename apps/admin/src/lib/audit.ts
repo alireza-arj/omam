@@ -5,6 +5,7 @@ const ACTIONS: Record<string, TranslationKey> = {
   "member.updated": "admin.audit.actions.memberUpdated",
   "member.password_reset": "admin.audit.actions.passwordReset",
   "member.joined": "admin.audit.actions.memberJoined",
+  "member.created": "admin.audit.actions.memberCreated",
   "invite.created": "admin.audit.actions.inviteCreated",
   "invite.revoked": "admin.audit.actions.inviteRevoked",
   "project.created": "admin.audit.actions.projectCreated",

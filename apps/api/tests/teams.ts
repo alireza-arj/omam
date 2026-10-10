@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import {
   authResponseSchema, authMembershipSchema, teamsResponseSchema, inviteSchema,
+  memberSchema, membersResponseSchema, settingsSchema, auditLogsResponseSchema,
   sessionSchema, monthlyReportSchema, memberDetailReportSchema, syncResponseSchema,
   sessionsResponseSchema,
 } from "@omam/contracts";
@@ -25,6 +26,12 @@ async function request<S extends z.ZodType>(schema: S, method: string, path: str
   const json: unknown = await res.json();
   assert.equal(res.status, 200, `${method} ${path}: ${JSON.stringify(json)}`);
   return schema.parse(json);
+}
+async function errorCode(method: string, path: string, token?: string, body?: unknown) {
+  const res = await response(method, path, token, body);
+  const json = (await res.json()) as { code?: string };
+
+  return { status: res.status, code: json.code };
 }
 const owner = await request(authResponseSchema, "POST", "/auth/login", undefined, { username: "owner", password: "changeme123" });
 const otherDevice = await request(authResponseSchema, "POST", "/auth/login", undefined, { username: "owner", password: "changeme123" });
@@ -81,4 +88,61 @@ const resurrection = await request(syncResponseSchema, "POST", "/sync", member.t
 check("deleted sessions cannot be resurrected by offline clients", resurrection.results[0]?.reason === "SESSION_DELETED" && !!resurrection.sessions.find((item) => item.id === synchronized.id)?.deletedAt);
 const reuse = await response("POST", "/team/join", member.token, { inviteCode: inviteB.code });
 check("joining cannot reuse an accepted invite", reuse.status === 422);
+
+// ── create-user flow ───────────────────────────────────────────────────────
+await request(authMembershipSchema, "POST", "/team/select", owner.token, { organizationId: a.organizationId });
+check("anonymous cannot create accounts", (await response("POST", "/team/members", undefined, { organizationId: a.organizationId, username: `anon_${run}`, password: "testpass123" })).status === 401);
+check("member cannot create accounts", (await response("POST", "/team/members", member.token, { organizationId: a.organizationId, username: `nope_${run}`, password: "testpass123" })).status === 403);
+check("owner cannot be assigned through create", (await response("POST", "/team/members", owner.token, { organizationId: a.organizationId, username: `root_${run}`, password: "testpass123", role: "OWNER" })).status === 422);
+check("short password is refused", (await response("POST", "/team/members", owner.token, { organizationId: a.organizationId, username: `short_${run}`, password: "123" })).status === 422);
+check("invalid username is refused", (await response("POST", "/team/members", owner.token, { organizationId: a.organizationId, username: "bad name!", password: "testpass123" })).status === 422);
+check("a missing team is refused", (await response("POST", "/team/members", owner.token, { username: `noteam_${run}`, password: "testpass123" })).status === 422);
+
+const createdUsername = `created_${run}`;
+const created = await request(memberSchema, "POST", "/team/members", owner.token, {
+  organizationId: a.organizationId, username: createdUsername.toUpperCase(), password: "createdpass123", nickname: "Created by owner", role: "MEMBER", employeeCode: "C-01",
+});
+check("create returns a MEMBER on the selected team", created.role === "MEMBER" && created.status === "ACTIVE" && created.username === createdUsername);
+check("created account pays the team default rate", created.hourlyRate === 0 && created.currency === a.currency);
+const createdLogin = await request(authResponseSchema, "POST", "/auth/login", undefined, { username: createdUsername, password: "createdpass123" });
+check("created account can sign in to its team", createdLogin.user.id === created.userId && createdLogin.membership?.organizationId === a.organizationId);
+const createdSettings = await request(settingsSchema, "GET", "/settings", createdLogin.token);
+check("the account inherits the team's locale and goal", createdSettings.calendar === "GREGORIAN" && createdSettings.language === "en" && createdSettings.currency === a.currency && createdSettings.monthlyGoalHours === 160);
+const duplicateUsername = await errorCode("POST", "/team/members", owner.token, { organizationId: a.organizationId, username: createdUsername, password: "createdpass123" });
+check("duplicate username is refused with its own code", duplicateUsername.status === 409 && duplicateUsername.code === "USERNAME_TAKEN");
+check("duplicate username in another case is refused", (await response("POST", "/team/members", owner.token, { organizationId: a.organizationId, username: createdUsername.toUpperCase(), password: "createdpass123" })).status === 409);
+const duplicateCode = await errorCode("POST", "/team/members", owner.token, { organizationId: a.organizationId, username: `dup_${run}`, password: "createdpass123", employeeCode: "C-01" });
+check("duplicate employee code is refused with its own code", duplicateCode.status === 409 && duplicateCode.code === "EMPLOYEE_CODE_TAKEN");
+
+// The response and the audit trail must never carry a password or hash.
+const rawCreate = await response("POST", "/team/members", owner.token, { organizationId: a.organizationId, username: `raw_${run}`, password: "rawsecret123" });
+const rawText = await rawCreate.text();
+check("the create response carries no credential data", rawCreate.status === 200 && !rawText.includes("rawsecret123") && !rawText.toLowerCase().includes("password"));
+const audit = await request(auditLogsResponseSchema, "GET", "/team/audit", owner.token);
+const createdEntry = audit.entries.find((entry) => entry.action === "member.created" && (entry.metadata as { username?: string } | null)?.username === createdUsername);
+check("the audit log records the creation without credentials", Boolean(createdEntry) && !JSON.stringify(createdEntry).toLowerCase().includes("password") && !JSON.stringify(createdEntry).includes("createdpass123"));
+
+// A refused create must be atomic: no account, no member row, no settings.
+check("a refused create leaves no account behind", (await response("POST", "/auth/login", undefined, { username: `dup_${run}`, password: "createdpass123" })).status === 401);
+const teamMembers = await request(membersResponseSchema, "GET", "/team/members", owner.token);
+check("the created account is listed on the team", teamMembers.members.some((row) => row.username === createdUsername));
+check("the refused account is not listed", !teamMembers.members.some((row) => row.username === `dup_${run}`));
+
+// A manager may add members, but only an owner may add another manager.
+const managerUser = await request(memberSchema, "POST", "/team/members", owner.token, { organizationId: a.organizationId, username: `mgr_${run}`, password: "managerpass123", role: "MANAGER" });
+check("owner can add a manager", managerUser.role === "MANAGER");
+const managerLogin = await request(authResponseSchema, "POST", "/auth/login", undefined, { username: `mgr_${run}`, password: "managerpass123" });
+const managerMade = await request(memberSchema, "POST", "/team/members", managerLogin.token, { organizationId: a.organizationId, username: `mgr_made_${run}`, password: "memberpass123", role: "MEMBER" });
+check("a manager can add a member", managerMade.role === "MEMBER");
+check("a manager cannot add another manager", (await response("POST", "/team/members", managerLogin.token, { organizationId: a.organizationId, username: `mgr_two_${run}`, password: "managerpass123", role: "MANAGER" })).status === 403);
+
+// The team is captured by the client; a switch under the form must be refused.
+const switchedUsername = `switched_${run}`;
+await request(authMembershipSchema, "POST", "/team/select", owner.token, { organizationId: b.organizationId });
+const mismatch = await errorCode("POST", "/team/members", owner.token, { organizationId: a.organizationId, username: switchedUsername, password: "createdpass123" });
+check("a create aimed at a team the session left is refused", mismatch.status === 409 && mismatch.code === "TEAM_CHANGED");
+check("the refused cross-team create made no account", (await response("POST", "/auth/login", undefined, { username: switchedUsername, password: "createdpass123" })).status === 401);
+const teamBMembers = await request(membersResponseSchema, "GET", "/team/members", owner.token);
+check("a created account does not leak into another team", !teamBMembers.members.some((row) => row.username === createdUsername));
+
 console.log(`TEAM WORKFLOWS PASS (${checks} checks)`);

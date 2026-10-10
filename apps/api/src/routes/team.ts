@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 import { randomInt, randomUUID } from "node:crypto";
 import {
   createInviteInputSchema,
+  createMemberInputSchema,
   createOrganizationInputSchema,
   selectOrganizationInputSchema,
   joinTeamInputSchema,
@@ -10,12 +11,14 @@ import {
   updateOrganizationInputSchema,
   type MemberDto,
 } from "@omam/contracts";
+import { Prisma } from "@prisma/client";
 import type { Membership, Organization, User } from "@prisma/client";
 import { serializeMember } from "../lib/serialize";
 import { prisma } from "../lib/prisma";
 import { authenticated } from "../lib/context";
 import {
   hashPassword,
+  normalizeUsername,
   requireOrganization,
   requireRole,
   revokeAllSessionsForUser,
@@ -35,6 +38,26 @@ function generateInviteCode() {
   }
 
   return `${code.slice(0, 4)}-${code.slice(4)}`;
+}
+
+/** The constraint a P2002 violation names, lower-cased, however Prisma reports it. */
+function uniqueTarget(error: Prisma.PrismaClientKnownRequestError) {
+  const meta = error.meta as
+    | {
+        target?: unknown;
+        driverAdapterError?: { cause?: { constraint?: { index?: string; fields?: string[] } } };
+      }
+    | undefined;
+  const target = meta?.target;
+  const constraint = meta?.driverAdapterError?.cause?.constraint;
+
+  return [
+    Array.isArray(target) ? target.join(",") : typeof target === "string" ? target : "",
+    constraint?.index ?? "",
+    ...(constraint?.fields ?? []),
+  ]
+    .join(",")
+    .toLowerCase();
 }
 
 function serializeOrganization(organization: Organization) {
@@ -183,6 +206,100 @@ export const teamRoutes = new Elysia({ prefix: "/team" })
     });
 
     return { members: members.map(serializeMember) };
+  })
+
+  .post("/members", async ({ principal, body }) => {
+    requireRole(principal, "MANAGER");
+
+    const organization = requireOrganization(principal);
+    const payload = parseInput(createMemberInputSchema, body);
+    const isOwner = principal.user.isSuperAdmin || principal.membership?.role === "OWNER";
+
+    if (payload.organizationId !== organization.id) {
+      throw conflict("The selected team changed. Reload and try again.", "TEAM_CHANGED");
+    }
+
+    if (payload.role !== "MEMBER" && !isOwner) {
+      throw forbidden("Only an owner can add a manager.");
+    }
+
+    const username = normalizeUsername(payload.username);
+
+    if (await prisma.user.findUnique({ where: { username }, select: { id: true } })) {
+      throw conflict("That username is already taken.", "USERNAME_TAKEN");
+    }
+
+    if (payload.employeeCode) {
+      const clash = await prisma.membership.findFirst({
+        where: { organizationId: organization.id, employeeCode: payload.employeeCode },
+        select: { id: true },
+      });
+
+      if (clash) {
+        throw conflict("That employee code is already in use.", "EMPLOYEE_CODE_TAKEN");
+      }
+    }
+
+    const passwordHash = await hashPassword(payload.password);
+    const monthlyGoalHours = payload.monthlyGoalHours ?? organization.monthlyGoalHours;
+
+    let membership: Membership & { user: User };
+    try {
+      membership = await prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: { username, passwordHash, nickname: payload.nickname?.trim() || null },
+        });
+
+        await tx.appSettings.create({
+          data: {
+            userId: created.id,
+            calendar: organization.calendar,
+            language: organization.language,
+            currency: organization.currency,
+            monthlyGoalHours,
+          },
+        });
+
+        return tx.membership.create({
+          data: {
+            organizationId: organization.id,
+            userId: created.id,
+            role: payload.role,
+            employeeCode: payload.employeeCode ?? null,
+            jobTitle: payload.jobTitle ?? null,
+            hourlyRate: organization.defaultHourlyRate,
+            currency: organization.currency,
+            monthlyGoalHours,
+          },
+          include: { user: true },
+        });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const target = uniqueTarget(error);
+
+        if (target.includes("employeecode")) {
+          throw conflict("That employee code is already in use.", "EMPLOYEE_CODE_TAKEN");
+        }
+
+        if (target.includes("username")) {
+          throw conflict("That username is already taken.", "USERNAME_TAKEN");
+        }
+      }
+
+      throw error;
+    }
+
+    await recordAudit({
+      organizationId: organization.id,
+      actorId: principal.user.id,
+      action: "member.created",
+      targetType: "membership",
+      targetId: membership.id,
+      metadata: { username, role: membership.role },
+    });
+
+    return serializeMember(membership);
   })
 
   .patch("/members/:membershipId", async ({ principal, params, body }) => {

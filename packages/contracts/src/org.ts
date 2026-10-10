@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { passwordSchema, usernameSchema } from "./auth";
 import {
   calendarSystemSchema,
   currencySchema,
@@ -81,6 +82,19 @@ export const updateMemberInputSchema = z.object({
 
 export const resetMemberPasswordInputSchema = z.object({
   nextPassword: z.string().min(6).max(72),
+});
+
+export const assignableRoleSchema = z.enum(["MEMBER", "MANAGER"]).default("MEMBER");
+
+export const createMemberInputSchema = z.object({
+  organizationId: z.string().min(1),
+  username: usernameSchema,
+  password: passwordSchema,
+  nickname: z.string().trim().min(1).max(80).nullable().optional(),
+  role: assignableRoleSchema,
+  employeeCode: z.string().trim().max(32).nullable().optional(),
+  jobTitle: z.string().trim().max(80).nullable().optional(),
+  monthlyGoalHours: z.number().nonnegative().max(744).optional(),
 });
 
 export const inviteSchema = z.object({
@@ -167,6 +181,7 @@ export type MemberDto = z.infer<typeof memberSchema>;
 export type MembersResponseDto = z.infer<typeof membersResponseSchema>;
 export type UpdateMemberInputDto = z.infer<typeof updateMemberInputSchema>;
 export type ResetMemberPasswordInputDto = z.infer<typeof resetMemberPasswordInputSchema>;
+export type CreateMemberInputDto = z.infer<typeof createMemberInputSchema>;
 export type InviteDto = z.infer<typeof inviteSchema>;
 export type InvitesResponseDto = z.infer<typeof invitesResponseSchema>;
 export type CreateInviteInputDto = z.infer<typeof createInviteInputSchema>;

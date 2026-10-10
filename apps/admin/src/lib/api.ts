@@ -5,6 +5,7 @@ import type {
   CreateOrganizationInputDto,
   AuthResponseDto,
   CreateInviteInputDto,
+  CreateMemberInputDto,
   CreateProjectInputDto,
   CreateSessionInputDto,
   DashboardDto,
@@ -170,6 +171,8 @@ export const api = {
     request<OrganizationDto>("/team/organization", { method: "PATCH", body }),
 
   members: () => request<MembersResponseDto>("/team/members"),
+  createMember: (body: CreateMemberInputDto) =>
+    request<MemberDto>("/team/members", { method: "POST", body }),
   updateMember: (membershipId: string, body: UpdateMemberInputDto) =>
     request<MemberDto>(`/team/members/${membershipId}`, { method: "PATCH", body }),
   resetMemberPassword: (membershipId: string, nextPassword: string) =>

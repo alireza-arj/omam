@@ -18,13 +18,14 @@ import {
 } from "../components/ui";
 import { CollectionToolbar, Pagination } from "../components/collection";
 import { useCollection } from "../lib/collection";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { MemberDto, UpdateMemberInputDto } from "@omam/contracts";
+import { createMemberInputSchema } from "@omam/contracts";
+import type { CreateMemberInputDto, MemberDto, UpdateMemberInputDto } from "@omam/contracts";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
-import { translateError } from "@omam/i18n";
+import { translateError, type TranslationKey } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
 import { useToast } from "../lib/ui";
 import { displayName } from "../lib/format";
@@ -32,9 +33,27 @@ import { PageHeader } from "./layout";
 
 type Draft = UpdateMemberInputDto;
 
+type CreatingTarget = { organizationId: string; teamName: string };
+
+type NewMemberDraft = {
+  username: string;
+  password: string;
+  nickname: string;
+};
+
+type NewMemberField = "username" | "password" | "nickname";
+
+const EMPTY_NEW_MEMBER: NewMemberDraft = { username: "", password: "", nickname: "" };
+
+const NEW_MEMBER_FIELD_ERROR: Record<NewMemberField, TranslationKey> = {
+  username: "admin.members.createUsernameInvalid",
+  password: "admin.members.createPasswordInvalid",
+  nickname: "admin.members.createNicknameInvalid",
+};
+
 export function MembersPage() {
   const navigate = useNavigate();
-  const { can } = useSession();
+  const { can, membership, isSwitching } = useSession();
   const toast = useToast();
   const queryClient = useQueryClient();
   const { t } = useLanguage();
@@ -43,8 +62,18 @@ export function MembersPage() {
   const [draft, setDraft] = useState<Draft>({});
   const [resetting, setResetting] = useState<MemberDto | null>(null);
   const [nextPassword, setNextPassword] = useState("");
+  const [creating, setCreating] = useState<CreatingTarget | null>(null);
+  const [newMember, setNewMember] = useState<NewMemberDraft>(EMPTY_NEW_MEMBER);
+  const [newRole, setNewRole] = useState<CreateMemberInputDto["role"]>("MEMBER");
+  const [formErrors, setFormErrors] = useState<Partial<Record<NewMemberField, string>>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const createFormId = useId();
 
   const members = useQuery({ queryKey: ["members"], queryFn: api.members });
+
+  const teamChanged = Boolean(
+    creating && membership && creating.organizationId !== membership.organizationId,
+  );
 
   const save = useMutation({
     mutationFn: (input: { membershipId: string; body: Draft }) =>
@@ -57,6 +86,28 @@ export function MembersPage() {
       setEditing(null);
     },
     onError: (error) => toast(translateError(error, t), "error"),
+  });
+
+  const createMember = useMutation({
+    mutationFn: (input: CreateMemberInputDto) => api.createMember(input),
+    onSuccess: () => {
+      toast(t("admin.members.created"), "success");
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+      queryClient.invalidateQueries({ queryKey: ["report"] });
+      queryClient.invalidateQueries({ queryKey: ["member-report"] });
+      resetCreateForm();
+    },
+    onError: (error) => {
+      const code = error instanceof Error && "code" in error ? error.code : null;
+
+      if (code === "USERNAME_TAKEN") {
+        setFormErrors((current) => ({ ...current, username: translateError(error, t) }));
+        setFormError(null);
+        return;
+      }
+
+      setFormError(translateError(error, t));
+    },
   });
 
   const resetPassword = useMutation({
@@ -81,6 +132,61 @@ export function MembersPage() {
     });
   }
 
+  function resetCreateForm() {
+    setCreating(null);
+    setNewMember(EMPTY_NEW_MEMBER);
+    setNewRole("MEMBER");
+    setFormErrors({});
+    setFormError(null);
+  }
+
+  function startCreate() {
+    if (!membership) return;
+    createMember.reset();
+    setCreating({ organizationId: membership.organizationId, teamName: membership.organizationName });
+    setNewMember(EMPTY_NEW_MEMBER);
+    setNewRole("MEMBER");
+    setFormErrors({});
+    setFormError(null);
+  }
+
+  function closeCreate() {
+    if (createMember.isPending) return;
+    resetCreateForm();
+  }
+
+  function submitCreate() {
+    if (!creating || createMember.isPending || isSwitching) return;
+
+    const parsed = createMemberInputSchema.safeParse({
+      organizationId: creating.organizationId,
+      username: newMember.username,
+      password: newMember.password,
+      nickname: newMember.nickname.trim() || null,
+      role: newRole,
+    });
+
+    if (!parsed.success) {
+      const nextErrors: Partial<Record<NewMemberField, string>> = {};
+
+      for (const issue of parsed.error.issues) {
+        const field = issue.path[0];
+
+        if (field === "username" || field === "password" || field === "nickname") {
+          nextErrors[field] ??= t(NEW_MEMBER_FIELD_ERROR[field]);
+        }
+      }
+
+      setFormErrors(nextErrors);
+      setFormError(null);
+      return;
+    }
+
+    setFormErrors({});
+    setFormError(null);
+    createMember.mutate(parsed.data);
+  }
+
   const collection = useCollection(members.data?.members ?? [], (row) =>
     [displayName(row), row.username, row.employeeCode, row.jobTitle].join(" "),
   );
@@ -91,9 +197,12 @@ export function MembersPage() {
         title={t("workspace.members")}
         subtitle={t("workspace.membersHint")}
         actions={
-          <ButtonLink primary to="/teams/invites">
-            {t("admin.members.inviteSomeone")}
-          </ButtonLink>
+          <>
+            <ButtonLink to="/teams/invites">{t("admin.members.inviteSomeone")}</ButtonLink>
+            <Button variant="primary" onClick={startCreate} disabled={!membership || isSwitching}>
+              {t("admin.members.createUser")}
+            </Button>
+          </>
         }
       />
 
@@ -289,6 +398,100 @@ export function MembersPage() {
               autoComplete="off"
             />
           </Field>
+        </Modal>
+      ) : null}
+
+      {creating ? (
+        <Modal
+          title={t("admin.members.createTitle")}
+          onClose={closeCreate}
+          footer={
+            <>
+              <Button variant="ghost" onClick={closeCreate} disabled={createMember.isPending}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                type="submit"
+                form={createFormId}
+                loading={createMember.isPending}
+                disabled={teamChanged || isSwitching}
+              >
+                {t("admin.members.createAction")}
+              </Button>
+            </>
+          }
+        >
+          <form
+            id={createFormId}
+            className="stack gap-6"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitCreate();
+            }}
+          >
+            <p className="t-body-sm muted">
+              {t("admin.members.createIntro", { team: creating.teamName })}
+            </p>
+            {teamChanged ? (
+              <p className="t-body-sm" role="alert">{t("admin.members.teamChanged")}</p>
+            ) : null}
+
+            <Field label={t("admin.members.createNickname")} error={formErrors.nickname}>
+              <Input
+                value={newMember.nickname}
+                onChange={(event) => setNewMember({ ...newMember, nickname: event.target.value })}
+                placeholder={t("admin.members.createNicknamePlaceholder")}
+                autoComplete="off"
+                maxLength={80}
+                disabled={createMember.isPending}
+              />
+            </Field>
+
+            <Field
+              label={t("admin.members.createUsername")}
+              hint={t("admin.members.createUsernameHint")}
+              error={formErrors.username}
+            >
+              <Input
+                value={newMember.username}
+                onChange={(event) => setNewMember({ ...newMember, username: event.target.value })}
+                placeholder={t("admin.members.createUsernamePlaceholder")}
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                maxLength={32}
+                disabled={createMember.isPending}
+              />
+            </Field>
+
+            <Field label={t("admin.members.createPassword")} error={formErrors.password}>
+              <Input
+                type="password"
+                value={newMember.password}
+                onChange={(event) => setNewMember({ ...newMember, password: event.target.value })}
+                placeholder={t("admin.members.createPasswordPlaceholder")}
+                autoComplete="new-password"
+                maxLength={72}
+                disabled={createMember.isPending}
+              />
+            </Field>
+
+            <Field label={t("admin.members.role")}>
+              <Select
+                value={newRole}
+                disabled={!can("OWNER") || createMember.isPending}
+                onValueChange={(value) => setNewRole(value as CreateMemberInputDto["role"])}
+              >
+                <option value="MEMBER">{t("role.MEMBER")}</option>
+                <option value="MANAGER">{t("role.MANAGER")}</option>
+              </Select>
+            </Field>
+
+            {formError ? (
+              <p className="t-body-sm" role="alert">{formError}</p>
+            ) : null}
+          </form>
         </Modal>
       ) : null}
     </>
