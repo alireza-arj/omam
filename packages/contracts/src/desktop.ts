@@ -32,7 +32,6 @@ export type DesktopApi = {
   database: (request: DesktopDatabaseRequest) => Promise<unknown>;
   storage: (request: DesktopStorageRequest) => Promise<string | null>;
   setTrayState: (state: DesktopTrayState) => Promise<void>;
-  notify: (title: string, body: string) => Promise<void>;
   hide: () => Promise<void>;
   quit: () => Promise<void>;
   checkUpdates: () => Promise<"disabled" | "current" | "downloading" | "available">;

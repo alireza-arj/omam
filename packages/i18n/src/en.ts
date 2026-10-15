@@ -238,13 +238,6 @@ export const en = {
     start: "Start",
     stop: "Stop",
     failedTitle: "Time tracking failed",
-    clockedInTitle: "You're clocked in",
-    clockedInBody: "Your work session is now running.",
-    clockedOutTitle: "You're clocked out",
-    clockedOutBody: "Your work session has been saved.",
-    reminderTitle: "Still on the clock?",
-    reminderBody: "Your session is still running. If you finished work, remember to clock out.",
-    notificationChannel: "Work sessions",
   },
 
   report: {

@@ -16,8 +16,7 @@
         }
       ],
       "expo-sqlite",
-      "expo-font",
-      "expo-notifications"
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
@@ -30,6 +29,10 @@
     },
     "android": {
       "package": "com.omam.app",
+      "blockedPermissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ],
       "versionCode": 1,
       "permissions": [
         "android.permission.READ_MEDIA_IMAGES",

@@ -1,9 +1,8 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, net, Notification, powerMonitor, protocol, safeStorage, screen, session, Tray, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, safeStorage, screen, session, Tray, type IpcMainInvokeEvent } from "electron";
 import { autoUpdater } from "electron-updater";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { z } from "zod";
 import { desktopStorageRequestSchema, desktopTrayStateSchema, type DesktopTrayState } from "@omam/contracts";
 import { createTranslator } from "@omam/i18n";
 import { trayIconPng } from "./tray-icon";
@@ -19,18 +18,11 @@ let tray: Tray;
 let state: DesktopTrayState = { startAt: null, language: "en", isDark: false };
 let updateReady = false;
 let trayMenu: Menu;
-let reminderKey = "";
 
 function paintTray() {
   const elapsed = state.startAt ? Math.max(0, Math.floor((Date.now() - Date.parse(state.startAt)) / 60000)) : null;
   tray.setTitle(elapsed === null ? "" : `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`, { fontType: "monospacedDigit" });
   const t = createTranslator(state.language);
-  const reminder = state.startAt ? Math.floor((Date.now() - Date.parse(state.startAt)) / (2 * 60 * 60 * 1000)) : 0;
-  const key = `${state.startAt}:${reminder}`;
-  if (state.startAt && reminder > 0 && key !== reminderKey) {
-    reminderKey = key;
-    if (Notification.isSupported()) new Notification({ title: t("today.reminderTitle"), body: t("today.reminderBody") }).show();
-  }
   tray.setToolTip(t("desktop.appName"));
   trayMenu = Menu.buildFromTemplate([{ label: t("desktop.open"), click: showPanel }, { label: t("desktop.quit"), click: () => app.quit() }]);
 }
@@ -99,10 +91,6 @@ async function start() {
   handle("omam:tray", (input) => { state = desktopTrayStateSchema.parse(input); paintTray(); });
   handle("omam:hide", () => panel.hide());
   handle("omam:quit", () => app.quit());
-  handle("omam:notify", (input) => {
-    const copy = z.object({ title: z.string().max(160), body: z.string().max(500) }).parse(input);
-    if (Notification.isSupported()) new Notification(copy).show();
-  });
   const release = JSON.parse(readFileSync(join(compiled, "release.json"), "utf8")) as { updateUrl: string | null };
   if (release.updateUrl) { autoUpdater.setFeedURL({ provider: "generic", url: release.updateUrl }); autoUpdater.autoInstallOnAppQuit = false; }
   autoUpdater.on("update-downloaded", () => { updateReady = true; });

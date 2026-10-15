@@ -13,7 +13,7 @@ import { AuthProvider } from "../src/providers/auth-provider";
 import { SyncProvider } from "../src/providers/sync-provider";
 import { DatabaseProvider } from "../src/providers/database-provider";
 import { SessionConflicts } from "../src/components/session-conflicts";
-import { SessionNotificationCoordinator } from "../src/components/session-notification-coordinator";
+import { LegacyNotificationCleanup } from "../src/components/legacy-notification-cleanup";
 import {
   Card,
   LanguageProvider,
@@ -103,7 +103,6 @@ function RootNavigation() {
            * `refresh()` reaches both tabs.
            */}
           <AttendanceProvider>
-            <SessionNotificationCoordinator />
             {/* Sync sits under Attendance so a pull can refresh what is on screen. */}
             <SyncProvider>
               <SessionConflicts />
@@ -143,6 +142,7 @@ function AppProviders({ children }: PropsWithChildren) {
 export default function RootLayout() {
   return (
     <LanguageProvider>
+      <LegacyNotificationCleanup />
       <ThemeProvider>
         <AppProviders>
           <RootErrorBoundary>

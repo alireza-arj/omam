@@ -6,7 +6,6 @@ const api: DesktopApi = {
   database: (request) => ipcRenderer.invoke("omam:database", request),
   storage: (request) => ipcRenderer.invoke("omam:storage", request),
   setTrayState: (state) => ipcRenderer.invoke("omam:tray", state),
-  notify: (title, body) => ipcRenderer.invoke("omam:notify", { title, body }),
   hide: () => ipcRenderer.invoke("omam:hide"),
   quit: () => ipcRenderer.invoke("omam:quit"),
   checkUpdates: () => ipcRenderer.invoke("omam:updates"),

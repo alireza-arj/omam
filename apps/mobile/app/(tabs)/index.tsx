@@ -109,14 +109,12 @@ export default function TodayScreen() {
       if (summary.activeSession) {
         setOptimisticStartAt(null);
         await clockOut();
-        showToast({ title: t("today.clockedOutTitle"), description: t("today.clockedOutBody"), tone: "success" });
 
         return;
       }
 
       setOptimisticStartAt(new Date().toISOString());
       await clockIn(selectedCategory);
-      showToast({ title: t("today.clockedInTitle"), description: t("today.clockedInBody"), tone: "success" });
     } catch (error) {
       if (!summary.activeSession) {
         setOptimisticStartAt(null);

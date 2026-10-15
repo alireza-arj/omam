@@ -247,13 +247,6 @@ export const fa: Translations = {
     start: "شروع",
     stop: "پایان",
     failedTitle: "ثبت زمان انجام نشد",
-    clockedInTitle: "ورودت ثبت شد",
-    clockedInBody: "سشن کاری‌ات شروع شد و زمان در حال ثبت است.",
-    clockedOutTitle: "خروجت ثبت شد",
-    clockedOutBody: "سشن کاری‌ات پایان یافت و ذخیره شد.",
-    reminderTitle: "هنوز مشغول کاری؟",
-    reminderBody: "سشنت هنوز باز است. اگر کارت تمام شده، یادت نرود خروج بزنی.",
-    notificationChannel: "سشن‌های کاری",
   },
 
   report: {
