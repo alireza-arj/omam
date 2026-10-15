@@ -85,6 +85,10 @@ them alone.
 
 ## Mobile API host
 
+Android releases and EAS Update commands are documented in
+[deployment/android.md](deployment/android.md). Existing installed APKs need one
+new store release before they can receive OTA updates.
+
 - Production web connects to `/api` on the current origin. Native and Electron
   builds connect to `https://omam.ir/api` by default. Members never enter a server address.
 - `EXPO_PUBLIC_API_URL` optionally overrides the API address at build time.

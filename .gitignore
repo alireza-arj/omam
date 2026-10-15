@@ -25,3 +25,4 @@ apps/desktop/release
 deployment/electron/*.dmg
 deployment/electron/*.zip
 deployment/electron/*.blockmap
+output/releases

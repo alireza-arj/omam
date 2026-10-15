@@ -16,7 +16,8 @@
         }
       ],
       "expo-sqlite",
-      "expo-font"
+      "expo-font",
+      "expo-updates"
     ],
     "experiments": {
       "typedRoutes": true
@@ -53,6 +54,15 @@
         "projectId": "07eaab54-f04d-4d17-9238-af7e95faab68"
       }
     },
-    "owner": "codeali"
+    "owner": "codeali",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/07eaab54-f04d-4d17-9238-af7e95faab68",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

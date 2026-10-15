@@ -15,14 +15,17 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.24",
     "expo-blur": "~57.0.3",
+    "expo-constants": "~57.0.21",
     "expo-crypto": "~57.0.3",
     "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
     "expo-image-picker": "~57.0.19",
+    "expo-linking": "~57.0.10",
     "expo-notifications": "~57.0.21",
     "expo-router": "~57.0.22",
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
+    "expo-updates": "~57.0.26",
     "heroui-native": "1.0.9",
     "lucide-react-native": "*",
     "react": "19.2.3",
@@ -56,9 +59,12 @@
     "build:web": "expo export --platform web && bun run pwa:inject",
     "pwa:inject": "bun scripts/inject-pwa.mjs",
     "build:android": "bun run build:android:aab",
-    "build:android:apk": "bunx eas-cli build -p android --profile preview",
+    "build:android:apk": "bunx eas-cli build -p android --profile market",
     "build:android:aab": "bunx eas-cli build -p android --profile production",
     "build:android:dev": "bunx eas-cli build -p android --profile development",
-    "build:ios": "bunx eas-cli build -p ios --profile production"
+    "build:ios": "bunx eas-cli build -p ios --profile production",
+    "build:android:preview": "bunx eas-cli build -p android --profile preview",
+    "update:android:preview": "bunx eas-cli update --channel preview --environment preview --platform android",
+    "update:android:production": "bunx eas-cli update --channel production --environment production --platform android"
   }
 }
