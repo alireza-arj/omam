@@ -6,18 +6,22 @@
     "@elysiajs/cors": "*",
     "@omam/calendar": "workspace:*",
     "@omam/contracts": "workspace:*",
+    "@omam/i18n": "workspace:*",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "*",
     "dotenv": "^17.4.2",
     "elysia": "*",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1",
+    "@types/web-push": "^3.6.4",
     "prisma": "*",
     "typescript": "*"
   },
   "scripts": {
+    "push:keys": "bun run scripts/generate-push-keys.ts",
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --target bun --outdir dist --sourcemap",

@@ -50,14 +50,14 @@
     "typescript": "*"
   },
   "scripts": {
-    "start": "expo start",
+    "start": "bun run pwa:worker && expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "web": "bun run pwa:worker && expo start --web",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p pwa/tsconfig.json --noEmit",
     "build": "expo export --platform all && bun run pwa:inject",
     "build:web": "expo export --platform web && bun run pwa:inject",
-    "pwa:inject": "bun scripts/inject-pwa.mjs",
+    "pwa:inject": "bun scripts/inject-pwa.ts",
     "build:android": "bun run build:android:aab",
     "build:android:apk": "bunx eas-cli build -p android --profile market",
     "build:android:aab": "bunx eas-cli build -p android --profile production",
@@ -65,6 +65,7 @@
     "build:ios": "bunx eas-cli build -p ios --profile production",
     "build:android:preview": "bunx eas-cli build -p android --profile preview",
     "update:android:preview": "bunx eas-cli update --channel preview --environment preview --platform android",
-    "update:android:production": "bunx eas-cli update --channel production --environment production --platform android"
+    "update:android:production": "bunx eas-cli update --channel production --environment production --platform android",
+    "pwa:worker": "bun scripts/build-service-worker.ts"
   }
 }

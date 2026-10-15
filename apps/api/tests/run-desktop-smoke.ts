@@ -31,6 +31,7 @@ try {
   }
   if (!ready) throw new Error("The isolated smoke API did not start");
   await command(["bun", "run", "test:smoke"]);
+  await command(["bun", "test", "apps/api/tests/notifications.test.ts"]);
 } finally {
   server?.kill();
   if (server) await server.exited;

@@ -1,21 +1,24 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildServiceWorker } from "./build-service-worker";
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const publicDir = join(projectRoot, "public");
 const distDir = join(projectRoot, "dist");
 const indexPath = join(distDir, "index.html");
-const manifest = JSON.parse(readFileSync(join(publicDir, "manifest.webmanifest"), "utf8"));
-const appConfig = JSON.parse(readFileSync(join(projectRoot, "app.json"), "utf8"));
+const manifest = JSON.parse(readFileSync(join(publicDir, "manifest.webmanifest"), "utf8")) as { background_color: string };
+const appConfig = JSON.parse(readFileSync(join(projectRoot, "app.json"), "utf8")) as { expo: { android: { adaptiveIcon: { backgroundColor: string } } } };
 
-const publicFiles = ["manifest.webmanifest", "sw.js", "register-sw.js", "icon-512.png"];
+const publicFiles = ["manifest.webmanifest", "register-sw.js", "icon-512.png"];
 
 if (!existsSync(indexPath)) {
   throw new Error("dist/index.html does not exist. Run expo export first.");
 }
 
 mkdirSync(distDir, { recursive: true });
+
+await buildServiceWorker(distDir);
 
 for (const file of publicFiles) {
   const source = join(publicDir, file);

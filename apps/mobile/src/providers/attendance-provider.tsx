@@ -13,6 +13,7 @@ import {
   updateSession as dbUpdateSession,
 } from "../lib/db/sessions";
 import { getSettings, upsertSettings } from "../lib/db/settings";
+import { cancelSessionReminder, reconcileSessionReminder, sendSessionNotification } from "../lib/session-notifications";
 import { DEFAULT_LANGUAGE } from "@omam/i18n";
 import { useLanguage } from "../design/taraz";
 import { useAuth } from "./auth-provider";
@@ -69,7 +70,7 @@ const AttendanceContext = createContext<AttendanceContextValue | null>(null);
 export function AttendanceProvider({ children }: PropsWithChildren) {
   const db = useSQLiteContext();
   const { user, isAuthenticated } = useAuth();
-  const { setLanguage } = useLanguage();
+  const { setLanguage, t } = useLanguage();
   const [sessions, setSessions] = useState<SessionDto[]>([]);
   const [settings, setSettings] = useState<SettingsDto>(defaultSettings);
   const [summary, setSummary] = useState<SummaryDto>(defaultSummary);
@@ -127,15 +128,18 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
     setIsMutating(true);
 
     try {
-      await dbClockIn(db, user.id, new Date().toISOString(), category);
+      const session = await dbClockIn(db, user.id, new Date().toISOString(), category);
       await refresh();
       notifyAttendanceChanged();
+      void sendSessionNotification("clock-in", { title: t("today.clockedInTitle"), body: t("today.clockedInBody"), channelName: t("today.notificationChannel") })
+        .catch(() => {});
+      void reconcileSessionReminder(session, user.id, { title: t("today.reminderTitle"), body: t("today.reminderBody"), channelName: t("today.notificationChannel") }).catch(() => {});
     } catch (error) {
       throw error instanceof Error ? error : new Error("ATTENDANCE_CLOCKIN_FAILED");
     } finally {
       setIsMutating(false);
     }
-  }, [db, refresh, user]);
+  }, [db, refresh, t, user]);
 
   const clockOut = useCallback(async () => {
     if (!summary.activeSession || !user) return;
@@ -144,14 +148,16 @@ export function AttendanceProvider({ children }: PropsWithChildren) {
 
     try {
       await dbClockOut(db, summary.activeSession.id, user.id, new Date().toISOString());
+      void cancelSessionReminder(summary.activeSession.id).catch(() => {});
       await refresh();
       notifyAttendanceChanged();
+      void sendSessionNotification("clock-out", { title: t("today.clockedOutTitle"), body: t("today.clockedOutBody"), channelName: t("today.notificationChannel") }).catch(() => {});
     } catch (error) {
       throw error instanceof Error ? error : new Error("ATTENDANCE_CLOCKOUT_FAILED");
     } finally {
       setIsMutating(false);
     }
-  }, [db, refresh, summary.activeSession, user]);
+  }, [db, refresh, summary.activeSession, t, user]);
 
   const createSession = useCallback(
     async (input: SessionInput) => {

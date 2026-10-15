@@ -17,6 +17,7 @@
       ],
       "expo-sqlite",
       "expo-font",
+      "expo-notifications",
       "expo-updates"
     ],
     "experiments": {
@@ -30,10 +31,7 @@
     },
     "android": {
       "package": "com.omam.app",
-      "blockedPermissions": [
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
-      ],
+      "blockedPermissions": [],
       "versionCode": 1,
       "permissions": [
         "android.permission.READ_MEDIA_IMAGES",

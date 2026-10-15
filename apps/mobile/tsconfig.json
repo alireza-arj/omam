@@ -7,7 +7,7 @@
       "uniwind/types"
     ]
   },
-  "exclude": ["**/*.test.ts"],
+  "exclude": ["**/*.test.ts", "pwa"],
   "include": [
     "**/*.ts",
     "**/*.tsx",

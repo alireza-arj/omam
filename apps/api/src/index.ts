@@ -13,6 +13,8 @@ import { timesheetRoutes } from "./routes/timesheets";
 import { reportRoutes } from "./routes/reports";
 import { payrollRoutes } from "./routes/payroll";
 import { syncRoutes } from "./routes/sync";
+import { notificationRoutes } from "./routes/notifications";
+import { startSessionReminderWorker } from "./lib/push-notifications";
 
 declare const Bun: {
   serve(options: {
@@ -76,9 +78,11 @@ const app = new Elysia()
   .use(timesheetRoutes)
   .use(reportRoutes)
   .use(payrollRoutes)
-  .use(syncRoutes);
+  .use(syncRoutes)
+  .use(notificationRoutes);
 
 const server = Bun.serve({ port, hostname, fetch: app.fetch });
+startSessionReminderWorker();
 const lanIp = resolveLanIp();
 
 console.log(`API is running on http://${hostname}:${server.port} (TZ=${process.env.TZ ?? "system"})`);

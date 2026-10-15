@@ -11,9 +11,10 @@ import { useReducedMotion } from "react-native-reanimated";
 import { AttendanceProvider } from "../src/providers/attendance-provider";
 import { AuthProvider } from "../src/providers/auth-provider";
 import { SyncProvider } from "../src/providers/sync-provider";
+import { NotificationProvider } from "../src/providers/notification-provider";
 import { DatabaseProvider } from "../src/providers/database-provider";
 import { SessionConflicts } from "../src/components/session-conflicts";
-import { LegacyNotificationCleanup } from "../src/components/legacy-notification-cleanup";
+import { SessionNotificationCoordinator } from "../src/components/session-notification-coordinator";
 import {
   Card,
   LanguageProvider,
@@ -103,23 +104,26 @@ function RootNavigation() {
            * `refresh()` reaches both tabs.
            */}
           <AttendanceProvider>
+            <SessionNotificationCoordinator />
             {/* Sync sits under Attendance so a pull can refresh what is on screen. */}
             <SyncProvider>
-              <SessionConflicts />
-              <StatusBar style={isDark ? "light" : "dark"} />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  animation: reduceMotion || isDesktop() ? "none" : "fade",
-                  animationTypeForReplace: "push",
-                  animationDuration: motion.durFast,
-                  contentStyle: { backgroundColor: isDesktop() ? desktopTokens["--dt-clear"] : colors.surfaceApp },
-                }}
-              >
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="session/[id]" options={{ animation: reduceMotion || isDesktop() ? "none" : "slide_from_right" }} />
-              </Stack>
+              <NotificationProvider>
+                <SessionConflicts />
+                <StatusBar style={isDark ? "light" : "dark"} />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    animation: reduceMotion || isDesktop() ? "none" : "fade",
+                    animationTypeForReplace: "push",
+                    animationDuration: motion.durFast,
+                    contentStyle: { backgroundColor: isDesktop() ? desktopTokens["--dt-clear"] : colors.surfaceApp },
+                  }}
+                >
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="session/[id]" options={{ animation: reduceMotion || isDesktop() ? "none" : "slide_from_right" }} />
+                </Stack>
+              </NotificationProvider>
             </SyncProvider>
           </AttendanceProvider>
         </AuthProvider>
@@ -142,7 +146,6 @@ function AppProviders({ children }: PropsWithChildren) {
 export default function RootLayout() {
   return (
     <LanguageProvider>
-      <LegacyNotificationCleanup />
       <ThemeProvider>
         <AppProviders>
           <RootErrorBoundary>

@@ -8,3 +8,4 @@ export * from "./payroll";
 export * from "./sync";
 
 export * from "./desktop";
+export * from "./notifications";

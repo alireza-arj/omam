@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import { configuredServerUrl } from "./server-url";
 import type { Translator } from "@omam/i18n";
-import type { AuthResponseDto, AuthMembershipDto, SessionUserResponseDto, TeamsResponseDto, CompleteProfileInputDto, SyncRequestDto, SyncResponseDto } from "@omam/contracts";
+import type { AuthResponseDto, AuthMembershipDto, SessionUserResponseDto, TeamsResponseDto, CompleteProfileInputDto, SyncRequestDto, SyncResponseDto, PushConfigurationDto, PushSubscriptionInputDto } from "@omam/contracts";
 
 export function resolveServerUrl() {
   return configuredServerUrl({
@@ -112,3 +112,10 @@ export const updateServerProfile = (baseUrl: string, token: string, body: Comple
   call<SessionUserResponseDto>(baseUrl, "/auth/profile", t, { method: "PATCH", token, body });
 export const changeServerPassword = (baseUrl: string, token: string, currentPassword: string, nextPassword: string, t: Translator) =>
   call<{ token: string }>(baseUrl, "/auth/change-password", t, { method: "POST", token, body: { currentPassword, nextPassword } });
+
+export const serverPushConfiguration = (baseUrl: string, token: string, t: Translator) =>
+  call<PushConfigurationDto>(baseUrl, "/notifications/configuration", t, { token });
+export const saveServerPushSubscription = (baseUrl: string, token: string, body: PushSubscriptionInputDto, t: Translator) =>
+  call<{ ok: true }>(baseUrl, "/notifications/subscription", t, { method: "POST", token, body });
+export const removeServerPushSubscription = (baseUrl: string, token: string, endpoint: string, t: Translator) =>
+  call<{ ok: true }>(baseUrl, "/notifications/subscription", t, { method: "DELETE", token, body: { endpoint } });

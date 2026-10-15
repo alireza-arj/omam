@@ -115,6 +115,9 @@ export const en = {
   },
 
   errors: {
+    NOTIFICATIONS_UNSUPPORTED: "Notifications are not supported here. Use an installed PWA in a supported browser.",
+    NOTIFICATIONS_UNAVAILABLE: "Notifications could not start. Reload the app and try again.",
+    PUSH_NOT_CONFIGURED: "Background reminders are not configured on the server yet.",
     PAYROLL_LOCKED: "This month is locked and its sessions cannot be changed.",
     FORBIDDEN: "You do not have access to this team or action.",
     VALIDATION_FAILED: "Check the entered information and try again.",
@@ -238,6 +241,13 @@ export const en = {
     start: "Start",
     stop: "Stop",
     failedTitle: "Time tracking failed",
+    clockedInTitle: "Session started",
+    clockedInBody: "Your work session is now running.",
+    clockedOutTitle: "Session saved",
+    clockedOutBody: "Your session has ended. Your hours are saved on this device.",
+    reminderTitle: "Still on the clock?",
+    reminderBody: "Your session is still running. If you finished work, remember to clock out.",
+    notificationChannel: "Work sessions",
   },
 
   report: {
@@ -299,6 +309,27 @@ export const en = {
     deleted: "Session deleted",
     saveFailed: "Could not save the session",
     deleteFailed: "Could not delete the session",
+  },
+
+  notifications: {
+    title: "Notifications",
+    description: "Get system notifications when you start and stop a session.",
+    enable: "Enable notifications",
+    disable: "Disable notifications",
+    enabled: "Session notifications are enabled on this device.",
+    blocked: "Notifications are blocked. Allow them in your browser or device notification settings, then reopen the app.",
+    install: "On iPhone or iPad, open this app in Safari, tap Share, then Add to Home Screen. Open the installed app to enable notifications. Requires iOS 16.4 or later.",
+    unsupported: "This browser does not support system notifications here. Use a supported browser over HTTPS.",
+    remindersConnected: "Two-hour reminders are enabled for this device’s synced sessions, even when the app is closed. Internet is required. Clock out online to stop them promptly.",
+    remindersUnlinked: "Connect to your team to receive reminders while the app is closed.",
+    remindersUnconfigured: "Start and stop notifications are ready. Background reminders need the server to be configured.",
+    remindersUnavailable: "This browser can show session notifications, but background reminders are unavailable.",
+    remindersFailed: "Background reminders could not connect. They will retry when you reopen the app or reconnect.",
+    remindersConnecting: "Connecting background reminders…",
+    test: "Send test notification",
+    testTitle: "Notifications enabled",
+    testBody: "You can now receive Tarazkar session notifications on this device.",
+    failed: "Notifications could not be updated. Try again.",
   },
 
   profile: {

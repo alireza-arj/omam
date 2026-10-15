@@ -39,7 +39,7 @@
     "db:seed": "bun run --cwd apps/api db:seed",
     "db:deploy": "bun run --cwd apps/api db:deploy",
     "test:smoke": "bun run --cwd apps/api test:smoke",
-    "test": "bun test packages/calendar packages/i18n apps/mobile/src/lib/browser-database-access.test.ts apps/mobile/src/lib/session-lifecycle.test.ts apps/mobile/src/lib/sync/server-url.test.ts && bun run --cwd apps/desktop test",
+    "test": "bun test packages/calendar packages/i18n apps/mobile/src/lib/browser-database-access.test.ts apps/mobile/src/lib/session-lifecycle.test.ts apps/mobile/src/lib/sync/server-url.test.ts apps/mobile/src/lib/session-notifications.test.ts apps/mobile/src/lib/web-notifications.test.ts apps/mobile/pwa/service-worker.test.ts && bun run --cwd apps/desktop test",
     "dev:desktop": "bun run --cwd apps/desktop dev",
     "build:desktop": "bun run --cwd apps/desktop build",
     "package:desktop": "bun run --cwd apps/desktop package",

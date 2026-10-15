@@ -19,4 +19,10 @@ The macOS installer is intentionally not published yet. After signing and verify
 
 The PWA service worker bypasses the API, panel and Electron paths. Nginx sends the cross-origin isolation headers required by browser SQLite, preserves deep links, and serves the API without caching.
 
+PWA notifications are enabled from **Profile → Notifications**. On iOS/iPadOS 16.4+, add the app to the Home Screen in Safari and open the installed app before enabling notifications. Android supports notifications in compatible HTTPS browsers. Start/stop confirmations work locally after permission is granted.
+
+For reminders while the PWA is closed, run `bun run --cwd apps/api push:keys` once and save `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY`, and a valid `WEB_PUSH_SUBJECT` (`mailto:` contact or HTTPS URL) in the deployment environment. Keep the private key secret and preserve the same pair across deploys and replicas. Restart the API after configuring them. The API checks every minute and sends a reminder after two hours, then every two hours, for the browser device’s synced, open, non-deleted sessions. Revoked or expired logins and suspended memberships receive no reminders. Expired push subscriptions are soft-deleted. Multiple API instances claim a delivery in PostgreSQL before sending.
+
+Background reminders require a team connection and internet. Offline-only sessions cannot schedule closed-app notifications, and an offline clock-out must sync before the server knows to stop reminders. Push delivery is controlled by the browser/OS; reminders expire after five minutes to limit stale delivery. Disabling notifications or signing out unsubscribes this browser. The profile reports when the server has no Web Push configuration; local confirmations remain available.
+
 Verify `/api/health`, both English and Persian login pages, offline PWA timer persistence, manager authentication and roles, and synchronization after deployment. Run the destructive smoke suite only on its disposable database through `bun run --cwd apps/api test:desktop:isolated`.

@@ -18,6 +18,7 @@ import { LANGUAGES, LANGUAGE_LABEL, translateError, type Language } from "@omam/
 import type { Currency } from "@omam/contracts";
 import { persistPickedAvatar, supportsAvatarFiles } from "../../src/lib/avatar";
 import { TeamSyncCard } from "../../src/components/team-sync-card";
+import { WebNotificationCard } from "../../src/components/web-notification-card";
 import { useAttendance } from "../../src/providers/attendance-provider";
 import { useAuth } from "../../src/providers/auth-provider";
 import {
@@ -306,6 +307,8 @@ export default function ProfileScreen() {
           full
         />
       </Card>
+
+      <WebNotificationCard />
 
       <Card style={{ gap: layout.gapTight }}>
         <Text role="title3">{t("profile.calculation")}</Text>
