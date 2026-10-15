@@ -131,9 +131,30 @@ model AuthSession {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  pushSubscriptions PushSubscription[]
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model PushSubscription {
+  id             String      @id @default(cuid())
+  authSessionId  String
+  organizationId String
+  deviceId       String
+  endpoint       String      @unique
+  p256dh         String
+  auth           String
+  language       AppLanguage @default(en)
+  lastSessionId  String?
+  lastReminderAt DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  authSession AuthSession @relation(fields: [authSessionId], references: [id], onDelete: Cascade)
+
+  @@index([authSessionId, deletedAt])
 }
 
 /// Personal display preferences. Pay is never read from here — payroll uses
