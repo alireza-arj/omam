@@ -32,3 +32,8 @@ button, a, [role="button"], [role="tab"] {
     visibility: hidden;
   }
 }
+
+.input-otp__root input {
+  opacity: 0;
+  caret-color: transparent;
+}

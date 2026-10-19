@@ -11,13 +11,12 @@ import {
 import { onAttendanceChanged } from "../lib/attendance-events";
 import { getDesktopBridge } from "../lib/desktop";
 import { getSessionConflicts, resolveSessionConflict, type SessionConflict } from "../lib/db/sessions";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import AsyncStorage from "../lib/storage";
 import { useSQLiteContext } from "../lib/sqlite-context";
-import type { AuthResponseDto, AuthMembershipDto } from "@omam/contracts";
+import type { AuthMembershipDto } from "@omam/contracts";
 import {
   applyServerSessions,
-  clearSyncState,
   collectDirty,
   countPending,
   countRejected,
@@ -25,9 +24,11 @@ import {
   readSyncState,
   writeSyncState,
 } from "../lib/db/sync";
-import { pushAndPull, registerOnServer, resolveServerUrl, signInToServer, serverTeams, selectServerTeam, joinServerTeam, updateServerProfile } from "../lib/sync/client";
+import { pushAndPull, serverTeams, selectServerTeam, updateServerProfile } from "../lib/sync/client";
+import { createSyncQueue, type SyncQueue } from "../lib/sync/queue";
+import { connectSyncEvents } from "../lib/sync/events";
 import { avatarForServer } from "../lib/avatar";
-import { linkKey, storeTeamAuth, activateTeam, type StoredLink } from "../lib/sync/link";
+import { linkKey, activateTeam, type StoredLink } from "../lib/sync/link";
 import { getActiveSession } from "../lib/db/sessions";
 import { useLanguage } from "../design/taraz";
 import { useAttendance } from "./attendance-provider";
@@ -53,18 +54,10 @@ type SyncContextValue = SyncStatus & {
   isReady: boolean;
   isSyncing: boolean;
   isLinking: boolean;
-  signInAndLink: (input: { username: string; password: string }) => Promise<void>;
-  joinWithInvite: (input: {
-    username: string;
-    password: string;
-    inviteCode: string;
-    nickname?: string;
-  }) => Promise<void>;
   unlink: () => Promise<void>;
   syncNow: () => Promise<void>;
   teams: AuthMembershipDto[];
   selectTeam: (organizationId: string) => Promise<void>;
-  joinTeam: (inviteCode: string) => Promise<void>;
 };
 
 const SyncContext = createContext<SyncContextValue | null>(null);
@@ -81,9 +74,6 @@ const EMPTY: SyncStatus = {
   rejectedCount: 0,
 };
 
-/** How often a linked device looks for work to push. */
-const SYNC_INTERVAL_MS = 2_000;
-
 export function SyncProvider({ children }: PropsWithChildren) {
   const db = useSQLiteContext();
   const { user } = useAuth();
@@ -95,14 +85,14 @@ export function SyncProvider({ children }: PropsWithChildren) {
   const [isResolvingConflict, setIsResolvingConflict] = useState(false);
   const resolving = useRef(false);
   const syncDone = useRef(Promise.resolve());
-  const membershipsAt = useRef(0);
   const [teams, setTeams] = useState<AuthMembershipDto[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
 
   const link = useRef<StoredLink | null>(null);
-  // A sync already in flight must not be started a second time by the timer.
+  const [connection, setConnection] = useState<StoredLink | null>(null);
+  const queue = useRef<SyncQueue | null>(null);
   const inFlight = useRef(false);
   const switchingTeam = useRef(false);
   const currentUserId = useRef(user?.id);
@@ -111,6 +101,7 @@ export function SyncProvider({ children }: PropsWithChildren) {
   const readStatus = useCallback(async () => {
     if (!user) {
       link.current = null;
+      setConnection(null);
       setStatus(EMPTY);
       setTeams([]);
       setConflicts([]);
@@ -124,6 +115,7 @@ export function SyncProvider({ children }: PropsWithChildren) {
       countRejected(db, user.id),
     ]);
 
+    if (currentUserId.current !== user.id) return EMPTY;
     link.current = stored ? (JSON.parse(stored) as StoredLink) : null;
 
     const next: SyncStatus = {
@@ -138,8 +130,11 @@ export function SyncProvider({ children }: PropsWithChildren) {
       rejectedCount,
     };
 
+    const nextLink = link.current;
+    setConnection((previous) => previous?.token === nextLink?.token && previous?.serverUrl === nextLink?.serverUrl ? previous : nextLink);
+    const nextConflicts = await getSessionConflicts(db, user.id);
     if (currentUserId.current !== user.id) return EMPTY;
-    setConflicts(await getSessionConflicts(db, user.id));
+    setConflicts(nextConflicts);
     setStatus(next);
 
     return next;
@@ -149,37 +144,24 @@ export function SyncProvider({ children }: PropsWithChildren) {
     readStatus().finally(() => setIsReady(true));
   }, [readStatus]);
 
-  const adoptAuth = useCallback(
-    async (serverUrl: string, auth: AuthResponseDto) => {
-      if (!user) {
-        throw new Error(t("team.signInFirst"));
-      }
-
-      if (!auth.membership) {
-        throw new Error(t("team.noTeam"));
-      }
-
-      await storeTeamAuth(db, user.id, serverUrl, auth);
-      await readStatus();
-    },
-    [db, readStatus, t, user],
-  );
-
   const runSync = useCallback(async (duringSwitch = false) => {
-    if (!user || !link.current || inFlight.current || resolving.current || (switchingTeam.current && !duringSwitch)) {
-      return;
+    if (!user || !link.current || resolving.current || (switchingTeam.current && !duringSwitch)) {
+      return false;
     }
+    if (inFlight.current) { await syncDone.current; return true; }
 
     inFlight.current = true;
     setIsSyncing(true);
     let finish = () => {};
     syncDone.current = new Promise<void>((resolve) => { finish = resolve; });
+    let attemptedToken: string | undefined;
 
     try {
       const stored = await AsyncStorage.getItem(linkKey(user.id));
-      if (!stored) return;
+      if (!stored) return false;
       link.current = JSON.parse(stored) as StoredLink;
       const { token, serverUrl } = link.current;
+      attemptedToken = token;
       const state = await readSyncState(db, user.id);
       const sessions = await collectDirty(db, user.id);
       const response = await pushAndPull(
@@ -188,7 +170,7 @@ export function SyncProvider({ children }: PropsWithChildren) {
         { since: state?.organizationId ? state.cursor : null, sessions },
         t,
       );
-      if (currentUserId.current !== user.id) return;
+      if (currentUserId.current !== user.id || !link.current) return false;
 
       await markPushed(db, response.results, sessions);
       if (response.organization) {
@@ -216,23 +198,24 @@ export function SyncProvider({ children }: PropsWithChildren) {
         await db.runAsync("UPDATE User SET profileDirty = 0 WHERE id = ? AND updatedAt = ?", [user.id, profile.updatedAt]);
       }
 
-      if (Date.now() - membershipsAt.current > 60_000) {
-        const memberships = await serverTeams(serverUrl, token, t);
-        if (currentUserId.current !== user.id) return;
-        setTeams(memberships.memberships);
-        membershipsAt.current = Date.now();
-      }
+      const memberships = await serverTeams(serverUrl, token, t);
+      if (currentUserId.current !== user.id) return false;
+      setTeams(memberships.memberships);
       await readStatus();
 
       if (sessions.length || response.sessions.length || !state?.lastSyncAt) await refresh();
+      return (await countPending(db, user.id)) > 0;
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "REQUEST_FAILED";
 
       // A revoked or expired token means the account was suspended or the
       // password was reset; the link is dead and has to be made again.
       if (cause instanceof Error && "status" in cause && cause.status === 401) {
-        await AsyncStorage.removeItem(linkKey(user.id));
-        link.current = null;
+        const current = await AsyncStorage.getItem(linkKey(user.id));
+        if (current && (JSON.parse(current) as StoredLink).token === attemptedToken) {
+          await AsyncStorage.removeItem(linkKey(user.id));
+          link.current = null;
+        }
       }
 
       await writeSyncState(db, user.id, { lastError: message });
@@ -245,6 +228,13 @@ export function SyncProvider({ children }: PropsWithChildren) {
     }
   }, [db, readStatus, refresh, t, user]);
 
+  const latestSync = useRef(runSync);
+  latestSync.current = runSync;
+  const syncNow = useCallback(async () => {
+    if (queue.current) await queue.current.request();
+    else await latestSync.current();
+  }, []);
+
   const resolveConflict = useCallback(async (conflict: SessionConflict, keepId: string) => {
     if (!user || resolving.current) return;
     resolving.current = true;
@@ -255,53 +245,8 @@ export function SyncProvider({ children }: PropsWithChildren) {
       await readStatus();
       await refresh();
     } finally { resolving.current = false; setIsResolvingConflict(false); }
-    await runSync();
-  }, [db, readStatus, refresh, runSync, user]);
-
-  const signInAndLink = useCallback<SyncContextValue["signInAndLink"]>(
-    async (input) => {
-      setIsLinking(true);
-
-      try {
-        const serverUrl = resolveServerUrl();
-
-        await adoptAuth(
-          serverUrl,
-          await signInToServer(serverUrl, input.username, input.password, t),
-        );
-        await runSync();
-      } finally {
-        setIsLinking(false);
-      }
-    },
-    [adoptAuth, runSync, t],
-  );
-
-  const joinWithInvite = useCallback<SyncContextValue["joinWithInvite"]>(
-    async (input) => {
-      setIsLinking(true);
-
-      try {
-        const serverUrl = resolveServerUrl();
-        const auth = await registerOnServer(
-          serverUrl,
-          {
-            username: input.username,
-            password: input.password,
-            inviteCode: input.inviteCode,
-            nickname: input.nickname,
-          },
-          t,
-        );
-
-        await adoptAuth(serverUrl, auth);
-        await runSync();
-      } finally {
-        setIsLinking(false);
-      }
-    },
-    [adoptAuth, runSync, t],
-  );
+    await syncNow();
+  }, [db, readStatus, refresh, syncNow, user]);
 
   const selectTeam = useCallback(async (organizationId: string) => {
     if (!user || !link.current || inFlight.current || switchingTeam.current) throw new Error("REQUEST_FAILED");
@@ -315,51 +260,64 @@ export function SyncProvider({ children }: PropsWithChildren) {
       await readStatus();
       await refresh();
       await runSync(true);
-    } finally { switchingTeam.current = false; setIsLinking(false); }
-  }, [db, readStatus, refresh, runSync, t, user]);
-
-  const joinTeam = useCallback(async (inviteCode: string) => {
-    if (!user || !link.current) throw new Error("NOT_AUTHENTICATED");
-    if (await getActiveSession(db, user.id)) throw new Error("TEAM_SWITCH_ACTIVE");
-    const membership = await joinServerTeam(link.current.serverUrl, link.current.token, inviteCode, t);
-    await selectTeam(membership.organizationId);
-  }, [db, selectTeam, t, user]);
+    } finally {
+      switchingTeam.current = false;
+      setIsLinking(false);
+      void syncNow().catch(() => undefined);
+    }
+  }, [db, readStatus, refresh, runSync, syncNow, t, user]);
 
   const unlink = useCallback(async () => {
     if (!user) return;
 
     await AsyncStorage.removeItem(linkKey(user.id));
-    await clearSyncState(db, user.id);
     link.current = null;
     await readStatus();
   }, [db, readStatus, user]);
 
-  // Local edits push immediately; incremental pulls keep online devices within seconds.
   useEffect(() => {
-    if (!status.isLinked) {
-      return;
+    if (!status.isLinked || !connection) return;
+    let events: ReturnType<typeof connectSyncEvents> | undefined;
+    let activeQueue: SyncQueue | undefined;
+    const request = () => { void activeQueue?.request().catch(() => undefined); };
+    const start = () => {
+      if (activeQueue) return;
+      activeQueue = createSyncQueue(() => latestSync.current());
+      queue.current = activeQueue;
+      request();
+      events = connectSyncEvents({ serverUrl: connection.serverUrl, token: connection.token, onSyncNeeded: request });
+    };
+    const stop = () => {
+      events?.close();
+      activeQueue?.stop();
+      if (queue.current === activeQueue) queue.current = null;
+      activeQueue = undefined;
+    };
+    const resume = () => { start(); events?.reconnect(); request(); };
+    if (Platform.OS === "web" || AppState.currentState === "active" || AppState.currentState === null) start();
+    const unsubscribe = onAttendanceChanged(request);
+    const shown = getDesktopBridge()?.onShow(resume);
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") resume();
+      else if (Platform.OS !== "web") stop();
+    });
+    const visible = () => { if (document.visibilityState === "visible") resume(); };
+    if (Platform.OS === "web") {
+      window.addEventListener("online", resume);
+      document.addEventListener("visibilitychange", visible);
     }
 
-    void runSync().catch(() => undefined);
-    const timer = setInterval(() => {
-      runSync().catch(() => undefined);
-    }, SYNC_INTERVAL_MS);
-
-    const unsubscribe = onAttendanceChanged(() => { void runSync().catch(() => undefined); });
-    const shown = getDesktopBridge()?.onShow(() => { void runSync().catch(() => undefined); });
-    const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        runSync().catch(() => undefined);
-      }
-    });
-
     return () => {
-      clearInterval(timer);
+      stop();
       unsubscribe();
       shown?.();
       subscription.remove();
+      if (Platform.OS === "web") {
+        window.removeEventListener("online", resume);
+        document.removeEventListener("visibilitychange", visible);
+      }
     };
-  }, [runSync, status.isLinked]);
+  }, [connection, status.isLinked, status.organizationId, user?.id]);
 
   const value = useMemo<SyncContextValue>(
     () => ({
@@ -368,13 +326,11 @@ export function SyncProvider({ children }: PropsWithChildren) {
       isReady,
       isSyncing,
       isLinking,
-      signInAndLink,
-      joinWithInvite,
       unlink,
-      syncNow: runSync,
-      teams, selectTeam, joinTeam,
+      syncNow,
+      teams, selectTeam,
     }),
-    [conflicts, isResolvingConflict, resolveConflict, isLinking, isReady, isSyncing, joinWithInvite, runSync, signInAndLink, status, unlink, teams, selectTeam, joinTeam],
+    [conflicts, isResolvingConflict, resolveConflict, isLinking, isReady, isSyncing, syncNow, status, unlink, teams, selectTeam],
   );
 
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;

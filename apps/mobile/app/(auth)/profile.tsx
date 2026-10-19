@@ -45,18 +45,6 @@ export default function ProfileSetupScreen() {
   }
 
   async function pickAvatar() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (!permission.granted) {
-      showToast({
-        title: t("profile.galleryTitle"),
-        description: t("profile.galleryDescription"),
-        tone: "warning",
-      });
-
-      return;
-    }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: true,

@@ -1,22 +1,21 @@
 {
   "name": "@omam/desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Tarazkar for the macOS menu bar",
   "author": "Tarazkar",
   "main": "dist/main.cjs",
-  "dependencies": {
+  "devDependencies": {
     "@omam/contracts": "workspace:*",
     "@omam/i18n": "workspace:*",
-    "electron-updater": "^6.8.0"
-  },
-  "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@types/bun": "^1.3.1",
     "@types/node": "^24.0.0",
     "electron": "41.10.7",
     "electron-builder": "^26.0.12",
-    "typescript": "*"
+    "electron-updater": "^6.8.0",
+    "typescript": "*",
+    "wawoff2": "2.0.1"
   },
   "scripts": {
     "build": "bun run scripts/build.ts",

@@ -15,6 +15,7 @@ import { conflict, invalid, notFound, parseInput } from "../lib/errors";
 import { serializeSession } from "../lib/serialize";
 import { calculateSessionMinutes, hoursFromMinutes, monthWindow } from "../lib/time";
 import { isSessionLocked } from "../lib/payroll";
+import { withSyncChange } from "../lib/sync-events";
 
 const includeProject = { project: true } as const;
 
@@ -107,7 +108,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
 
     await assertMonthEditable(organization.id, startAt);
 
-    const session = await prisma.workSession.create({
+    const session = await withSyncChange({ organizationId: organization.id, userId: principal.user.id }, async (tx) => tx.workSession.create({
       data: {
         organizationId: organization.id,
         userId: principal.user.id,
@@ -119,7 +120,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
         source: "TIMER",
       },
       include: includeProject,
-    });
+    }));
 
     return serializeSession(session);
   })
@@ -138,7 +139,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
     assertOrder(session.startAt, endAt);
     await assertMonthEditable(organization.id, session.startAt, endAt);
 
-    const updated = await prisma.workSession.update({
+    const updated = await withSyncChange({ organizationId: organization.id, userId: principal.user.id }, async (tx) => tx.workSession.update({
       where: { id: session.id },
       data: {
         endAt,
@@ -146,7 +147,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
         status: "COMPLETED",
       },
       include: includeProject,
-    });
+    }));
 
     return serializeSession(updated);
   })
@@ -170,7 +171,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
       }
     }
 
-    const session = await prisma.workSession.create({
+    const session = await withSyncChange({ organizationId: organization.id, userId: principal.user.id }, async (tx) => tx.workSession.create({
       data: {
         organizationId: organization.id,
         userId: principal.user.id,
@@ -184,7 +185,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
         status: endAt ? "COMPLETED" : "OPEN",
       },
       include: includeProject,
-    });
+    }));
 
     return serializeSession(session);
   })
@@ -204,7 +205,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
       throw conflict("There is already an active session.", "SESSION_ACTIVE");
     }
 
-    const updated = await prisma.workSession.update({
+    const updated = await withSyncChange({ organizationId: organization.id, userId: principal.user.id }, async (tx) => tx.workSession.update({
       where: { id: session.id },
       data: {
         startAt,
@@ -216,7 +217,7 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
         status: endAt ? "COMPLETED" : "OPEN",
       },
       include: includeProject,
-    });
+    }));
 
     return serializeSession(updated);
   })
@@ -229,10 +230,10 @@ export const sessionRoutes = new Elysia({ prefix: "/sessions" })
 
     // Soft delete: a hard one is invisible to an offline device, which would
     // push the row straight back on its next sync.
-    await prisma.workSession.update({
+    await withSyncChange({ organizationId: organization.id, userId: principal.user.id }, async (tx) => tx.workSession.update({
       where: { id: session.id },
       data: { deletedAt: new Date() },
-    });
+    }));
 
     set.status = 204;
 

@@ -13,6 +13,7 @@ import { serializeSession } from "../lib/serialize";
 import { calculateSessionMinutes, monthWindow } from "../lib/time";
 import { isSessionLocked } from "../lib/payroll";
 import { recordAudit } from "../lib/audit";
+import { withSyncChange } from "../lib/sync-events";
 
 const include = { project: true, user: true } as const;
 
@@ -126,7 +127,7 @@ export const timesheetRoutes = new Elysia({ prefix: "/timesheets" })
     if (!endAt && await prisma.workSession.findFirst({ where: { userId: session.userId, organizationId: organization.id, endAt: null, deletedAt: null, id: { not: session.id } } })) {
       throw conflict("There is already an active session.", "SESSION_ACTIVE");
     }
-    const updated = await prisma.workSession.update({
+    const updated = await withSyncChange({ organizationId: organization.id, userId: session.userId }, (tx) => tx.workSession.update({
       where: { id: session.id },
       data: {
         startAt,
@@ -139,7 +140,7 @@ export const timesheetRoutes = new Elysia({ prefix: "/timesheets" })
         status: endAt ? "COMPLETED" : "OPEN",
       },
       include,
-    });
+    }));
 
     await recordAudit({
       organizationId: organization.id,
@@ -161,10 +162,10 @@ export const timesheetRoutes = new Elysia({ prefix: "/timesheets" })
 
     await assertNotPaidOut(organization.id, session.startAt, session.endAt);
 
-    await prisma.workSession.update({
+    await withSyncChange({ organizationId: organization.id, userId: session.userId }, (tx) => tx.workSession.update({
       where: { id: session.id },
       data: { deletedAt: new Date() },
-    });
+    }));
 
     await recordAudit({
       organizationId: organization.id,

@@ -70,26 +70,9 @@ async function call<T>(
   return payload as T;
 }
 
-export function signInToServer(
-  baseUrl: string,
-  username: string,
-  password: string,
-  t: Translator,
-) {
-  return call<AuthResponseDto>(baseUrl, "/auth/login", t, {
-    method: "POST",
-    body: { username, password, deviceName: `${Platform.OS} app` },
-  });
-}
-
-export function registerOnServer(
-  baseUrl: string,
-  input: { username: string; password: string; inviteCode: string; nickname?: string },
-  t: Translator,
-) {
-  return call<AuthResponseDto>(baseUrl, "/auth/register", t, {
-    method: "POST",
-    body: { ...input, deviceName: `${Platform.OS} app` },
+export function signInWithInvite(baseUrl: string, inviteCode: string, t: Translator) {
+  return call<AuthResponseDto>(baseUrl, "/auth/invite-login", t, {
+    method: "POST", body: { inviteCode, deviceName: `${Platform.OS} app` },
   });
 }
 
@@ -106,8 +89,6 @@ export const serverTeams = (baseUrl: string, token: string, t: Translator) =>
   call<TeamsResponseDto>(baseUrl, "/team/organizations", t, { token });
 export const selectServerTeam = (baseUrl: string, token: string, organizationId: string, t: Translator) =>
   call<AuthMembershipDto>(baseUrl, "/team/select", t, { method: "POST", token, body: { organizationId } });
-export const joinServerTeam = (baseUrl: string, token: string, inviteCode: string, t: Translator) =>
-  call<AuthMembershipDto>(baseUrl, "/team/join", t, { method: "POST", token, body: { inviteCode } });
 export const updateServerProfile = (baseUrl: string, token: string, body: CompleteProfileInputDto, t: Translator) =>
   call<SessionUserResponseDto>(baseUrl, "/auth/profile", t, { method: "PATCH", token, body });
 export const changeServerPassword = (baseUrl: string, token: string, currentPassword: string, nextPassword: string, t: Translator) =>

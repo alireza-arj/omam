@@ -1,6 +1,7 @@
 import { _electron, expect } from "@playwright/test";
 import { createRequire } from "node:module";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import type { DesktopApi } from "@omam/contracts";
@@ -8,11 +9,16 @@ import type { WebContents, WebPreferences } from "electron";
 import { createTranslator } from "@omam/i18n";
 
 const root = resolve(process.cwd(), "../..");
+const { version } = JSON.parse(await readFile(resolve(root, "apps/desktop/package.json"), "utf8")) as { version: string };
+const sourceRevision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
 const packaged = process.env.OMAM_DESKTOP_EXECUTABLE;
 const output = resolve(root, `output/playwright/desktop${packaged ? "-packaged" : ""}`);
 const data = await mkdtemp(join(tmpdir(), "omam-desktop-verify-"));
 await mkdir(output, { recursive: true });
-const app = await _electron.launch({ timeout: 30_000, executablePath: packaged ?? createRequire(import.meta.url)("electron") as string, args: packaged ? [] : [resolve(root, "apps/desktop")], env: { ...process.env, TZ: "Europe/Berlin", OMAM_DESKTOP_DATA_DIR: data, OMAM_DESKTOP_SHOW: "1" } });
+const env = { ...process.env };
+delete env.ELECTRON_RUN_AS_NODE;
+const launchOptions = { timeout: 30_000, executablePath: packaged ?? createRequire(import.meta.url)("electron") as string, args: packaged ? [] : [resolve(root, "apps/desktop")], env: { ...env, TZ: "Europe/Berlin", OMAM_DESKTOP_DATA_DIR: data, OMAM_DESKTOP_SHOW: "1" } };
+let app = await _electron.launch(launchOptions);
 const errors: string[] = [];
 try {
   const page = await app.firstWindow();
@@ -23,9 +29,31 @@ try {
     return { windows: windows.length, dock: app.dock?.isVisible(), sandbox: preferences.sandbox, contextIsolation: preferences.contextIsolation };
   });
   expect(shell).toEqual({ windows: 1, dock: false, sandbox: true, contextIsolation: true });
+  const build = await app.evaluate(({ app }) => {
+    const fs = process.getBuiltinModule("node:fs");
+    const path = process.getBuiltinModule("node:path");
+    const release = JSON.parse(fs.readFileSync(path.join(app.getAppPath(), "dist/release.json"), "utf8")) as { version: string; sourceRevision: string; builtAt: string };
+    const locales = app.isPackaged ? fs.readdirSync(path.join(process.resourcesPath, "../Frameworks/Electron Framework.framework/Resources")).filter((file) => file.endsWith(".lproj")).sort() : null;
+    return { ...release, appVersion: app.getVersion(), locales, hasRuntimeDependencies: fs.existsSync(path.join(app.getAppPath(), "node_modules")) };
+  });
+  expect(build).toMatchObject({ version, sourceRevision, appVersion: version });
+  expect(Number.isFinite(Date.parse(build.builtAt))).toBe(true);
+  if (packaged) {
+    expect(build.locales).toEqual(["en.lproj", "fa.lproj"]);
+    expect(build.hasRuntimeDependencies).toBe(false);
+  }
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") console.error(message.text()); });
   await page.waitForSelector(".desktop-panel", { timeout: 30_000 });
+  const loadedFonts = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const families: string[] = [];
+    document.fonts.forEach((font) => families.push(font.family));
+    const loaded = await Promise.all(families.map((family) => document.fonts.load(`16px ${family}`, "Tarazkar ترازکار 0123456789")));
+    return loaded.flat().filter((font) => font.status === "loaded").map((font) => font.family.replaceAll('"', ""));
+  });
+  expect(loadedFonts).toHaveLength(15);
+  expect(loadedFonts).toEqual(expect.arrayContaining(["Figtree_400Regular", "PublicSans_400Regular", "IBMPlexMono_400Regular", "Vazirmatn_400Regular"]));
   await page.screenshot({ path: join(output, "login.png") });
   await page.evaluate(async () => {
     const bridge = (globalThis as typeof globalThis & { omamDesktop: DesktopApi }).omamDesktop;
@@ -42,8 +70,16 @@ try {
   expect(await page.getByRole("button", { name: "Timer", exact: true }).evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
   await page.keyboard.press("Escape");
   await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible())).toBe(false);
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    const bridge = (globalThis as typeof globalThis & { omamDesktop: DesktopApi }).omamDesktop;
+    const unsubscribe = bridge.onVisibilityChange((visible) => { if (!visible) { unsubscribe(); resolve(); } });
+  }));
+  const hiddenElapsed = await page.locator(".dt-time").textContent();
+  await page.waitForTimeout(1200);
+  expect(await page.locator(".dt-time").textContent()).toBe(hiddenElapsed);
   await app.evaluate(({ BrowserWindow }) => { const panel = BrowserWindow.getAllWindows()[0]; panel?.show(); panel?.focus(); });
   await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeVisible();
+  await expect(page.locator(".dt-time")).not.toHaveText(hiddenElapsed ?? "");
   await page.screenshot({ path: join(output, "timer-light.png") });
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeVisible();
@@ -59,6 +95,28 @@ try {
   await page.getByRole("button", { name: "Add session", exact: true }).click();
   await expect(page.getByRole("heading", { name: "New session", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Add session", exact: true }).click();
+  const editor = page.locator(".dt-editor");
+  await editor.locator("input:not([type='time'])").nth(0).fill("1405-01-01");
+  await editor.locator("input:not([type='time'])").nth(1).fill("1405-01-01");
+  await editor.locator("input[type='time']").nth(0).fill("06:00");
+  await editor.locator("input[type='time']").nth(1).fill("07:00");
+  await editor.locator("textarea").fill("Desktop verification");
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
+  const created = page.locator(".dt-session").filter({ hasText: "Desktop verification" });
+  await expect(created).toBeVisible();
+  await created.click();
+  await editor.locator("input[type='time']").nth(0).fill("06:15");
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(created).toBeVisible();
+  const edited = await page.evaluate(() => (globalThis as typeof globalThis & { omamDesktop: DesktopApi }).omamDesktop.database({ operation: "first", sql: "SELECT status, durationMinutes FROM WorkSession WHERE note = 'Desktop verification'" }));
+  expect(edited).toMatchObject({ status: "COMPLETED", durationMinutes: 45 });
+  await created.click();
+  await editor.getByRole("button", { name: createTranslator("en")("session.deleteSession"), exact: true }).click();
+  await editor.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(created).toHaveCount(0);
+  const deleted = await page.evaluate(() => (globalThis as typeof globalThis & { omamDesktop: DesktopApi }).omamDesktop.database({ operation: "first", sql: "SELECT deletedAt, dirty FROM WorkSession WHERE note = 'Desktop verification'" }));
+  expect(deleted).toMatchObject({ deletedAt: expect.any(String), dirty: 1 });
   await page.getByRole("button", { name: "Report", exact: true }).click();
   await expect(page.getByText("Report", { exact: true }).last()).toBeVisible();
   await page.screenshot({ path: join(output, "report-light.png") });
@@ -104,6 +162,12 @@ try {
   expect(await page.locator(".dt-time").evaluate((element) => getComputedStyle(element).direction)).toBe("ltr");
   expect(await page.locator(".desktop-panel").evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   expect(errors).toEqual([]);
+  await app.close();
+  app = await _electron.launch(launchOptions);
+  const restarted = await app.firstWindow();
+  await expect(restarted.getByRole("button", { name: createTranslator("fa")("today.stop"), exact: true })).toBeVisible();
+  const resumed = await restarted.evaluate(() => (globalThis as typeof globalThis & { omamDesktop: DesktopApi }).omamDesktop.database({ operation: "all", sql: "SELECT id, startAt FROM WorkSession WHERE endAt IS NULL AND deletedAt IS NULL" }));
+  expect(resumed).toEqual([chosen]);
   console.log(`Electron verification passed. Screenshots: ${output}`);
 } finally {
   await app.close();

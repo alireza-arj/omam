@@ -12,7 +12,7 @@ export const usernameSchema = z
   .trim()
   .min(3)
   .max(32)
-  .regex(/^[a-zA-Z0-9_]+$/, "Use letters, numbers and underscores only.");
+  .regex(/^[\x21-\x7E]+$/, "Use English letters, numbers and keyboard symbols without spaces.");
 
 export const passwordSchema = z.string().min(6).max(72);
 
@@ -59,12 +59,17 @@ export const loginInputSchema = z.object({
   deviceName: z.string().trim().max(80).optional(),
 });
 
-/** Joining a team always goes through a manager-issued invite code. */
+/** Optional inviteCode supports existing clients; new team sign-ins use inviteLoginInputSchema. */
 export const registerInputSchema = z.object({
   username: usernameSchema,
   password: passwordSchema,
-  inviteCode: z.string().trim().min(6).max(40),
+  inviteCode: z.string().trim().min(6).max(40).optional(),
   nickname: z.string().trim().min(1).max(80).optional(),
+  deviceName: z.string().trim().max(80).optional(),
+});
+
+export const inviteLoginInputSchema = z.object({
+  inviteCode: z.string().trim().transform((code) => code.replace(/[\s-]/g, "").toUpperCase()).pipe(z.string().regex(/^[A-Z2-9]{8}$/)),
   deviceName: z.string().trim().max(80).optional(),
 });
 

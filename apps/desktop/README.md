@@ -4,6 +4,8 @@ An Apple Silicon menu-bar app with a 420 × 640 popover. It has no Dock icon or 
 
 The desktop renderer reuses the mobile attendance, authentication, team, calendar, translation, and sync providers. Timer and history have compact desktop controls; reports, profile, account, and team settings use the existing mobile screens within the panel. The panel follows the Taraz palette, uses macOS vibrancy, supports light/dark appearance and Persian RTL, and respects reduced motion, reduced transparency, and increased contrast. Frequent panel actions appear immediately; button feedback uses the shared 140 ms motion token.
 
+The panel clock updates each second only while a running session is visible in Timer or History. Hiding the panel stops these UI updates; showing it recalculates elapsed time from the original start. Background synchronization and the menu-bar clock continue independently.
+
 ## Development
 
 From the repository root:
@@ -13,7 +15,11 @@ bun install
 bun run dev:desktop
 ```
 
-The build exports the mobile web renderer, removes its service-worker registration from the desktop copy, and bundles the Electron main process and sandboxed preload. Run `bun run build:desktop` to rebuild, then `bun run --cwd apps/desktop start` to open the result.
+The build exports a fresh mobile web renderer directly into the desktop app without running PWA injection or changing the mobile web output. PWA-only files are removed. The Electron main process, updater, shared contracts, and sandboxed preload are bundled and minified, so the installed app needs no runtime `node_modules`. Run `bun run build:desktop` to rebuild, then `bun run --cwd apps/desktop start` to open the result.
+
+Desktop builds use Expo's experimental graph optimization and tree shaking. Metro selects the native desktop database provider, so browser SQLite workers and WebAssembly are excluded. Mobile and PWA builds keep their existing database providers and bundler settings. The 15 shared font faces are converted to WOFF2 at build time in the ignored `build/fonts` directory, retaining all weights and Persian glyphs. Font and bundled dependency notices are included in the installed archive.
+
+`dist/release.json` records the package version, source Git revision, and build time. Release builds should use a clean checkout of the intended base revision plus the reviewed desktop changes; a revision alone does not describe uncommitted edits.
 
 The renderer is served locally at `omam://app`. If the API uses a `CORS_ORIGINS` allow-list, include `omam://app` alongside the panel/web origins. Deploy the new API migration with `bun run db:deploy` before deploying clients that send device metadata.
 
@@ -39,7 +45,7 @@ bun run --cwd apps/desktop verify
 
 The isolated smoke runner creates and removes a disposable PostgreSQL database using the configured development database credentials. It exercises the project's smoke suite plus cross-device start/stop, idempotency, simultaneous starts, completed offline overlaps, conflict deletion, and locked payroll protection.
 
-The Electron check uses a separate temporary user-data directory. It captures light/dark/Persian screenshots in `output/playwright/desktop`, checks the sandbox and hidden Dock, exercises timer start/stop and renderer reload, and checks Escape, editing, reports, settings, and reduced motion. It does not replace release checks on a physical iPhone or a signed installation.
+The Electron check uses a separate temporary user-data directory. It captures light/dark/Persian screenshots in `output/playwright/desktop`, checks the sandbox, hidden Dock, package version, source revision and all 15 loaded fonts. It exercises timer start/stop, renderer reload, persisted sessions after application restart, manual creation/editing/soft deletion, conflict resolution, hidden-panel clock suspension, Escape, reports, settings, and reduced motion. For packaged apps it also checks that only English/Persian Chromium locales remain and no runtime `node_modules` was included. It does not replace release checks on a physical iPhone or a signed installation.
 
 After packaging, set `OMAM_DESKTOP_EXECUTABLE` to the absolute path of `release/mac-arm64/Tarazkar.app/Contents/MacOS/Tarazkar` and run the same `verify` command to exercise the packaged app. Those screenshots go to `output/playwright/desktop-packaged`.
 
@@ -51,7 +57,7 @@ For a local, unsigned Apple Silicon DMG:
 bun run package:desktop:local
 ```
 
-Artifacts are written to `apps/desktop/release`. The minimum macOS version is 12. The local DMG is for testing; signing and notarization must be configured for distribution.
+Artifacts are written to `apps/desktop/release`. Packaging keeps only English and Persian Chromium locales and uses bzip2-compressed DMGs to reduce download size. The minimum macOS version is 12. The Chromium runtime remains the largest part of the installed app. The local DMG is for testing; signing and notarization must be configured for distribution.
 
 For a release, provide a Developer ID Application certificate through the build machine's keychain or the standard `CSC_LINK` / `CSC_KEY_PASSWORD` environment variables. Configure notarization with either `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`, or `APPLE_API_KEY`, `APPLE_API_KEY_ID`, and `APPLE_API_ISSUER`. Keep credentials outside the repository. Set `DESKTOP_UPDATE_URL` to the HTTPS generic update feed before building, increment the desktop package version, then run:
 

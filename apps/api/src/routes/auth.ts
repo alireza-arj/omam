@@ -3,6 +3,7 @@ import {
   changePasswordInputSchema,
   completeProfileInputSchema,
   loginInputSchema,
+  inviteLoginInputSchema,
   registerInputSchema,
 } from "@omam/contracts";
 import { prisma } from "../lib/prisma";
@@ -33,10 +34,6 @@ async function loadMembership(userId: string) {
   });
 }
 
-function needsProfileSetup(nickname: string | null) {
-  return !nickname?.trim();
-}
-
 export const authRoutes = new Elysia({ prefix: "/auth" })
   .post("/login", async ({ body }) => {
     const payload = parseInput(loginInputSchema, body);
@@ -61,14 +58,47 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
       token,
       user: serializeUser(user),
       membership: membership ? serializeMembership(membership) : null,
-      needsProfileSetup: needsProfileSetup(user.nickname),
+      needsProfileSetup: false,
     };
+  })
+
+  .post("/invite-login", async ({ body }) => {
+    const payload = parseInput(inviteLoginInputSchema, body);
+    const code = `${payload.inviteCode.slice(0, 4)}-${payload.inviteCode.slice(4)}`;
+    const result = await prisma.$transaction(async (tx) => {
+      const invite = await tx.invite.findUnique({ where: { code } });
+      if (!invite?.userId || invite.revokedAt || invite.acceptedAt || invite.expiresAt <= new Date()) {
+        throw new AppError(422, "INVALID_INVITE", "INVALID_INVITE");
+      }
+      const membership = await tx.membership.findUnique({
+        where: { organizationId_userId: { organizationId: invite.organizationId, userId: invite.userId } },
+        include: { organization: true, user: true },
+      });
+      if (!membership || membership.status !== "ACTIVE") throw new AppError(422, "INVALID_INVITE", "INVALID_INVITE");
+      const claimed = await tx.invite.updateMany({
+        where: { id: invite.id, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+        data: { acceptedAt: new Date(), acceptedById: membership.userId },
+      });
+      if (!claimed.count) throw new AppError(422, "INVALID_INVITE", "INVALID_INVITE");
+      await tx.user.update({ where: { id: membership.userId }, data: { lastLoginAt: new Date() } });
+      const token = await createAuthSession(membership.userId, payload.deviceName, membership.organizationId, tx);
+      await tx.auditLog.create({ data: { organizationId: membership.organizationId, actorId: membership.userId,
+        action: "member.invite_login", targetType: "user", targetId: membership.userId } });
+      return { membership, token };
+    });
+    return { token: result.token, user: serializeUser(result.membership.user), membership: serializeMembership(result.membership), needsProfileSetup: false };
   })
 
   /** Joining a team always goes through a manager-issued invite code. */
   .post("/register", async ({ body }) => {
     const payload = parseInput(registerInputSchema, body);
     const username = normalizeUsername(payload.username);
+    if (!payload.inviteCode) {
+      if (await prisma.user.findUnique({ where: { username } })) throw conflict("USERNAME_TAKEN", "USERNAME_TAKEN");
+      const user = await prisma.user.create({ data: { username, passwordHash: await hashPassword(payload.password) } });
+      await ensureUserDefaultSettings(user.id);
+      return { token: await createAuthSession(user.id, payload.deviceName), user: serializeUser(user), membership: null, needsProfileSetup: false };
+    }
     const code = payload.inviteCode.trim().toUpperCase();
 
     const invite = await prisma.invite.findUnique({
@@ -76,7 +106,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
       include: { organization: true },
     });
 
-    if (!invite || invite.revokedAt || invite.acceptedAt) {
+    if (!invite || invite.userId || invite.revokedAt || invite.acceptedAt) {
       throw new AppError(422, "That invite code is not valid.", "INVALID_INVITE");
     }
 
@@ -148,7 +178,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
       token,
       user: serializeUser(user),
       membership: membership ? serializeMembership(membership) : null,
-      needsProfileSetup: needsProfileSetup(user.nickname),
+      needsProfileSetup: false,
     };
   })
 
@@ -157,7 +187,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
   .get("/me", ({ principal }) => ({
     user: serializeUser(principal.user),
     membership: principal.membership ? serializeMembership(principal.membership) : null,
-    needsProfileSetup: needsProfileSetup(principal.user.nickname),
+    needsProfileSetup: false,
   }))
 
   .patch("/profile", async ({ principal, body }) => {
@@ -176,7 +206,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
     return {
       user: serializeUser(updated),
       membership: principal.membership ? serializeMembership(principal.membership) : null,
-      needsProfileSetup: needsProfileSetup(updated.nickname),
+      needsProfileSetup: false,
     };
   })
 

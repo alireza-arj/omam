@@ -22,8 +22,14 @@ apps/mobile/public/pwa-dev-sw.js
 expo-env.d.ts
 # @end expo-cli
 apps/desktop/renderer
+apps/desktop/build/fonts
 apps/desktop/release
 deployment/electron/*.dmg
 deployment/electron/*.zip
 deployment/electron/*.blockmap
 output/releases
+output/playwright
+output/bazaar-mobile
+output/ui-concepts
+output/ui-concepts-v2
+.playwright-cli

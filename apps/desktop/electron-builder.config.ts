@@ -5,8 +5,10 @@ const config: Configuration = {
   appId: "com.omam.desktop",
   productName: "Tarazkar",
   directories: { output: "release" },
-  files: ["dist/main.cjs", "dist/preload.cjs", "dist/release.json", "renderer/**/*", "package.json"],
+  files: ["dist/main.cjs", "dist/preload.cjs", "dist/release.json", "dist/*LICENSE*.txt", "renderer/**/*", "package.json", "!**/node_modules/**/*"],
   asar: true,
+  compression: "maximum",
+  electronLanguages: ["en", "fa"],
   artifactName: "${productName}-${version}-mac-${arch}.${ext}",
   mac: {
     target: [{ target: "dmg", arch: ["arm64"] }, { target: "zip", arch: ["arm64"] }],
@@ -19,7 +21,7 @@ const config: Configuration = {
     entitlements: "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.plist",
   },
-  dmg: { sign: false },
+  dmg: { sign: false, format: "UDBZ" },
   publish: feed ? { provider: "generic", url: feed } : null,
 };
 export default config;

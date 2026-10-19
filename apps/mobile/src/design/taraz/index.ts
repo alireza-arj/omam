@@ -24,6 +24,7 @@ export { EmptyState } from "./components/empty-state";
 export { Glass } from "./components/glass";
 export { Icon } from "./components/icon";
 export { IconButton } from "./components/icon-button";
+export { InviteCodeInput } from "./components/invite-code-input";
 export { Input } from "./components/input";
 export { ListRow } from "./components/list-row";
 export { PageHeader } from "./components/page-header";

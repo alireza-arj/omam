@@ -55,7 +55,7 @@ export async function createUser(
 
 export async function getUserById(db: SQLiteDatabase, id: string) {
   return db.getFirstAsync<AuthUserDto>(
-    "SELECT id, username, nickname, avatarUrl, createdAt, updatedAt FROM User WHERE id = ?",
+    "SELECT User.id, COALESCE(SyncState.serverUsername, User.username) AS username, User.nickname, User.avatarUrl, User.createdAt, User.updatedAt FROM User LEFT JOIN SyncState ON SyncState.userId = User.id WHERE User.id = ?",
     [id],
   );
 }
@@ -91,7 +91,7 @@ export async function updateUserAvatar(
 export async function updateUserProfile(
   db: SQLiteDatabase,
   userId: string,
-  nickname: string,
+  nickname: string | null,
   avatarUrl: string | null,
 ) {
   const ts = now();

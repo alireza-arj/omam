@@ -38,17 +38,15 @@ type CreatingTarget = { organizationId: string; teamName: string };
 type NewMemberDraft = {
   username: string;
   password: string;
-  nickname: string;
 };
 
-type NewMemberField = "username" | "password" | "nickname";
+type NewMemberField = "username" | "password";
 
-const EMPTY_NEW_MEMBER: NewMemberDraft = { username: "", password: "", nickname: "" };
+const EMPTY_NEW_MEMBER: NewMemberDraft = { username: "", password: "" };
 
 const NEW_MEMBER_FIELD_ERROR: Record<NewMemberField, TranslationKey> = {
   username: "admin.members.createUsernameInvalid",
   password: "admin.members.createPasswordInvalid",
-  nickname: "admin.members.createNicknameInvalid",
 };
 
 export function MembersPage() {
@@ -162,7 +160,6 @@ export function MembersPage() {
       organizationId: creating.organizationId,
       username: newMember.username,
       password: newMember.password,
-      nickname: newMember.nickname.trim() || null,
       role: newRole,
     });
 
@@ -172,7 +169,7 @@ export function MembersPage() {
       for (const issue of parsed.error.issues) {
         const field = issue.path[0];
 
-        if (field === "username" || field === "password" || field === "nickname") {
+        if (field === "username" || field === "password") {
           nextErrors[field] ??= t(NEW_MEMBER_FIELD_ERROR[field]);
         }
       }
@@ -268,6 +265,7 @@ export function MembersPage() {
                           <ActionMenu
                             label={t("admin.table.actionsFor", { name: displayName(member) })}
                             items={[
+                              ...(member.status === "ACTIVE" && (can("OWNER") || member.role === "MEMBER") ? [{ label: t("admin.invites.newInvite"), onAction: () => navigate(`/teams/invites?userId=${encodeURIComponent(member.userId)}`) }] : []),
                               { label: t("workspace.viewProfile"), onAction: () => { navigate(`/members/${member.userId}`); } },
                               { label: t("common.edit"), onAction: () => startEdit(member) },
                               {
@@ -436,17 +434,6 @@ export function MembersPage() {
             {teamChanged ? (
               <p className="t-body-sm" role="alert">{t("admin.members.teamChanged")}</p>
             ) : null}
-
-            <Field label={t("admin.members.createNickname")} error={formErrors.nickname}>
-              <Input
-                value={newMember.nickname}
-                onChange={(event) => setNewMember({ ...newMember, nickname: event.target.value })}
-                placeholder={t("admin.members.createNicknamePlaceholder")}
-                autoComplete="off"
-                maxLength={80}
-                disabled={createMember.isPending}
-              />
-            </Field>
 
             <Field
               label={t("admin.members.createUsername")}

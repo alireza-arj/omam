@@ -16,9 +16,10 @@ import {
 } from "../components/ui";
 import { CollectionToolbar, Pagination } from "../components/collection";
 import { useCollection } from "../lib/collection";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CreateInviteInputDto } from "@omam/contracts";
+import { createInviteInputSchema } from "@omam/contracts";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
@@ -27,32 +28,35 @@ import { useToast } from "../lib/ui";
 import { formatDate } from "../lib/format";
 import { PageHeader } from "./layout";
 
-const EMPTY: CreateInviteInputDto = {
-  role: "MEMBER",
-  label: null,
-  payType: "HOURLY",
-  hourlyRate: 0,
-  monthlySalary: 0,
-  expiresInDays: 14,
-};
-
 export function InvitesPage() {
-  const { calendar, can } = useSession();
+  const { calendar, can, membership } = useSession();
+  const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const queryClient = useQueryClient();
   const { language, t } = useLanguage();
 
   const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState<CreateInviteInputDto>(EMPTY);
+  const [userId, setUserId] = useState("");
+  const [expiresInDays, setExpiresInDays] = useState(14);
+  const [createdCode, setCreatedCode] = useState<string | null>(null);
+  const members = useQuery({ queryKey: ["members"], queryFn: api.members });
+  const eligibleMembers = (members.data?.members ?? []).filter((member) => member.status === "ACTIVE" && (can("OWNER") || member.role === "MEMBER"));
+  useEffect(() => { setCreating(false); setCreatedCode(null); setUserId(""); }, [membership?.organizationId]);
+  useEffect(() => {
+    const requested = searchParams.get("userId");
+    if (requested) { setUserId(requested); setCreating(true); }
+  }, [searchParams]);
 
   const invites = useQuery({ queryKey: ["invites"], queryFn: api.invites });
 
   const create = useMutation({
-    mutationFn: () => api.createInvite(draft),
+    mutationFn: () => api.createInvite(createInviteInputSchema.parse({ userId, expiresInDays })),
     onSuccess: (invite) => {
       toast(t("admin.invites.created", { code: invite.code }), "success");
       setCreating(false);
-      setDraft(EMPTY);
+      setCreatedCode(invite.code);
+      setSearchParams({});
+      setUserId("");
       queryClient.invalidateQueries({ queryKey: ["invites"] });
     },
     onError: (error) => toast(translateError(error, t), "error"),
@@ -95,7 +99,7 @@ export function InvitesPage() {
         title={t("workspace.inviteMembers")}
         subtitle={t("workspace.inviteHint")}
         actions={
-          <Button variant="primary" onClick={() => setCreating(true)}>
+          <Button variant="primary" onClick={() => { setUserId(""); setCreating(true); }}>
             {t("admin.invites.newInvite")}
           </Button>
         }
@@ -184,52 +188,42 @@ export function InvitesPage() {
         </Card>
       </div>
 
+      {createdCode ? <Modal title={t("admin.invites.newInvite")} onClose={() => setCreatedCode(null)} footer={<Button variant="primary" onClick={() => { void copy(createdCode); }}>{t("common.copy")}</Button>}>
+        <p className="code" dir="ltr">{createdCode}</p>
+        <p className="t-body-sm muted">{t("admin.invites.codeHint")}</p>
+      </Modal> : null}
       {creating ? (
         <Modal
           title={t("admin.invites.newInvite")}
-          onClose={() => setCreating(false)}
+          onClose={() => { if (!create.isPending) { setCreating(false); setSearchParams({}); } }}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setCreating(false)}>
+              <Button variant="ghost" onClick={() => { setCreating(false); setSearchParams({}); }} disabled={create.isPending}>
                 {t("common.cancel")}
               </Button>
-              <Button variant="primary" loading={create.isPending} onClick={() => create.mutate()}>
+              <Button variant="primary" loading={create.isPending} disabled={!eligibleMembers.some((member) => member.userId === userId) || !Number.isInteger(expiresInDays) || expiresInDays < 1 || expiresInDays > 365} onClick={() => create.mutate()}>
                 {t("admin.invites.create")}
               </Button>
             </>
           }
         >
           <Field label={t("admin.invites.whoFor")} hint={t("admin.invites.whoForHint")}>
-            <Input
-              value={draft.label ?? ""}
-              onChange={(event) => setDraft({ ...draft, label: event.target.value || null })}
-              placeholder={t("admin.invites.whoForPlaceholder")}
-              autoFocus
-            />
+            <Select value={userId} disabled={create.isPending} onValueChange={setUserId}>
+              <option value="">{t("admin.invites.selectMember")}</option>
+              {eligibleMembers.map((member) => <option key={member.userId} value={member.userId}>{member.username}</option>)}
+            </Select>
           </Field>
-
-          <div className="form-grid">
-            <Field label={t("admin.invites.role")}>
-              <Select
-                value={draft.role}
-                disabled={!can("OWNER")}
-                onValueChange={(value) => setDraft({ ...draft, role: value as CreateInviteInputDto["role"] })}
-              >
-                <option value="MEMBER">{t("role.MEMBER")}</option>
-                <option value="MANAGER">{t("role.MANAGER")}</option>
-                <option value="OWNER">{t("role.OWNER")}</option>
-              </Select>
-            </Field>
-
-          </div>
+          {members.isError ? <ErrorState message={translateError(members.error, t)} onRetry={() => members.refetch()} /> : null}
+          {!members.isPending && !eligibleMembers.length ? <EmptyState title={t("admin.invites.noMembers")} hint={t("admin.invites.noMembersHint")} /> : null}
 
           <Field label={t("admin.invites.expiresIn")}>
             <Input
               type="number"
               min={1}
               max={365}
-              value={draft.expiresInDays}
-              onChange={(event) => setDraft({ ...draft, expiresInDays: Number(event.target.value) })}
+              value={expiresInDays}
+              disabled={create.isPending}
+              onChange={(event) => setExpiresInDays(Number(event.target.value))}
             />
           </Field>
         </Modal>

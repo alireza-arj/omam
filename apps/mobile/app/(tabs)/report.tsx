@@ -65,7 +65,7 @@ import {
   useTabBarHeight,
   type SegmentOption,
 } from "../../src/design/taraz";
-import { Accordion as HerouiAccordion } from 'heroui-native';
+import { Accordion as HerouiAccordion } from 'heroui-native/accordion';
 
 const locale = "en-US";
 const CHART_HEIGHT = 96;

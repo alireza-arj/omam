@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, safeStorage, screen, session, Tray, type IpcMainInvokeEvent } from "electron";
-import { autoUpdater } from "electron-updater";
+import { MacUpdater } from "electron-updater/out/MacUpdater";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -18,13 +18,23 @@ let tray: Tray;
 let state: DesktopTrayState = { startAt: null, language: "en", isDark: false };
 let updateReady = false;
 let trayMenu: Menu;
+let trayLanguage: DesktopTrayState["language"] | undefined;
+let trayTitle: string | undefined;
+let clock: ReturnType<typeof setTimeout> | undefined;
 
 function paintTray() {
-  const elapsed = state.startAt ? Math.max(0, Math.floor((Date.now() - Date.parse(state.startAt)) / 60000)) : null;
-  tray.setTitle(elapsed === null ? "" : `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`, { fontType: "monospacedDigit" });
-  const t = createTranslator(state.language);
-  tray.setToolTip(t("desktop.appName"));
-  trayMenu = Menu.buildFromTemplate([{ label: t("desktop.open"), click: showPanel }, { label: t("desktop.quit"), click: () => app.quit() }]);
+  clearTimeout(clock);
+  const milliseconds = state.startAt ? Math.max(0, Date.now() - Date.parse(state.startAt)) : null;
+  const elapsed = milliseconds === null ? null : Math.floor(milliseconds / 60000);
+  const title = elapsed === null ? "" : `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`;
+  if (title !== trayTitle) { tray.setTitle(title, { fontType: "monospacedDigit" }); trayTitle = title; }
+  if (state.language !== trayLanguage) {
+    const t = createTranslator(state.language);
+    tray.setToolTip(t("desktop.appName"));
+    trayMenu = Menu.buildFromTemplate([{ label: t("desktop.open"), click: showPanel }, { label: t("desktop.quit"), click: () => app.quit() }]);
+    trayLanguage = state.language;
+  }
+  if (milliseconds !== null) clock = setTimeout(paintTray, 60_000 - milliseconds % 60_000);
 }
 
 function showPanel() {
@@ -56,12 +66,14 @@ async function start() {
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     if (!details.url.startsWith("omam://app/")) { callback({ responseHeaders: details.responseHeaders }); return; }
-    callback({ responseHeaders: { ...details.responseHeaders, "Content-Security-Policy": ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: http:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-src 'none'"] } });
+    callback({ responseHeaders: { ...details.responseHeaders, "Content-Security-Policy": ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: http: wss: ws:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-src 'none'"] } });
   });
   panel = new BrowserWindow({ width: 420, height: 640, show: false, frame: false, resizable: false, maximizable: false, minimizable: false, fullscreenable: false, skipTaskbar: true, transparent: true, hasShadow: true, vibrancy: "popover", visualEffectState: "active", roundedCorners: true, webPreferences: { preload: join(compiled, "preload.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false } });
   panel.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   panel.webContents.on("will-navigate", (event, url) => { if (!url.startsWith("omam://app/")) event.preventDefault(); });
   panel.on("blur", () => panel.hide());
+  panel.on("show", () => panel.webContents.send("omam:visibility", true));
+  panel.on("hide", () => panel.webContents.send("omam:visibility", false));
   panel.on("close", (event) => { event.preventDefault(); panel.hide(); });
   const icon = nativeImage.createFromBuffer(trayIconPng(), { scaleFactor: 2 });
   icon.setTemplateImage(true);
@@ -69,7 +81,6 @@ async function start() {
   tray.on("click", () => { if (panel.isVisible()) panel.hide(); else showPanel(); });
   tray.on("right-click", () => tray.popUpContextMenu(trayMenu));
   paintTray();
-  const clock = setInterval(paintTray, 15_000);
   mkdirSync(app.getPath("userData"), { recursive: true });
   const db = openDesktopDatabase(join(app.getPath("userData"), "omam.db"));
   const vaultPath = join(app.getPath("userData"), "vault.json");
@@ -90,24 +101,28 @@ async function start() {
   });
   handle("omam:tray", (input) => { state = desktopTrayStateSchema.parse(input); paintTray(); });
   handle("omam:hide", () => panel.hide());
+  handle("omam:visibility", () => panel.isVisible());
   handle("omam:quit", () => app.quit());
   const release = JSON.parse(readFileSync(join(compiled, "release.json"), "utf8")) as { updateUrl: string | null };
-  if (release.updateUrl) { autoUpdater.setFeedURL({ provider: "generic", url: release.updateUrl }); autoUpdater.autoInstallOnAppQuit = false; }
-  autoUpdater.on("update-downloaded", () => { updateReady = true; });
-  autoUpdater.on("error", () => {});
+  const autoUpdater = release.updateUrl && app.isPackaged ? new MacUpdater({ provider: "generic", url: release.updateUrl }) : null;
+  if (autoUpdater) {
+    autoUpdater.autoInstallOnAppQuit = false;
+    autoUpdater.on("update-downloaded", () => { updateReady = true; });
+    autoUpdater.on("error", () => {});
+  }
   handle("omam:updates", async () => {
-    if (!release.updateUrl || !app.isPackaged) return "disabled";
+    if (!autoUpdater) return "disabled";
     if (updateReady) return "available";
     const result = await autoUpdater.checkForUpdates();
     return result && result.updateInfo.version !== app.getVersion() ? "downloading" : "current";
   });
-  handle("omam:install-update", () => { if (updateReady) autoUpdater.quitAndInstall(); });
-  if (release.updateUrl && app.isPackaged) void autoUpdater.checkForUpdates().catch(() => {});
-  const updateTimer = setInterval(() => { if (release.updateUrl && app.isPackaged) void autoUpdater.checkForUpdates().catch(() => {}); }, 6 * 60 * 60 * 1000);
+  handle("omam:install-update", () => { if (updateReady) autoUpdater?.quitAndInstall(); });
+  if (autoUpdater) void autoUpdater.checkForUpdates().catch(() => {});
+  const updateTimer = autoUpdater ? setInterval(() => { void autoUpdater.checkForUpdates().catch(() => {}); }, 6 * 60 * 60 * 1000) : undefined;
   app.on("second-instance", showPanel);
   app.on("activate", showPanel);
-  powerMonitor.on("resume", () => panel.webContents.send("omam:show"));
-  app.on("before-quit", () => { panel.removeAllListeners("close"); clearInterval(clock); clearInterval(updateTimer); db.close(); });
+  powerMonitor.on("resume", () => { paintTray(); panel.webContents.send("omam:show"); });
+  app.on("before-quit", () => { panel.removeAllListeners("close"); clearTimeout(clock); clearInterval(updateTimer); db.close(); });
   app.on("window-all-closed", () => {});
   await panel.loadURL("omam://app/desktop");
   if (process.env.OMAM_DESKTOP_SHOW === "1") showPanel();

@@ -5,9 +5,7 @@ store distribution, production environment, and `https://omam.ir/api`.
 It runs independently of Expo Go and Metro. The Android package is `com.omam.app`.
 
 EAS uses this project's existing remote Android keystore and increments the local
-`expo.android.versionCode` for each production or market build. Before building,
-set it to at least the highest code already distributed; the repository value
-is not a record of releases built elsewhere. Keep that keystore for every update;
+`expo.android.versionCode` for each build. Keep that keystore for every update;
 do not replace it or commit signing credentials to Git.
 
 If cloud uploads are unavailable, install Android SDK 36, build tools 36.0.0,
@@ -22,7 +20,6 @@ eas build --platform android --profile market --local \
 
 Set `ANDROID_HOME` and `JAVA_HOME` to the local SDK and JDK paths.
 The APK and verification files belong in the ignored `output/releases` directory.
-They are also excluded from EAS uploads.
 
 Before uploading, verify the APK signature with `apksigner`, confirm its
 `versionCode` exceeds the previous release, inspect the final manifest permissions,
@@ -36,8 +33,8 @@ disclosure, and the developer account are handled separately in the store panel.
 
 The app uses `expo-updates` and the existing EAS project. The `market` profile
 inherits the `production` channel, while internal preview APKs use `preview`.
-Both build and update commands select the corresponding EAS environment.
-In each environment, configure the public `EXPO_PUBLIC_API_URL` as `https://omam.ir/api`. Values in a build
+Both build and update commands select the corresponding EAS environment, where
+the public `EXPO_PUBLIC_API_URL` is `https://omam.ir/api`. Values in a build
 profile's `env` are not automatically included by `eas update`.
 
 Existing APKs released before this setup cannot receive OTA updates. Build a new
@@ -50,8 +47,8 @@ repository root:
 
 ```sh
 bun run build:android:preview
-bun run update:android:preview --message "Update time tracking"
-bun run update:android:production --message "Update time tracking"
+bun run update:android:preview --message "Fix session reminder"
+bun run update:android:production --message "Fix session reminder"
 ```
 
 Build and install the preview APK once per native runtime. Test the preview OTA
@@ -85,3 +82,22 @@ Use the affected build's runtime from EAS, which may differ from the current
 working tree. A rollback is delivered through the same update checks and needs
 connectivity. See [EAS Update](https://docs.expo.dev/eas-update/introduction/)
 and [runtime versions](https://docs.expo.dev/eas-update/runtime-versions/).
+
+## Size optimizations
+
+Release builds enable R8 minification and resource shrinking, compress the Hermes
+bundle, and compress native libraries with `useLegacyPackaging`. Android extracts
+those libraries during installation: this reduces the downloaded APK, not the
+size of the native code on disk. All four original ABIs are retained
+(`armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64`); the APK is universal, not ARM-only.
+Native ELF alignment must still be checked on a 16 KB device.
+
+Font imports use per-weight package paths, so Metro packages only the 15 faces
+used by Taraz rather than every weight exported by each font package. The Persian
+Vazirmatn faces are retained. Unreferenced legacy image assets and their generator
+were removed; those files were not part of the existing runtime bundle.
+
+If a local Gradle mirror has an incomplete BlurView artifact, resolve
+`com.github.Dimezis` exclusively from `https://jitpack.io` with a task-local Gradle
+init script. The Expo-generated build already includes JitPack; the workaround is
+only needed when a machine-wide init script puts a mirror ahead of it.

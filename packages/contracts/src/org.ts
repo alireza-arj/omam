@@ -99,6 +99,7 @@ export const createMemberInputSchema = z.object({
 
 export const inviteSchema = z.object({
   id: z.string(),
+  userId: z.string().nullable(),
   code: z.string(),
   role: orgRoleSchema,
   label: z.string().nullable(),
@@ -118,6 +119,7 @@ export const invitesResponseSchema = z.object({
 });
 
 export const createInviteInputSchema = z.object({
+  userId: z.string().min(1).optional(),
   role: orgRoleSchema.default("MEMBER"),
   label: z.string().trim().max(80).nullable().optional(),
   payType: payTypeSchema.default("HOURLY"),

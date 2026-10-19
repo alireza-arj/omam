@@ -15,6 +15,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.24",
     "expo-blur": "~57.0.3",
+    "expo-build-properties": "~57.0.21",
     "expo-constants": "~57.0.21",
     "expo-crypto": "~57.0.3",
     "expo-file-system": "~57.0.7",
@@ -58,14 +59,14 @@
     "build": "expo export --platform all && bun run pwa:inject",
     "build:web": "expo export --platform web && bun run pwa:inject",
     "pwa:inject": "bun scripts/inject-pwa.ts",
+    "pwa:worker": "bun scripts/build-service-worker.ts",
     "build:android": "bun run build:android:aab",
     "build:android:apk": "bunx eas-cli build -p android --profile market",
     "build:android:aab": "bunx eas-cli build -p android --profile production",
     "build:android:dev": "bunx eas-cli build -p android --profile development",
-    "build:ios": "bunx eas-cli build -p ios --profile production",
     "build:android:preview": "bunx eas-cli build -p android --profile preview",
     "update:android:preview": "bunx eas-cli update --channel preview --environment preview --platform android",
     "update:android:production": "bunx eas-cli update --channel production --environment production --platform android",
-    "pwa:worker": "bun scripts/build-service-worker.ts"
+    "build:ios": "bunx eas-cli build -p ios --profile production"
   }
 }

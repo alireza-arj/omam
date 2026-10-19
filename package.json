@@ -9,9 +9,9 @@
     "react-native-worklets": "0.10.1"
   },
   "overrides": {
+    "expo-constants": "57.0.21",
     "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "expo-constants": "57.0.21"
+    "react-dom": "19.2.3"
   },
   "workspaces": [
     "apps/*",
@@ -30,6 +30,9 @@
     "build:android": "bun run --cwd apps/mobile build:android",
     "build:android:apk": "bun run --cwd apps/mobile build:android:apk",
     "build:android:aab": "bun run --cwd apps/mobile build:android:aab",
+    "build:android:preview": "bun run --cwd apps/mobile build:android:preview",
+    "update:android:preview": "bun run --cwd apps/mobile update:android:preview",
+    "update:android:production": "bun run --cwd apps/mobile update:android:production",
     "typecheck": "bun run --cwd apps/api typecheck && bun run --cwd apps/admin typecheck && bun run --cwd apps/mobile typecheck && bun run --cwd apps/desktop typecheck",
     "db:generate": "bun run --cwd apps/api db:generate",
     "db:push": "bun run --cwd apps/api db:push",
@@ -39,14 +42,11 @@
     "db:seed": "bun run --cwd apps/api db:seed",
     "db:deploy": "bun run --cwd apps/api db:deploy",
     "test:smoke": "bun run --cwd apps/api test:smoke",
-    "test": "bun test packages/calendar packages/i18n apps/mobile/src/lib/browser-database-access.test.ts apps/mobile/src/lib/session-lifecycle.test.ts apps/mobile/src/lib/sync/server-url.test.ts apps/mobile/src/lib/session-notifications.test.ts apps/mobile/src/lib/web-notifications.test.ts apps/mobile/pwa/service-worker.test.ts && bun run --cwd apps/desktop test",
+    "test": "bun test packages/calendar packages/i18n apps/mobile/src/lib/browser-database-access.test.ts apps/mobile/src/lib/session-lifecycle.test.ts apps/mobile/src/lib/sync/server-url.test.ts apps/mobile/src/lib/sync/link.test.ts apps/mobile/src/lib/sync/queue.test.ts apps/mobile/src/lib/sync/events.test.ts apps/mobile/src/lib/session-notifications.test.ts apps/mobile/src/lib/web-notifications.test.ts apps/mobile/pwa/service-worker.test.ts && bun run --cwd apps/desktop test",
     "dev:desktop": "bun run --cwd apps/desktop dev",
     "build:desktop": "bun run --cwd apps/desktop build",
     "package:desktop": "bun run --cwd apps/desktop package",
-    "package:desktop:local": "bun run --cwd apps/desktop package:local",
-    "build:android:preview": "bun run --cwd apps/mobile build:android:preview",
-    "update:android:preview": "bun run --cwd apps/mobile update:android:preview",
-    "update:android:production": "bun run --cwd apps/mobile update:android:production"
+    "package:desktop:local": "bun run --cwd apps/desktop package:local"
   },
   "trustedDependencies": [
     "electron"

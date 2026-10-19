@@ -26,6 +26,7 @@ import {
 } from "../lib/auth";
 import { AppError, conflict, forbidden, invalid, notFound, parseInput } from "../lib/errors";
 import { recordAudit } from "../lib/audit";
+import { withSyncChange } from "../lib/sync-events";
 
 /** No 0/O/1/I: these codes get read aloud and typed on a phone. */
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -147,7 +148,7 @@ export const teamRoutes = new Elysia({ prefix: "/team" })
   .post("/join", async ({ principal, body }) => {
     const payload = parseInput(joinTeamInputSchema, body);
     const invite = await prisma.invite.findUnique({ where: { code: payload.inviteCode.toUpperCase() }, include: { organization: true } });
-    if (!invite || invite.revokedAt || invite.acceptedAt || invite.expiresAt <= new Date()) {
+    if (!invite || invite.userId || invite.revokedAt || invite.acceptedAt || invite.expiresAt <= new Date()) {
       throw new AppError(422, "That invite code is not valid.", "INVALID_INVITE");
     }
     const membership = await prisma.$transaction(async (tx) => {
@@ -178,10 +179,10 @@ export const teamRoutes = new Elysia({ prefix: "/team" })
     const organization = requireOrganization(principal);
     const payload = parseInput(updateOrganizationInputSchema, body);
 
-    const updated = await prisma.organization.update({
+    const updated = await withSyncChange({ organizationId: organization.id }, (tx) => tx.organization.update({
       where: { id: organization.id },
       data: payload,
-    });
+    }));
 
     await recordAudit({
       organizationId: organization.id,
@@ -343,26 +344,26 @@ export const teamRoutes = new Elysia({ prefix: "/team" })
       }
     }
 
-    const updated = await prisma.membership.update({
-      where: { id: membership.id },
-      data: {
-        ...payload,
-        ...(payload.status === "SUSPENDED" && membership.status === "ACTIVE"
-          ? { leftAt: new Date() }
-          : {}),
-        ...(payload.status === "ACTIVE" ? { leftAt: null } : {}),
-      },
-      include: { user: true },
-    });
-
-    // Suspension has to reach the phone in the member's pocket, not just the
-    // next login.
-    if (updated.status === "SUSPENDED") {
-      await prisma.authSession.updateMany({
-        where: { userId: updated.userId, organizationId: organization.id, revokedAt: null },
-        data: { revokedAt: new Date() },
+    const updated = await withSyncChange({ organizationId: organization.id, userId: membership.userId }, async (tx) => {
+      const updated = await tx.membership.update({
+        where: { id: membership.id },
+        data: {
+          ...payload,
+          ...(payload.status === "SUSPENDED" && membership.status === "ACTIVE"
+            ? { leftAt: new Date() }
+            : {}),
+          ...(payload.status === "ACTIVE" ? { leftAt: null } : {}),
+        },
+        include: { user: true },
       });
-    }
+      if (updated.status === "SUSPENDED") {
+        await tx.authSession.updateMany({
+          where: { userId: updated.userId, organizationId: organization.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      return updated;
+    });
 
     await recordAudit({
       organizationId: organization.id,
@@ -421,6 +422,7 @@ export const teamRoutes = new Elysia({ prefix: "/team" })
     return {
       invites: invites.map((invite) => ({
         id: invite.id,
+        userId: invite.userId,
         code: invite.code,
         role: invite.role,
         label: invite.label,
@@ -448,12 +450,20 @@ export const teamRoutes = new Elysia({ prefix: "/team" })
       throw forbidden("Only an owner can invite a manager or an owner.");
     }
 
+    const recipient = payload.userId ? await prisma.membership.findUnique({
+      where: { organizationId_userId: { organizationId: organization.id, userId: payload.userId } },
+      include: { user: true },
+    }) : null;
+    if (payload.userId && (!recipient || recipient.status !== "ACTIVE")) throw notFound("Member not found.");
+    if (recipient && recipient.role !== "MEMBER" && !isOwner) throw forbidden("Only an owner can issue codes for a manager or owner.");
+
     const invite = await prisma.invite.create({
       data: {
         organizationId: organization.id,
         code: generateInviteCode(),
-        role: payload.role,
-        label: payload.label ?? null,
+        userId: recipient?.userId,
+        role: recipient?.role ?? payload.role,
+        label: recipient?.user.username ?? payload.label ?? null,
         payType: payload.payType,
         hourlyRate: payload.hourlyRate || organization.defaultHourlyRate,
         monthlySalary: payload.monthlySalary,
@@ -474,6 +484,7 @@ export const teamRoutes = new Elysia({ prefix: "/team" })
 
     return {
       id: invite.id,
+      userId: invite.userId,
       code: invite.code,
       role: invite.role,
       label: invite.label,

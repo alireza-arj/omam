@@ -97,9 +97,24 @@ export default function DesktopPanel() {
   const [notice, setNotice] = useState<string>();
   const active = summary.activeSession;
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+    let timer: ReturnType<typeof setInterval> | undefined;
+    let visible = !document.hidden;
+    const updateClock = () => {
+      clearInterval(timer);
+      if (!visible || (page !== "timer" && page !== "history")) return;
+      setNow(Date.now());
+      timer = setInterval(() => setNow(Date.now()), active?.startAt ? 1000 : 60_000);
+    };
+    updateClock();
+    const visibilityChanged = () => { visible = !document.hidden; updateClock(); };
+    document.addEventListener("visibilitychange", visibilityChanged);
+    const unsubscribe = getDesktopBridge()?.onVisibilityChange((next) => { visible = next; updateClock(); });
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", visibilityChanged);
+      unsubscribe?.();
+    };
+  }, [active?.startAt, page]);
   useEffect(() => {
     document.documentElement.dataset.desktop = "true";
     return () => { delete document.documentElement.dataset.desktop; };

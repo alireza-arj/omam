@@ -8,6 +8,7 @@ import { parseInput } from "../lib/errors";
 import { serializeSyncSession } from "../lib/serialize";
 import { calculateSessionMinutes } from "../lib/time";
 import { isSessionLocked } from "../lib/payroll";
+import { publishSyncChange } from "../lib/sync-events";
 
 /**
  * One round trip for the offline app: it sends everything it changed since the
@@ -190,6 +191,9 @@ export const syncRoutes = new Elysia({ prefix: "/sync" })
         });
       }
 
+      if (results.some((result) => result.outcome === "applied" && result.serverId)) {
+        await publishSyncChange({ organizationId: organization.id, userId, exceptSessionId: principal.sessionId }, tx);
+      }
       return { results, conflicts };
     });
 

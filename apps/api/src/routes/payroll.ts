@@ -13,6 +13,7 @@ import { buildPayrollPeriod, readPeriodDetail, serializePeriod } from "../lib/pa
 import { csvResponse, toCsv } from "../lib/csv";
 import { formatDuration, hoursFromMinutes } from "../lib/time";
 import { recordAudit } from "../lib/audit";
+import { withSyncChange } from "../lib/sync-events";
 
 async function loadPeriodForOrg(organizationId: string, periodId: string) {
   const period = await prisma.payrollPeriod.findFirst({
@@ -88,7 +89,7 @@ export const payrollRoutes = new Elysia({ prefix: "/payroll" })
 
     const locking = payload.status === "LOCKED" && period.status !== "LOCKED";
 
-    await prisma.payrollPeriod.update({
+    await withSyncChange({ organizationId: organization.id }, (tx) => tx.payrollPeriod.update({
       where: { id: period.id },
       data: {
         ...(payload.status ? { status: payload.status } : {}),
@@ -96,7 +97,7 @@ export const payrollRoutes = new Elysia({ prefix: "/payroll" })
         ...(locking ? { lockedAt: new Date(), lockedById: principal.user.id } : {}),
         ...(payload.status === "DRAFT" ? { lockedAt: null, lockedById: null } : {}),
       },
-    });
+    }));
 
     await recordAudit({
       organizationId: organization.id,

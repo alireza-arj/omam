@@ -1,5 +1,4 @@
-import { createContext, useContext, useMemo, type PropsWithChildren } from "react";
-import { useSQLiteContext as useExpoSQLiteContext } from "expo-sqlite";
+import { createContext, useContext } from "react";
 
 export type SQLiteDatabase = {
   execAsync: (sql: string) => Promise<void>;
@@ -15,18 +14,6 @@ export type SQLiteDatabase = {
 export type DatabaseQueries = Omit<SQLiteDatabase, "runBatchAsync">;
 
 export const DatabaseContext = createContext<SQLiteDatabase | null>(null);
-
-export function ExpoDatabaseContext({ children }: PropsWithChildren) {
-  const db = useExpoSQLiteContext();
-  const value = useMemo<SQLiteDatabase>(() => ({
-    execAsync: (sql) => db.execAsync(sql),
-    runAsync: (sql: string, params: (string | number | null)[] = []) => db.runAsync(sql, params),
-    getFirstAsync: <T,>(sql: string, params: (string | number | null)[] = []) => db.getFirstAsync<T>(sql, params),
-    getAllAsync: <T,>(sql: string, params: (string | number | null)[] = []) => db.getAllAsync<T>(sql, params),
-    runBatchAsync: (statements) => db.withTransactionAsync(async () => { for (const statement of statements) await db.runAsync(statement.sql, statement.params ?? []); }),
-  }), [db]);
-  return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;
-}
 
 export function useSQLiteContext() {
   const db = useContext(DatabaseContext);

@@ -3,7 +3,7 @@ import { SQLiteProvider } from "expo-sqlite";
 import { Button, Card, Screen, Spinner, Text, layout, useLanguage } from "../design/taraz";
 import { isDesktop } from "../lib/desktop";
 import { DesktopDatabaseProvider } from "./desktop-database-provider";
-import { ExpoDatabaseContext } from "../lib/sqlite-context";
+import { ExpoDatabaseContext } from "./expo-database-context";
 import { DATABASE_NAME, initializeDatabase } from "../lib/database";
 import { getBrowserDatabaseAccess, isDatabaseAccessConflict } from "../lib/browser-database-access";
 

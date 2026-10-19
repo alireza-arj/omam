@@ -13,16 +13,9 @@ import { timesheetRoutes } from "./routes/timesheets";
 import { reportRoutes } from "./routes/reports";
 import { payrollRoutes } from "./routes/payroll";
 import { syncRoutes } from "./routes/sync";
+import { syncEventRoutes } from "./routes/sync-events";
 import { notificationRoutes } from "./routes/notifications";
 import { startSessionReminderWorker } from "./lib/push-notifications";
-
-declare const Bun: {
-  serve(options: {
-    port: number;
-    hostname: string;
-    fetch: (request: Request) => Response | Promise<Response>;
-  }): { port: number };
-};
 
 const port = Number(process.env.PORT ?? 3001);
 const hostname = process.env.HOST?.trim() || "0.0.0.0";
@@ -79,9 +72,11 @@ const app = new Elysia()
   .use(reportRoutes)
   .use(payrollRoutes)
   .use(syncRoutes)
+  .use(syncEventRoutes)
   .use(notificationRoutes);
 
-const server = Bun.serve({ port, hostname, fetch: app.fetch });
+app.listen({ port, hostname });
+const server = app.server!;
 startSessionReminderWorker();
 const lanIp = resolveLanIp();
 

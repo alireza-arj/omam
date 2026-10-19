@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import AsyncStorage from "../lib/storage";
 import { useSQLiteContext } from "../lib/sqlite-context";
 import type { SQLiteDatabase } from "../lib/sqlite-context";
-import type { AuthUserDto, CompleteProfileInputDto } from "@omam/contracts";
+import { usernameSchema, passwordSchema, type AuthUserDto, type CompleteProfileInputDto } from "@omam/contracts";
 import {
   getUserByUsername,
   getUserById,
@@ -17,9 +17,8 @@ import {
   verifyPassword,
 } from "../lib/db/auth";
 import { discardAvatar, isValidAvatarValue, migrateAvatar } from "../lib/avatar";
-import { signInToServer, registerOnServer, resolveServerUrl, selectServerTeam, changeServerPassword } from "../lib/sync/client";
-import { readSyncState } from "../lib/db/sync";
-import { linkKey, storeTeamAuth, type StoredLink } from "../lib/sync/link";
+import { signInWithInvite, resolveServerUrl, changeServerPassword } from "../lib/sync/client";
+import { linkKey, cacheTeamAccount, type StoredLink } from "../lib/sync/link";
 import { useLanguage } from "../design/taraz";
 
 const AUTH_STORAGE_KEY = "@omam:loggedIn";
@@ -37,7 +36,7 @@ type AuthContextValue = {
   hasAccounts: boolean;
   signIn: (username: string, password: string) => Promise<void>;
   signUp: (username: string, password: string) => Promise<void>;
-  signInTeam: (input: { username: string; password: string; inviteCode?: string }) => Promise<void>;
+  signInTeam: (inviteCode: string) => Promise<void>;
   signOut: () => Promise<void>;
   completeProfile: (payload: CompleteProfileInputDto) => Promise<AuthUserDto>;
   changePassword: (currentPassword: string, nextPassword: string) => Promise<void>;
@@ -76,7 +75,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const adopt = useCallback((next: AuthUserDto) => {
     setUser(next);
-    setNeedsProfileSetup(!next.nickname?.trim());
+    setNeedsProfileSetup(false);
   }, []);
 
   const refreshAccountCount = useCallback(async () => {
@@ -177,7 +176,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setIsMutating(true);
 
       try {
-        // A new account starts in whatever language the device is already reading.
+        if (!usernameSchema.safeParse(username).success) throw new Error("INVALID_USERNAME");
+        if (!passwordSchema.safeParse(password).success) throw new Error("INVALID_PASSWORD");
         const created = await createUser(db, username, await hashPassword(password), language);
 
         await startSession(created.id);
@@ -189,42 +189,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [db, language, refreshAccountCount, startSession],
   );
 
-  const signInTeam = useCallback(async (input: { username: string; password: string; inviteCode?: string }) => {
+  const signInTeam = useCallback(async (inviteCode: string) => {
     setIsMutating(true);
     try {
       const serverUrl = resolveServerUrl();
-      const cached = await getUserByUsername(db, input.username);
-      let auth;
-      try {
-        auth = input.inviteCode
-          ? await registerOnServer(serverUrl, { username: input.username, password: input.password, inviteCode: input.inviteCode }, t)
-          : await signInToServer(serverUrl, input.username, input.password, t);
-      } catch (cause) {
-        if (!input.inviteCode && cached && cause instanceof Error && ["SERVER_UNREACHABLE", "SERVER_TIMEOUT"].includes(cause.message)) {
-          const stored = await AsyncStorage.getItem(linkKey(cached.id));
-          if (stored && (JSON.parse(stored) as StoredLink).serverUrl === serverUrl && await verifyPassword(input.password, cached.passwordHash)) {
-            await startSession(cached.id);
-            return;
-          }
-        }
-        throw cause;
-      }
-      if (!auth.membership) throw new Error("TEAM_REQUIRED");
-      const existing = await getUserByUsername(db, auth.user.username);
-      const local = existing ?? await createUser(db, auth.user.username, await hashPassword(input.password), language);
-      const state = await readSyncState(db, local.id);
-      if (state?.organizationId && state.serverUserId === auth.user.id && state.organizationId !== auth.membership.organizationId) {
-        try { auth.membership = await selectServerTeam(serverUrl, auth.token, state.organizationId, t); }
-        catch (cause) { if (!(cause instanceof Error && "status" in cause && cause.status === 403)) throw cause; }
-      }
-      await storeTeamAuth(db, local.id, serverUrl, auth);
-      await updateUserPasswordHash(db, local.id, await hashPassword(input.password));
-      const pendingProfile = await db.getFirstAsync<{ profileDirty: number }>("SELECT profileDirty FROM User WHERE id = ?", [local.id]);
-      if (auth.user.nickname && !pendingProfile?.profileDirty) await updateUserProfile(db, local.id, auth.user.nickname, auth.user.avatarUrl);
-      await startSession(local.id);
+      const auth = await signInWithInvite(serverUrl, inviteCode, t);
+      const localId = await cacheTeamAccount(db, serverUrl, auth);
+      await startSession(localId);
       await refreshAccountCount();
     } finally { setIsMutating(false); }
-  }, [db, language, refreshAccountCount, startSession, t]);
+  }, [db, refreshAccountCount, startSession, t]);
 
   const signOut = useCallback(async () => {
     setIsMutating(true);
@@ -282,19 +256,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
           throw new Error("NOT_AUTHENTICATED");
         }
 
-        const found = await getUserByUsername(db, user.username);
-
-        if (!found || !(await verifyPassword(currentPassword, found.passwordHash))) {
-          throw new Error("WRONG_CURRENT_PASSWORD");
-        }
-
         const stored = await AsyncStorage.getItem(linkKey(user.id));
+        if (!stored) {
+          const found = await db.getFirstAsync<{ passwordHash: string }>("SELECT passwordHash FROM User WHERE id = ?", [user.id]);
+          if (!found || !(await verifyPassword(currentPassword, found.passwordHash))) throw new Error("WRONG_CURRENT_PASSWORD");
+        }
         if (stored) {
           const link = JSON.parse(stored) as StoredLink;
           const response = await changeServerPassword(link.serverUrl, link.token, currentPassword, nextPassword, t);
           await AsyncStorage.setItem(linkKey(user.id), JSON.stringify({ ...link, token: response.token }));
         }
         await updateUserPasswordHash(db, user.id, await hashPassword(nextPassword));
+        notifyAttendanceChanged();
       } finally {
         setIsMutating(false);
       }

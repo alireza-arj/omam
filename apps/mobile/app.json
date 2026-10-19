@@ -3,6 +3,15 @@
     "name": "Tarazkar",
     "slug": "omam",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/07eaab54-f04d-4d17-9238-af7e95faab68",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "scheme": "omam",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -12,13 +21,33 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Tarazkar to access your photos so you can choose an avatar."
+          "photosPermission": "Allow Tarazkar to access your photos so you can choose an avatar.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ],
       "expo-sqlite",
       "expo-font",
       "expo-notifications",
-      "expo-updates"
+      "expo-updates",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "buildArchs": [
+              "armeabi-v7a",
+              "arm64-v8a",
+              "x86",
+              "x86_64"
+            ],
+            "enablePngCrunchInReleaseBuilds": true,
+            "enableBundleCompression": true,
+            "useLegacyPackaging": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -31,11 +60,16 @@
     },
     "android": {
       "package": "com.omam.app",
-      "blockedPermissions": [],
-      "versionCode": 1,
-      "permissions": [
+      "versionCode": 11,
+      "blockedPermissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_EXTERNAL_STORAGE"
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/app-icon-foreground.png",
@@ -52,15 +86,6 @@
         "projectId": "07eaab54-f04d-4d17-9238-af7e95faab68"
       }
     },
-    "owner": "codeali",
-    "runtimeVersion": {
-      "policy": "fingerprint"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/07eaab54-f04d-4d17-9238-af7e95faab68",
-      "enabled": true,
-      "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
-    }
+    "owner": "codeali"
   }
 }

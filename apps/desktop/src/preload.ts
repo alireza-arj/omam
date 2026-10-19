@@ -15,5 +15,14 @@ const api: DesktopApi = {
     ipcRenderer.on("omam:show", handler);
     return () => { ipcRenderer.removeListener("omam:show", handler); };
   },
+  onVisibilityChange: (listener) => {
+    let active = true;
+    let changed = false;
+    const notify = (visible: unknown) => { if (active && typeof visible === "boolean") listener(visible); };
+    const handler = (_event: Electron.IpcRendererEvent, visible: unknown) => { changed = true; notify(visible); };
+    ipcRenderer.on("omam:visibility", handler);
+    void ipcRenderer.invoke("omam:visibility").then((visible: unknown) => { if (!changed) notify(visible); }).catch(() => {});
+    return () => { active = false; ipcRenderer.removeListener("omam:visibility", handler); };
+  },
 };
 contextBridge.exposeInMainWorld("omamDesktop", api);

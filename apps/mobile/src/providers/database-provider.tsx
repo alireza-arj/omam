@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 import { generateId } from "../lib/db/id";
 import type { PropsWithChildren } from "react";
 import { SQLiteProvider } from "expo-sqlite";
-import { ExpoDatabaseContext } from "../lib/sqlite-context";
+import { ExpoDatabaseContext } from "./expo-database-context";
 import { DATABASE_NAME, initializeDatabase } from "../lib/database";
 
 export function DatabaseProvider({ children }: PropsWithChildren) {

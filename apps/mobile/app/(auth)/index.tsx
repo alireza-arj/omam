@@ -1,208 +1,111 @@
 import { isDesktop } from "../../src/lib/desktop";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { Redirect } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LockKeyhole, UserRound } from "lucide-react-native";
+import { passwordSchema, usernameSchema } from "@omam/contracts";
+import { translateError } from "@omam/i18n";
 import { Wordmark } from "../../src/components/wordmark";
 import { useAuth } from "../../src/providers/auth-provider";
-import { translateError } from "@omam/i18n";
 import {
-  Button,
-  Card,
-  Icon,
-  Input,
-  MotionReveal,
-  Text,
-  SegmentedControl,
-  layout,
-  useColors,
-  useTranslation,
+  Button, Card, Input, InviteCodeInput, Text, SegmentedControl,
+  layout, useColors, useTranslation,
 } from "../../src/design/taraz";
 
 type Mode = "signIn" | "signUp";
 
-const MIN_PASSWORD_LENGTH = 6;
-
-function isUsernameValid(input: string) {
-  return /^[a-zA-Z0-9_]{3,32}$/.test(input.trim());
-}
-
 export default function SignInScreen() {
-  const { isAuthenticated, isReady, isMutating, signIn, signUp, signInTeam, hasAccounts, needsProfileSetup } =
-    useAuth();
+  const { isAuthenticated, isReady, isMutating, signIn, signUp, signInTeam } = useAuth();
   const colors = useColors();
   const t = useTranslation();
-  const [accountMode, setAccountMode] = useState<"team" | "personal">("team");
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const [accountMode, setAccountMode] = useState<"team" | "personal">(params.mode === "team" ? "team" : "personal");
+  const [mode, setMode] = useState<Mode>("signIn");
   const [inviteCode, setInviteCode] = useState("");
-  const [mode, setMode] = useState<Mode | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [usernameTouched, setUsernameTouched] = useState(false);
+  const isTeam = accountMode === "team";
+  const isSignUp = mode === "signUp";
+  const usernameValid = usernameSchema.safeParse(username).success;
+  const passwordValid = passwordSchema.safeParse(password).success;
+  const isInvalid = isTeam ? inviteCode.length !== 8 : !usernameValid || !passwordValid;
 
-  // Until an account exists, signing up is the only thing that can succeed.
-  const activeMode: Mode = mode ?? (accountMode === "team" || hasAccounts ? "signIn" : "signUp");
-  const isSignUp = activeMode === "signUp";
-
-  const isInvalid = useMemo(() => {
-    if (!isUsernameValid(username) || password.length < MIN_PASSWORD_LENGTH) {
-      return true;
-    }
-
-    return (isSignUp && confirmPassword !== password) || (accountMode === "team" && isSignUp && !inviteCode.trim());
-  }, [accountMode, confirmPassword, inviteCode, isSignUp, password, username]);
-
-  if (!isReady) {
-    return null;
-  }
-
-  if (isAuthenticated) {
-    return <Redirect href={needsProfileSetup ? "/(auth)/profile" : isDesktop() ? "/desktop" : "/(tabs)"} />;
-  }
-
-  function switchMode(next: Mode) {
-    setMode(next);
-    setPassword("");
-    setConfirmPassword("");
-    setErrorMessage(null);
-  }
+  if (!isReady) return null;
+  if (isAuthenticated) return <Redirect href={isDesktop() ? "/desktop" : "/(tabs)"} />;
 
   async function handleSubmit() {
+    if (isInvalid || isMutating) return;
     setErrorMessage(null);
-
-    if (!isUsernameValid(username)) {
-      setErrorMessage(t("auth.usernameRule"));
-
-      return;
-    }
-
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      setErrorMessage(t("auth.passwordRule", { count: MIN_PASSWORD_LENGTH }));
-
-      return;
-    }
-
-    if (isSignUp && confirmPassword !== password) {
-      setErrorMessage(t("auth.passwordsDiffer"));
-
-      return;
-    }
-
     try {
-      if (accountMode === "team") {
-        await signInTeam({ username: username.trim(), password, ...(isSignUp ? { inviteCode: inviteCode.trim() } : {}) });
-      } else if (isSignUp) {
-        await signUp(username.trim(), password);
-      } else {
-        await signIn(username.trim(), password);
-      }
+      if (isTeam) await signInTeam(inviteCode);
+      else if (isSignUp) await signUp(username.trim(), password);
+      else await signIn(username.trim(), password);
     } catch (error) {
       setErrorMessage(translateError(error, t));
     }
   }
 
   return (
-    <SafeAreaView
-      style={{ backgroundColor: colors.surfaceApp, flex: 1 }}
-      edges={["top", "bottom"]}
-    >
+    <SafeAreaView style={{ backgroundColor: colors.surfaceApp, flex: 1 }} edges={["top", "bottom"]}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: layout.padPage, paddingVertical: layout.gapDefault }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: layout.padPage, paddingVertical: layout.gapLoose }}
           keyboardShouldPersistTaps="handled"
         >
-          <Card
-            elevation={2}
-            style={{ alignSelf: "center", gap: layout.gapLoose, maxWidth: 460, padding: layout.padSection, width: "100%" }}
-          >
-            <View style={{ gap: layout.gapTight }}>
-              <Wordmark size={34} />
-              <Text role="title3" tone="muted">
-                {isSignUp ? t("auth.createTitle") : t("auth.signInTitle")}
-              </Text>
-            </View>
-
-            <SegmentedControl options={[{ value: "team", label: t("workspace.teamLogin") }, { value: "personal", label: t("workspace.personalLogin") }]} value={accountMode} onChange={(next) => { setAccountMode(next); setMode("signIn"); setErrorMessage(null); }} full />
-            <View style={{ gap: layout.gapDefault }}>
-              {accountMode === "team" && isSignUp ? <Input label={t("team.inviteCode")} value={inviteCode} onChangeText={setInviteCode} placeholder={t("team.invitePlaceholder")} autoCapitalize="characters" /> : null}
-              <Input
-                label={t("auth.username")}
-                accessibilityLabel={t("auth.username")}
-                autoCapitalize="none"
-                autoComplete="username"
-                autoCorrect={false}
-                leading={<Icon glyph={UserRound} size={16} color={colors.textMuted} />}
-                onChangeText={(value) => {
-                  setUsername(value);
-                  setErrorMessage(null);
-                }}
-                placeholder={t("auth.usernamePlaceholder")}
-                value={username}
-              />
-
-              <Input
-                label={t("auth.password")}
-                accessibilityLabel={t("auth.password")}
-                autoComplete={isSignUp ? "new-password" : "password"}
-                leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
-                onChangeText={(value) => {
-                  setPassword(value);
-                  setErrorMessage(null);
-                }}
-                onSubmitEditing={isSignUp ? undefined : handleSubmit}
-                placeholder={t("auth.passwordPlaceholder", { count: MIN_PASSWORD_LENGTH })}
-                secureTextEntry
-                value={password}
-              />
-
-              {isSignUp ? (
-                <MotionReveal key="confirm-password">
-                  <Input
-                    label={t("auth.confirmPassword")}
-                    accessibilityLabel={t("auth.confirmPassword")}
-                    autoComplete="new-password"
-                    leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
-                    onChangeText={(value) => {
-                      setConfirmPassword(value);
-                      setErrorMessage(null);
-                    }}
-                    onSubmitEditing={handleSubmit}
-                    placeholder={t("auth.repeatPlaceholder")}
-                    secureTextEntry
-                    value={confirmPassword}
-                  />
-                </MotionReveal>
-              ) : null}
-            </View>
-
-            {errorMessage ? (
-              <Text accessibilityRole="alert" role="bodySm" tone="accent">
-                {errorMessage}
-              </Text>
-            ) : null}
-
-            <Button
-              label={isSignUp ? t("auth.createAccount") : t("auth.signIn")}
-              full
-              size="lg"
-              disabled={isInvalid}
-              loading={isMutating}
-              onPress={handleSubmit}
-            />
-
-            <Button
-              label={isSignUp ? t("auth.haveAccount") : t("auth.createNew")}
-              full
-              size="md"
-              variant="ghost"
+          <Card elevation={0} style={{ alignSelf: "center", gap: layout.gapLoose, maxWidth: layout.dialogMaxWidth, padding: layout.padSection, width: "100%" }}>
+            <Wordmark />
+            <SegmentedControl
+              options={[{ value: "personal", label: t("workspace.personalLogin") }, { value: "team", label: t("workspace.teamLogin") }]}
+              value={accountMode}
               disabled={isMutating}
-              onPress={() => switchMode(isSignUp ? "signIn" : "signUp")}
+              onChange={(next) => { setAccountMode(next); setMode("signIn"); setPassword(""); setErrorMessage(null); }}
+              full
             />
-
-            <Text role="caption" tone="muted">
-              {accountMode === "team" ? t("workspace.teamLoginHint") : t("auth.localOnly")}
-            </Text>
+            <View style={{ gap: layout.gapTight }}>
+              <Text role="title2">{isTeam ? t("workspace.teamLogin") : isSignUp ? t("auth.createTitle") : t("auth.signInTitle")}</Text>
+              {isTeam ? <Text role="bodySm" tone="muted">{t("workspace.teamLoginHint")}</Text> : null}
+            </View>
+            {isTeam ? (
+              <InviteCodeInput label={t("team.inviteCode")} value={inviteCode} onChange={(next) => { setInviteCode(next); setErrorMessage(null); }} disabled={isMutating} invalid={Boolean(errorMessage)} />
+            ) : (
+              <View style={{ gap: layout.gapDefault }}>
+                <Input
+                  label={t("auth.username")}
+                  autoCapitalize="none"
+                  autoComplete="username"
+                  autoCorrect={false}
+                  maxLength={32}
+                  editable={!isMutating}
+                  error={usernameTouched && username && !usernameValid ? t("auth.usernameRule") : undefined}
+                  onBlur={() => setUsernameTouched(true)}
+                  onChangeText={(next) => { setUsername(next); setErrorMessage(null); }}
+                  value={username}
+                />
+                <Input
+                  label={t("auth.password")}
+                  autoComplete={isSignUp ? "new-password" : "password"}
+                  autoCapitalize="none"
+                  maxLength={72}
+                  editable={!isMutating}
+                  hint={isSignUp ? t("auth.passwordRule", { count: 6 }) : undefined}
+                  onChangeText={(next) => { setPassword(next); setErrorMessage(null); }}
+                  onSubmitEditing={handleSubmit}
+                  secureTextEntry
+                  value={password}
+                />
+              </View>
+            )}
+            {errorMessage ? <Text accessibilityRole="alert" role="bodySm" tone="warning">{errorMessage}</Text> : null}
+            <View style={{ gap: layout.gapTight }}>
+              <Button label={isTeam || !isSignUp ? t("auth.signIn") : t("auth.createAccount")} full size="lg" disabled={isInvalid} loading={isMutating} onPress={handleSubmit} />
+              {!isTeam ? <Button
+                label={isSignUp ? t("auth.haveAccount") : t("auth.createNew")}
+                full variant="ghost" disabled={isMutating}
+                onPress={() => { setMode(isSignUp ? "signIn" : "signUp"); setPassword(""); setErrorMessage(null); setUsernameTouched(false); }}
+              /> : null}
+            </View>
           </Card>
         </ScrollView>
       </KeyboardAvoidingView>

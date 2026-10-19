@@ -63,3 +63,11 @@ export type SyncSessionInputDto = z.infer<typeof syncSessionInputSchema>;
 export type SyncPushResultDto = z.infer<typeof syncPushResultSchema>;
 export type SyncRequestDto = z.infer<typeof syncRequestSchema>;
 export type SyncResponseDto = z.infer<typeof syncResponseSchema>;
+
+export const syncEventInputSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("authenticate"), token: z.string().min(1).max(512) }),
+  z.object({ type: z.literal("ping") }),
+]);
+
+export const syncEventSchema = z.object({ type: z.enum(["ready", "changed", "pong"]) });
+export type SyncEventDto = z.infer<typeof syncEventSchema>;

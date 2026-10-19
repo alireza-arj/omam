@@ -37,4 +37,5 @@ export type DesktopApi = {
   checkUpdates: () => Promise<"disabled" | "current" | "downloading" | "available">;
   installUpdate: () => Promise<void>;
   onShow: (listener: () => void) => () => void;
+  onVisibilityChange: (listener: (visible: boolean) => void) => () => void;
 };

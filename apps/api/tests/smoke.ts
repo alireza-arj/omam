@@ -77,10 +77,10 @@ check("second session 5h", manual2.json?.durationMinutes === 300, manual2.json);
 
 check("end before start rejected", (await call("POST", "/sessions", { token: devToken, body: { startAt: day(1, 17), endAt: day(1, 9) } })).status === 422);
 
-const clockIn = await call("POST", "/sessions/clock-in", { token: devToken, body: { startAt: new Date().toISOString(), category: "REMOTE" } });
+const clockIn = await call("POST", "/sessions/clock-in", { token: devToken, body: { startAt: day(0, 9), category: "REMOTE" } });
 check("clock in", clockIn.status === 200 && clockIn.json.status === "OPEN", clockIn.json);
 check("double clock-in rejected", (await call("POST", "/sessions/clock-in", { token: devToken, body: { startAt: new Date().toISOString() } })).status === 409);
-check("clock out", (await call("POST", `/sessions/${clockIn.json.id}/clock-out`, { token: devToken, body: { endAt: new Date(Date.now() + 3600_000).toISOString() } })).json?.durationMinutes === 60);
+check("clock out", (await call("POST", `/sessions/${clockIn.json.id}/clock-out`, { token: devToken, body: { endAt: day(0, 10) } })).json?.durationMinutes === 60);
 
 const devUserId = dev.json.user.id;
 const sheet = await call("GET", "/timesheets", { token: ownerToken, query: `?userId=${devUserId}` });

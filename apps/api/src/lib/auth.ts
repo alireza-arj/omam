@@ -1,6 +1,6 @@
 import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
-import type { Membership, Organization, User } from "@prisma/client";
+import type { Membership, Organization, User, Prisma } from "@prisma/client";
 import type { AuthMembershipDto, AuthUserDto, OrgRole } from "@omam/contracts";
 import { ROLE_RANK } from "@omam/contracts";
 import { prisma } from "./prisma";
@@ -74,10 +74,10 @@ export function serializeMembership(
   };
 }
 
-export async function createAuthSession(userId: string, deviceName?: string, organizationId?: string) {
+export async function createAuthSession(userId: string, deviceName?: string, organizationId?: string, client: Pick<Prisma.TransactionClient, "authSession"> = prisma) {
   const token = randomBytes(32).toString("base64url");
 
-  await prisma.authSession.create({
+  await client.authSession.create({
     data: {
       userId,
       organizationId,
