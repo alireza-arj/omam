@@ -24,13 +24,15 @@ export default function SignInScreen() {
   const [inviteCode, setInviteCode] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [usernameTouched, setUsernameTouched] = useState(false);
   const isTeam = accountMode === "team";
   const isSignUp = mode === "signUp";
   const usernameValid = usernameSchema.safeParse(username).success;
   const passwordValid = passwordSchema.safeParse(password).success;
-  const isInvalid = isTeam ? inviteCode.length !== 8 : !usernameValid || !passwordValid;
+  const passwordsMatch = password === confirmPassword;
+  const isInvalid = isTeam ? inviteCode.length !== 8 : !usernameValid || !passwordValid || (isSignUp && !passwordsMatch);
 
   if (!isReady) return null;
   if (isAuthenticated) return <Redirect href={isDesktop() ? "/desktop" : "/(tabs)"} />;
@@ -60,7 +62,7 @@ export default function SignInScreen() {
               options={[{ value: "personal", label: t("workspace.personalLogin") }, { value: "team", label: t("workspace.teamLogin") }]}
               value={accountMode}
               disabled={isMutating}
-              onChange={(next) => { setAccountMode(next); setMode("signIn"); setPassword(""); setErrorMessage(null); }}
+              onChange={(next) => { setAccountMode(next); setMode("signIn"); setPassword(""); setConfirmPassword(""); setErrorMessage(null); }}
               full
             />
             <View style={{ gap: layout.gapTight }}>
@@ -73,6 +75,7 @@ export default function SignInScreen() {
               <View style={{ gap: layout.gapDefault }}>
                 <Input
                   label={t("auth.username")}
+                  placeholder={t("auth.usernamePlaceholder")}
                   autoCapitalize="none"
                   autoComplete="username"
                   autoCorrect={false}
@@ -84,7 +87,9 @@ export default function SignInScreen() {
                   value={username}
                 />
                 <Input
+                  key={mode}
                   label={t("auth.password")}
+                  placeholder={isSignUp ? t("auth.passwordPlaceholder", { count: 6 }) : t("auth.signInPasswordPlaceholder")}
                   autoComplete={isSignUp ? "new-password" : "password"}
                   autoCapitalize="none"
                   maxLength={72}
@@ -95,6 +100,19 @@ export default function SignInScreen() {
                   secureTextEntry
                   value={password}
                 />
+                {isSignUp ? <Input
+                  label={t("auth.confirmPassword")}
+                  placeholder={t("auth.repeatPlaceholder")}
+                  autoComplete="new-password"
+                  autoCapitalize="none"
+                  maxLength={72}
+                  editable={!isMutating}
+                  error={confirmPassword && !passwordsMatch ? t("auth.passwordsDiffer") : undefined}
+                  onChangeText={(next) => { setConfirmPassword(next); setErrorMessage(null); }}
+                  onSubmitEditing={handleSubmit}
+                  secureTextEntry
+                  value={confirmPassword}
+                /> : null}
               </View>
             )}
             {errorMessage ? <Text accessibilityRole="alert" role="bodySm" tone="warning">{errorMessage}</Text> : null}
@@ -103,7 +121,7 @@ export default function SignInScreen() {
               {!isTeam ? <Button
                 label={isSignUp ? t("auth.haveAccount") : t("auth.createNew")}
                 full variant="ghost" disabled={isMutating}
-                onPress={() => { setMode(isSignUp ? "signIn" : "signUp"); setPassword(""); setErrorMessage(null); setUsernameTouched(false); }}
+                onPress={() => { setMode(isSignUp ? "signIn" : "signUp"); setPassword(""); setConfirmPassword(""); setErrorMessage(null); setUsernameTouched(false); }}
               /> : null}
             </View>
           </Card>

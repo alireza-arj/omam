@@ -1,4 +1,5 @@
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
+import { Eye, EyeOff } from "lucide-react-native";
 import { Platform, type TextInputProps, type StyleProp, type ViewStyle, type TextStyle } from "react-native";
 import { TextField } from "heroui-native/text-field";
 import { Input as HeroInput } from "heroui-native/input";
@@ -8,6 +9,8 @@ import { Label } from "heroui-native/label";
 import { Description } from "heroui-native/description";
 import { FieldError } from "heroui-native/field-error";
 import { Text } from "./text";
+import { Icon } from "./icon";
+import { IconButton } from "./icon-button";
 import { LayoutDirection } from "uniwind";
 import { useLanguage } from "../i18n";
 import { fontSize, layout, typeRolesByLanguage } from "../tokens";
@@ -27,7 +30,23 @@ export function Input({
   label, hint, error, size = "lg", leading, trailing, containerStyle, freeText = false, ...rest
 }: InputProps) {
   const id = useId();
-  const { isRtl, language } = useLanguage();
+  const { isRtl, language, t } = useLanguage();
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const isPassword = rest.secureTextEntry === true;
+  const suffix = isPassword ? (
+    <>
+      {trailing}
+      <IconButton
+        label={t(passwordVisible ? "auth.hidePassword" : "auth.showPassword")}
+        variant="ghost"
+        disabled={rest.editable === false}
+        accessibilityState={{ selected: passwordVisible }}
+        onPress={() => setPasswordVisible((visible) => !visible)}
+      >
+        <Icon glyph={passwordVisible ? EyeOff : Eye} />
+      </IconButton>
+    </>
+  ) : trailing;
   const roles = typeRolesByLanguage[language];
   const rtlText = freeText && isRtl;
   const inputStyle: TextStyle = {
@@ -41,6 +60,7 @@ export function Input({
   };
   const inputProps = {
     ...rest,
+    secureTextEntry: isPassword ? !passwordVisible : rest.secureTextEntry,
     nativeID: rest.nativeID ?? id,
     accessibilityLabel: rest.accessibilityLabel ?? label,
     "aria-describedby": error || hint ? id + "-description" : undefined,
@@ -53,12 +73,12 @@ export function Input({
       {label ? <Label nativeID={id + "-label"}><Label.Text style={roles.label}>{label}</Label.Text></Label> : null}
       {rest.multiline ? (
         <TextArea {...inputProps} />
-      ) : leading || trailing ? (
+      ) : leading || suffix ? (
         <LayoutDirection rtl={rtlText}>
           <InputGroup>
             {leading ? <InputGroup.Prefix>{leading}</InputGroup.Prefix> : null}
             <InputGroup.Input {...inputProps} />
-            {trailing ? <InputGroup.Suffix>{trailing}</InputGroup.Suffix> : null}
+            {suffix ? <InputGroup.Suffix>{suffix}</InputGroup.Suffix> : null}
           </InputGroup>
         </LayoutDirection>
       ) : <HeroInput {...inputProps} />}

@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { Fragment, useId } from "react";
 import { View, type TextInputProps } from "react-native";
 import { LayoutDirection } from "uniwind";
 import { InputOTP } from "heroui-native/input-otp";
@@ -35,17 +35,20 @@ export function InviteCodeInput({ label, hint, value, onChange, disabled = false
           isDisabled={disabled}
           isInvalid={invalid}
           textInputProps={textInputProps}
-          style={{ direction: "ltr", flexDirection: "row", gap: space[2], width: "100%" }}
+          style={{ direction: "ltr", flexDirection: "row", alignItems: "center", gap: space[3], width: "100%" }}
         >
           {[0, 1].map((group) => (
-            <InputOTP.Group key={group} style={{ flex: 1, gap: space[2] }}>
-              {({ slots, isFocused }) => slots.filter((slot) => Math.floor(slot.index / 4) === group).map((slot) => (
-                <InputOTP.Slot key={slot.index} index={slot.index} background={null} style={{ flex: 1, width: 0, minWidth: 0, height: layout.controlLg, borderRadius: radius.sm, backgroundColor: colors.surfaceCard, borderWidth: layout.hairline, borderColor: invalid ? colors.warningText : isFocused && slot.isActive ? colors.lineAccent : colors.lineStrong }}>
-                  <InputOTP.SlotValue style={{ ...typeRoles.mono, color: colors.textTitle }} />
-                  <InputOTP.SlotCaret />
-                </InputOTP.Slot>
-              ))}
-            </InputOTP.Group>
+            <Fragment key={group}>
+              {group === 1 ? <InputOTP.Separator style={{ width: space[4], height: space[1], flexShrink: 0, borderRadius: radius.full, backgroundColor: colors.textMuted }} /> : null}
+              <InputOTP.Group style={{ flex: 1, minWidth: 0, flexDirection: "row", gap: space[4] }}>
+                {({ slots, isFocused }) => slots.filter((slot) => Math.floor(slot.index / 4) === group).map((slot) => (
+                  <InputOTP.Slot key={slot.index} index={slot.index} background={null} style={{ flex: 1, width: 0, minWidth: 0, height: layout.controlLg, borderRadius: radius.lg, backgroundColor: colors.surfaceSunken, borderWidth: layout.hairline, borderColor: invalid ? colors.warningText : isFocused && slot.isActive ? colors.lineAccent : colors.lineHairline }}>
+                    <InputOTP.SlotValue style={{ ...typeRoles.title3, color: colors.textTitle }} />
+                    <InputOTP.SlotCaret />
+                  </InputOTP.Slot>
+                ))}
+              </InputOTP.Group>
+            </Fragment>
           ))}
         </InputOTP>
       </LayoutDirection>
