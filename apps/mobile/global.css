@@ -12,9 +12,10 @@ html {
   overscroll-behavior: none;
 }
 
-body { overscroll-behavior: none; background: var(--app-background); }
+html, body { overscroll-behavior: none; background: var(--app-background); }
 
-html, body, #root { height: 100%; height: 100dvh; }
+/* iOS standalone PWAs report a short 100vh/100dvh and leave a blank strip under the app; pinning to the layout viewport always reaches the screen's bottom edge. */
+body, #root { position: fixed; inset: 0; height: auto; width: auto; }
 
 @media (pointer: coarse) {
   input, textarea, select { font-size: 16px !important; }
