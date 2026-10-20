@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../providers/auth-provider";
 import { useState } from "react";
 import { View } from "react-native";
-import { CloudOff, RefreshCw } from "lucide-react-native";
+import { CloudOff, RefreshCw, Users } from "lucide-react-native";
 import { formatDayLabel } from "@omam/calendar";
 import { translateError } from "@omam/i18n";
 import { useAttendance } from "../providers/attendance-provider";
@@ -14,6 +14,8 @@ import {
   ConfirmDialog,
   Divider,
   Icon,
+  Notice,
+  SectionHeader,
   Text,
   layout,
   useColors,
@@ -41,12 +43,7 @@ export function TeamSyncCard() {
   if (!sync.isLinked) {
     return (
       <Card style={{ gap: layout.gapDefault }}>
-        <View style={{ gap: 1 }}>
-          <Text role="title3">{t("team.title")}</Text>
-          <Text role="caption" tone="muted">
-            {t("team.personalAccountHint")}
-          </Text>
-        </View>
+        <SectionHeader glyph={Users} title={t("team.title")} description={t("team.personalAccountHint")} />
 
         <Button label={t("workspace.teamLogin")} full size="lg" variant="quiet" loading={isMutating} onPress={() => {
           void signOut().then(() => router.replace({ pathname: "/(auth)", params: { mode: "team" } })).catch((cause) => showToast({ title: errorText(cause), tone: "error" }));
@@ -57,30 +54,24 @@ export function TeamSyncCard() {
 
   return (
     <Card style={{ gap: layout.gapDefault }}>
-      <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapDefault }}>
-        <View style={{ flex: 1, gap: 1, minWidth: 0 }}>
-          <Text role="title3" numberOfLines={1}>
-            {sync.organizationName ?? t("team.title")}
-          </Text>
-          <Text role="caption" tone="muted" numberOfLines={1}>
-            {t("team.signedInAs", { username: sync.serverUsername ?? "" })}
-          </Text>
-        </View>
-
-        {sync.pendingCount > 0 ? (
+      <SectionHeader
+        glyph={Users}
+        tone="info"
+        title={sync.organizationName ?? t("team.title")}
+        description={t("team.signedInAs", { username: sync.serverUsername ?? "" })}
+        trailing={sync.pendingCount > 0 ? (
           <Badge label={t("team.toSend", { count: sync.pendingCount })} tone="warning" />
         ) : (
           <Badge label={t("team.synced")} tone="success" />
         )}
-      </View>
+      />
 
       {sync.teams.length > 1 ? <View style={{ gap: layout.gapTight }}>
         <Text role="caption" tone="muted">{t("workspace.switchTeam")}</Text>
         {sync.teams.map((team) => <Button key={team.organizationId} label={team.organizationName} variant={team.organizationId === sync.organizationId ? "quiet" : "outline"} full disabled={sync.isSyncing || sync.isLinking || team.organizationId === sync.organizationId} onPress={() => { void sync.selectTeam(team.organizationId).catch((cause) => showToast({ title: errorText(cause), tone: "error" })); }} />)}
       </View> : null}
       <Divider />
-
-      <View style={{ gap: 2 }}>
+      <View style={{ gap: layout.gapTight }}>
         <Text role="caption" tone="muted">
           {sync.lastSyncAt
             ? t("team.lastSynced", {
@@ -89,17 +80,8 @@ export function TeamSyncCard() {
             : t("team.neverSynced")}
         </Text>
 
-        {sync.rejectedCount > 0 ? (
-          <Text role="caption" tone="accent">
-            {t("team.refused", { count: sync.rejectedCount })}
-          </Text>
-        ) : null}
-
-        {sync.lastError ? (
-          <Text role="caption" tone="accent">
-            {translateError(sync.lastError, t)}
-          </Text>
-        ) : null}
+        {sync.rejectedCount > 0 ? <Notice tone="warning" title={t("team.refused", { count: sync.rejectedCount })} /> : null}
+        {sync.lastError ? <Notice tone="danger" title={translateError(sync.lastError, t)} /> : null}
       </View>
 
       <Button
@@ -109,16 +91,16 @@ export function TeamSyncCard() {
         variant="quiet"
         loading={sync.isSyncing}
         onPress={handleSync}
-        icon={<Icon glyph={RefreshCw} size={18} color={colors.textTitle} />}
+        icon={<Icon glyph={RefreshCw} size={layout.iconSm} color={colors.textTitle} />}
       />
 
       <Button
         label={t("team.disconnect")}
         full
         size="lg"
-        variant="outline"
+        variant="ghost"
         onPress={() => setUnlinking(true)}
-        icon={<Icon glyph={CloudOff} size={18} color={colors.textBody} />}
+        icon={<Icon glyph={CloudOff} size={layout.iconSm} color={colors.textBody} />}
       />
 
       <ConfirmDialog

@@ -1,6 +1,6 @@
-import { View } from "react-native";
 import { translateError } from "@omam/i18n";
-import { Button, Card, Text, layout, useLanguage } from "../design/taraz";
+import { Bell } from "lucide-react-native";
+import { Button, Card, Notice, SectionHeader, Text, layout, useLanguage } from "../design/taraz";
 import { useNotifications } from "../providers/notification-provider";
 
 export function WebNotificationCard() {
@@ -17,10 +17,7 @@ export function WebNotificationCard() {
     : active ? t("notifications.enabled") : t("notifications.description");
 
   return <Card style={{ gap: layout.gapDefault }}>
-    <View style={{ gap: layout.gapTight }}>
-      <Text role="title3">{t("notifications.title")}</Text>
-      <Text role="caption" tone="muted">{message}</Text>
-    </View>
+    <SectionHeader glyph={Bell} tone={active ? "success" : "neutral"} title={t("notifications.title")} description={message} />
     {active ? <Text role="caption" tone="muted">{
       notifications.pushState === "connected" ? t("notifications.remindersConnected")
         : notifications.pushState === "unlinked" ? t("notifications.remindersUnlinked")
@@ -29,7 +26,7 @@ export function WebNotificationCard() {
         : notifications.pushState === "failed" ? t("notifications.remindersFailed")
         : t("notifications.remindersConnecting")
     }</Text> : null}
-    {notifications.error ? <Text role="caption" tone="warning" accessibilityRole="alert">{translateError(notifications.error, t, "notifications.failed")}</Text> : null}
+    {notifications.error ? <Notice tone="danger" title={translateError(notifications.error, t, "notifications.failed")} /> : null}
     {supported && !blocked && !active ? <Button label={t("notifications.enable")} full size="lg" loading={notifications.busy} onPress={() => { void notifications.enable(); }} /> : null}
     {active ? <Button label={t("notifications.test")} full variant="quiet" loading={notifications.busy} onPress={() => { void notifications.test(); }} /> : null}
     {notifications.enabled ? <Button label={t("notifications.disable")} full variant="outline" loading={notifications.busy} onPress={() => { void notifications.disable(); }} /> : null}

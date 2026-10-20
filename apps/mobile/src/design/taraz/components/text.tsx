@@ -41,17 +41,17 @@ const MONO_ROLES = new Set<TypeRole>(["mono", "monoLg", "monoDisplay"]);
 /**
  * A timecode is a run of Latin digits joined by neutral characters. Given an
  * RTL base direction the neutrals take the paragraph's side and `09:00 – 17:00`
- * renders reversed, so numeric roles stay LTR and are pushed to the right edge
- * by alignment instead.
+ * renders reversed, so numeric roles keep an LTR run. Alignment stays logical
+ * so a centred or end-aligned style passed by the screen still wins.
  */
 function bidi(role: TypeRole, rtl: boolean): TextStyle {
   if (!rtl) {
     return { writingDirection: "ltr" };
   }
 
-  return MONO_ROLES.has(role)
-    ? { writingDirection: "ltr", textAlign: "right" }
-    : { writingDirection: "rtl", textAlign: "right" };
+  // react-native-web writes `left` and `right` literally and HeroUI's text
+  // defaults to `left`, so a Persian paragraph has to be pushed to its start.
+  return MONO_ROLES.has(role) ? { writingDirection: "ltr", textAlign: "right" } : { writingDirection: "rtl", textAlign: "right" };
 }
 
 /**

@@ -53,7 +53,7 @@ try {
     return loaded.flat().filter((font) => font.status === "loaded").map((font) => font.family.replaceAll('"', ""));
   });
   expect(loadedFonts).toHaveLength(15);
-  expect(loadedFonts).toEqual(expect.arrayContaining(["Figtree_400Regular", "PublicSans_400Regular", "IBMPlexMono_400Regular", "Vazirmatn_400Regular"]));
+  expect(loadedFonts).toEqual(expect.arrayContaining(["Figtree_400Regular", "PublicSans_400Regular", "IBMPlexMono_400Regular", "Estedad_400Regular"]));
   await page.screenshot({ path: join(output, "login.png") });
   await page.evaluate(async () => {
     const bridge = (globalThis as typeof globalThis & { omamDesktop: DesktopApi }).omamDesktop;

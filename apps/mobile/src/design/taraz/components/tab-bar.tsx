@@ -25,13 +25,14 @@ export type TabBarProps = BottomTabBarProps & { items: Record<string, TabItem> }
 
 export function TabBar({ state, descriptors, navigation, items }: TabBarProps) {
   const colors = useColors();
-  const { language } = useLanguage();
+  const { language, direction } = useLanguage();
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.bar, { bottom: insets.bottom + layout.gapDefault, backgroundColor: colors.surfaceGlassStrong }, shadow(3, colors)]}>
     <Glass strong style={styles.material}>
       <Tabs
+        key={direction}
         value={state.routes[state.index].key}
         onValueChange={(key) => {
           const route = state.routes.find((entry) => entry.key === key);
@@ -57,8 +58,8 @@ export function TabBar({ state, descriptors, navigation, items }: TabBarProps) {
                 onLongPress={() => navigation.emit({ type: "tabLongPress", target: route.key })}
                 style={{ alignItems: "center", flex: 1, flexDirection: "column", gap: space[1], minHeight: layout.tabBarContentHeight, paddingVertical: space[2] }}
               >
-                <Icon glyph={item.glyph} size={space[9]} color={tint} />
-                <Tabs.Label style={[typeRolesByLanguage[language].caption, { color: tint }]}>{item.label}</Tabs.Label>
+                <Icon glyph={item.glyph} size={layout.iconMd + 2} color={tint} filled={false} />
+                <Tabs.Label style={[typeRolesByLanguage[language].caption, { color: tint, textAlign: "center" }]}>{item.label}</Tabs.Label>
               </Tabs.Trigger>
             );
           })}

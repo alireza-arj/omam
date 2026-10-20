@@ -1,47 +1,26 @@
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react-native";
 import { View, type StyleProp, type ViewStyle } from "react-native";
+import { IconTile } from "./icon-tile";
 import { Text } from "./text";
-import { useColors } from "../theme";
-import { layout, radius } from "../tokens";
+import { layout } from "../tokens";
 
 export type EmptyStateProps = {
   title: string;
   /** One sentence of guidance, then one action. Nothing more. */
   description?: string;
-  icon?: ReactNode;
+  glyph?: LucideIcon;
   action?: ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
-export function EmptyState({ title, description, icon, action, style }: EmptyStateProps) {
-  const colors = useColors();
-
+export function EmptyState({ title, description, glyph, action, style }: EmptyStateProps) {
   return (
-    <View
-      style={[
-        { alignItems: "center", gap: layout.gapTight, paddingHorizontal: layout.padSection, paddingVertical: 28 },
-        style,
-      ]}
-    >
-      {icon ? (
-        <View
-          style={{
-            alignItems: "center",
-            backgroundColor: colors.fillQuiet,
-            borderRadius: radius.full,
-            height: 44,
-            justifyContent: "center",
-            marginBottom: 2,
-            width: 44,
-          }}
-        >
-          {icon}
-        </View>
-      ) : null}
-
-      <Text role="title3">{title}</Text>
+    <View style={[{ alignItems: "center", gap: layout.gapTight, padding: layout.padSection }, style]}>
+      {glyph ? <IconTile glyph={glyph} size={layout.tapMin} style={{ marginBottom: layout.gapTight }} /> : null}
+      <Text role="title3" style={{ textAlign: "center" }}>{title}</Text>
       {description ? (
-        <Text role="bodySm" tone="muted" style={{ textAlign: "center" }}>
+        <Text role="bodySm" tone="muted" style={{ textAlign: "center", maxWidth: layout.mobileContentMaxWidth - layout.padPage * 2 }}>
           {description}
         </Text>
       ) : null}

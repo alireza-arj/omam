@@ -34,7 +34,7 @@ export function ConfirmDialog({
         {description ? <Dialog.Description style={roles.bodySm}>{description}</Dialog.Description> : null}
         <View style={{ flexDirection: "row", gap: layout.gapDefault }}>
           <Button label={cancelLabel ?? t("common.cancel")} variant="quiet" size="lg" disabled={loading} onPress={cancel} style={{ flex: 1 }} />
-          <Button label={confirmLabel ?? t("common.confirm")} variant={destructive ? "primary" : "secondary"} size="lg" loading={loading} onPress={onConfirm} style={{ flex: 1 }} />
+          <Button label={confirmLabel ?? t("common.confirm")} variant={destructive ? "danger" : "primary"} size="lg" loading={loading} onPress={onConfirm} style={{ flex: 1 }} />
         </View>
       </Dialog.Content>
     </>

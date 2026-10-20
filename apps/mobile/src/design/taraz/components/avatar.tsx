@@ -19,7 +19,7 @@ export function Avatar({ uri, name, size = layout.tapMin, style }: AvatarProps) 
     <HeroAvatar alt={name ?? ""} style={[{ height: size, width: size }, style]}>
       {uri ? <HeroAvatar.Image source={{ uri }} /> : null}
       <HeroAvatar.Fallback>
-        <Text role="title3" tone="muted">{initials(name)}</Text>
+        <Text role={size >= layout.avatarLg ? "title2" : "label"} tone="muted" style={{ textAlign: "center" }}>{initials(name)}</Text>
       </HeroAvatar.Fallback>
     </HeroAvatar>
   );

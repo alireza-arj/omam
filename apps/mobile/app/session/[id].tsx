@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSQLiteContext } from "../../src/lib/sqlite-context";
 import { Building2, ChevronLeft, Laptop, Trash2 } from "lucide-react-native";
-import { dayKey, formatFullDate } from "@omam/calendar";
+import { dayKey } from "@omam/calendar";
 import { translateError } from "@omam/i18n";
 import type { WorkSessionCategory } from "@omam/contracts";
 import { getSessionById } from "../../src/lib/db/sessions";
@@ -16,17 +16,22 @@ import {
 import { useAttendance, type SessionInput } from "../../src/providers/attendance-provider";
 import { useAuth } from "../../src/providers/auth-provider";
 import {
+  Badge,
   Button,
   Card,
   ConfirmDialog,
+  DatePicker,
   Icon,
   IconButton,
   Input,
+  Notice,
   PageHeader,
   Screen,
   SegmentedControl,
   Skeleton,
   Text,
+  TimePicker,
+  TimePickerPanel,
   layout,
   useColors,
   useLanguage,
@@ -58,6 +63,7 @@ export default function SessionEditorScreen() {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [openTime, setOpenTime] = useState<"start" | "end" | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -99,14 +105,14 @@ export default function SessionEditorScreen() {
         value: "ONSITE",
         label: t("category.ONSITE"),
         icon: (active) => (
-          <Icon glyph={Building2} size={16} color={active ? colors.textTitle : colors.textMuted} />
+          <Icon glyph={Building2} size={layout.iconSm} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
       {
         value: "REMOTE",
         label: t("category.REMOTE"),
         icon: (active) => (
-          <Icon glyph={Laptop} size={16} color={active ? colors.textTitle : colors.textMuted} />
+          <Icon glyph={Laptop} size={layout.iconSm} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
     ],
@@ -114,18 +120,6 @@ export default function SessionEditorScreen() {
   );
 
   const calendarName = t(calendar === "JALALI" ? "calendarName.JALALI" : "calendarName.GREGORIAN");
-
-  /** Today in the active calendar, so the field shows the shape it expects. */
-  const datePlaceholder = useMemo(() => dayKey(new Date(), calendar), [calendar]);
-
-  /** `10 Shahrivar 1405` under the field, so the digits are readable at a glance. */
-  const dateHint = useMemo(() => {
-    const parsed = parseLocalDateTime(dateText, "00:00", calendar);
-
-    return parsed
-      ? formatFullDate(parsed, calendar, language)
-      : t("session.dateHint", { calendar: calendarName });
-  }, [calendar, calendarName, dateText, language, t]);
 
   /**
    * A blank end time means the session is still running. An end earlier than
@@ -235,18 +229,18 @@ export default function SessionEditorScreen() {
 
   const back = (
     <IconButton label={t("common.back")} round onPress={goBack}>
-      <Icon glyph={ChevronLeft} size={20} color={colors.textTitle} />
+      <Icon glyph={ChevronLeft} size={layout.iconMd} color={colors.textTitle} directional />
     </IconButton>
   );
 
   if (isLoading) {
     return (
       <Screen scroll gap={layout.gapDefault}>
-        <PageHeader title={t("session.title")} trailing={back} />
+        <PageHeader title={t("session.title")} leading={back} />
         <Card style={{ gap: layout.gapLoose }}>
-          <Skeleton height={44} />
-          <Skeleton height={44} />
-          <Skeleton height={44} />
+          <Skeleton height={layout.controlField} />
+          <Skeleton height={layout.controlField} />
+          <Skeleton height={layout.controlField} />
         </Card>
       </Screen>
     );
@@ -255,7 +249,7 @@ export default function SessionEditorScreen() {
   if (notFound) {
     return (
       <Screen gap={layout.gapDefault}>
-        <PageHeader title={t("session.title")} trailing={back} />
+        <PageHeader title={t("session.title")} leading={back} />
         <Card style={{ gap: layout.gapTight }}>
           <Text role="title3">{t("session.goneTitle")}</Text>
           <Text role="bodySm" tone="muted">
@@ -270,72 +264,62 @@ export default function SessionEditorScreen() {
     <Screen scroll gap={layout.gapDefault}>
       <PageHeader
         title={isNew ? t("session.newTitle") : t("session.editTitle")}
-        subtitle={durationLabel ?? undefined}
-        trailing={back}
+        leading={back}
+        trailing={durationLabel ? <Badge label={durationLabel} tone={isDraftValid && !draft.input.endAt ? "accent" : "neutral"} /> : null}
       />
 
       <Card style={{ gap: layout.gapLoose }}>
-        <Input
+        <DatePicker
           label={t("session.date", { calendar: calendarName })}
-          autoCapitalize="none"
-          autoCorrect={false}
-          hint={dateHint}
-          keyboardType="numbers-and-punctuation"
-          onChangeText={(value) => {
+          value={dateText}
+          calendar={calendar}
+          max={new Date()}
+          onChange={(value) => {
             setDateText(value);
             setError(null);
           }}
-          placeholder={datePlaceholder}
-          value={dateText}
         />
 
-        <View style={{ flexDirection: "row", gap: layout.gapDefault }}>
-          <Input
-            label={t("session.start")}
-            autoCapitalize="none"
-            autoCorrect={false}
-            containerStyle={{ flex: 1 }}
-            keyboardType="numbers-and-punctuation"
-            onChangeText={(value) => {
-              setStartText(value);
+        <View style={{ gap: layout.gapTight }}>
+          <View style={{ flexDirection: "row", gap: layout.gapDefault }}>
+            <TimePicker
+              label={t("session.start")}
+              value={startText}
+              open={openTime === "start"}
+              onOpenChange={(next) => setOpenTime(next ? "start" : null)}
+              style={{ flex: 1 }}
+            />
+            <TimePicker
+              label={t("session.end")}
+              value={endText}
+              emptyText={t("session.stillRunning")}
+              open={openTime === "end"}
+              onOpenChange={(next) => setOpenTime(next ? "end" : null)}
+              style={{ flex: 1 }}
+            />
+          </View>
+          <TimePickerPanel
+            key={openTime ?? "closed"}
+            open={openTime !== null}
+            onOpenChange={(next) => { if (!next) setOpenTime(null); }}
+            value={openTime === "end" ? endText : startText}
+            clearLabel={openTime === "end" ? t("session.clearEnd") : undefined}
+            onChange={(value) => {
+              if (openTime === "end") setEndText(value);
+              else setStartText(value);
               setError(null);
             }}
-            placeholder="09:00"
-            value={startText}
           />
-          <Input
-            label={t("session.end")}
-            autoCapitalize="none"
-            autoCorrect={false}
-            containerStyle={{ flex: 1 }}
-            hint={isNew ? t("session.endHint") : undefined}
-            keyboardType="numbers-and-punctuation"
-            onChangeText={(value) => {
-              setEndText(value);
-              setError(null);
-            }}
-            placeholder="17:00"
-            value={endText}
-          />
+          {openTime === null && isNew ? <Text role="caption" tone="muted">{t("session.endHint")}</Text> : null}
         </View>
 
-        {isDraftValid && draft.crossesMidnight ? (
-          <Text role="caption" tone="muted">
-            {t("session.overnight")}
-          </Text>
-        ) : null}
+        {isDraftValid && draft.crossesMidnight ? <Notice tone="default" title={t("session.overnight")} /> : null}
 
         <View style={{ gap: layout.gapTight }}>
           <Text role="label" tone="body">
             {t("session.category")}
           </Text>
-          <SegmentedControl
-            options={categoryOptions}
-            value={category}
-            onChange={setCategory}
-            size="lg"
-            full
-          />
+          <SegmentedControl options={categoryOptions} value={category} onChange={setCategory} full />
         </View>
 
         <Input
@@ -349,11 +333,7 @@ export default function SessionEditorScreen() {
           value={note}
         />
 
-        {error ? (
-          <Text accessibilityRole="alert" role="bodySm" tone="accent">
-            {error}
-          </Text>
-        ) : null}
+        {error ? <Notice tone="danger" title={error} /> : null}
 
         <Button
           label={isNew ? t("session.add") : t("session.saveChanges")}
@@ -370,9 +350,9 @@ export default function SessionEditorScreen() {
           label={t("session.deleteSession")}
           full
           size="lg"
-          variant="outline"
+          variant="dangerSoft"
           onPress={() => setConfirmingDelete(true)}
-          icon={<Icon glyph={Trash2} size={18} color={colors.textAccent} />}
+          icon={<Icon glyph={Trash2} size={layout.iconSm} color={colors.textAccent} />}
         />
       )}
 

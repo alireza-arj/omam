@@ -8,11 +8,11 @@ import { PublicSans_500Medium } from "@expo-google-fonts/public-sans/500Medium";
 import { PublicSans_600SemiBold } from "@expo-google-fonts/public-sans/600SemiBold";
 import { IBMPlexMono_400Regular } from "@expo-google-fonts/ibm-plex-mono/400Regular";
 import { IBMPlexMono_500Medium } from "@expo-google-fonts/ibm-plex-mono/500Medium";
-import { Vazirmatn_400Regular } from "@expo-google-fonts/vazirmatn/400Regular";
-import { Vazirmatn_500Medium } from "@expo-google-fonts/vazirmatn/500Medium";
-import { Vazirmatn_600SemiBold } from "@expo-google-fonts/vazirmatn/600SemiBold";
-import { Vazirmatn_700Bold } from "@expo-google-fonts/vazirmatn/700Bold";
-import { Vazirmatn_800ExtraBold } from "@expo-google-fonts/vazirmatn/800ExtraBold";
+import { Estedad_400Regular } from "@expo-google-fonts/estedad/400Regular";
+import { Estedad_500Medium } from "@expo-google-fonts/estedad/500Medium";
+import { Estedad_600SemiBold } from "@expo-google-fonts/estedad/600SemiBold";
+import { Estedad_700Bold } from "@expo-google-fonts/estedad/700Bold";
+import { Estedad_800ExtraBold } from "@expo-google-fonts/estedad/800ExtraBold";
 import { useFonts } from "expo-font";
 
 /**
@@ -20,8 +20,9 @@ import { useFonts } from "expo-font";
  * Mono for timecodes and counts. React Native cannot synthesise weights for a
  * custom family, so every weight ships as its own face.
  *
- * Vazirmatn covers Persian: none of the Latin faces have Persian glyphs, so a
- * Persian string in one of them renders as empty boxes.
+ * Estedad covers Persian: none of the Latin faces have Persian glyphs, so a
+ * Persian string in one of them renders as empty boxes. It was drawn for
+ * interfaces — open counters and short ascenders keep it legible at caption size.
  */
 export const typefaces = {
   Figtree_400Regular,
@@ -34,11 +35,11 @@ export const typefaces = {
   PublicSans_600SemiBold,
   IBMPlexMono_400Regular,
   IBMPlexMono_500Medium,
-  Vazirmatn_400Regular,
-  Vazirmatn_500Medium,
-  Vazirmatn_600SemiBold,
-  Vazirmatn_700Bold,
-  Vazirmatn_800ExtraBold,
+  Estedad_400Regular,
+  Estedad_500Medium,
+  Estedad_600SemiBold,
+  Estedad_700Bold,
+  Estedad_800ExtraBold,
 };
 
 export function useTarazFonts() {

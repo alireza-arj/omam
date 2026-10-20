@@ -5,10 +5,11 @@ import { Redirect, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { passwordSchema, usernameSchema } from "@omam/contracts";
 import { translateError } from "@omam/i18n";
+import { BrandMark } from "../../src/components/brand-mark";
 import { Wordmark } from "../../src/components/wordmark";
 import { useAuth } from "../../src/providers/auth-provider";
 import {
-  Button, Card, Input, InviteCodeInput, Text, SegmentedControl,
+  Button, Card, Input, InviteCodeInput, Notice, Text, SegmentedControl,
   layout, useColors, useTranslation,
 } from "../../src/design/taraz";
 
@@ -56,8 +57,12 @@ export default function SignInScreen() {
           contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: layout.padPage, paddingVertical: layout.gapLoose }}
           keyboardShouldPersistTaps="handled"
         >
-          <Card elevation={0} style={{ alignSelf: "center", gap: layout.gapLoose, maxWidth: layout.dialogMaxWidth, padding: layout.padSection, width: "100%" }}>
-            <Wordmark />
+          <View style={{ alignSelf: "center", gap: layout.gapSection, maxWidth: layout.dialogMaxWidth, width: "100%" }}>
+          <View style={{ alignItems: "center", gap: layout.gapDefault }}>
+            <BrandMark size={layout.tapMin + layout.gapDefault} />
+            <Wordmark size={28} />
+          </View>
+          <Card elevation={2} style={{ gap: layout.gapLoose, padding: layout.padSection }}>
             <SegmentedControl
               options={[{ value: "personal", label: t("workspace.personalLogin") }, { value: "team", label: t("workspace.teamLogin") }]}
               value={accountMode}
@@ -65,10 +70,12 @@ export default function SignInScreen() {
               onChange={(next) => { setAccountMode(next); setMode("signIn"); setPassword(""); setConfirmPassword(""); setErrorMessage(null); }}
               full
             />
-            <View style={{ gap: layout.gapTight }}>
-              <Text role="title2">{isTeam ? t("workspace.teamLogin") : isSignUp ? t("auth.createTitle") : t("auth.signInTitle")}</Text>
-              {isTeam ? <Text role="bodySm" tone="muted">{t("workspace.teamLoginHint")}</Text> : null}
-            </View>
+            {isTeam || isSignUp ? (
+              <View style={{ gap: layout.gapTight }}>
+                <Text role="title2">{isTeam ? t("workspace.teamLogin") : t("auth.createTitle")}</Text>
+                {isTeam ? <Text role="bodySm" tone="muted">{t("workspace.teamLoginHint")}</Text> : null}
+              </View>
+            ) : null}
             {isTeam ? (
               <InviteCodeInput label={t("team.inviteCode")} value={inviteCode} onChange={(next) => { setInviteCode(next); setErrorMessage(null); }} disabled={isMutating} invalid={Boolean(errorMessage)} />
             ) : (
@@ -115,7 +122,7 @@ export default function SignInScreen() {
                 /> : null}
               </View>
             )}
-            {errorMessage ? <Text accessibilityRole="alert" role="bodySm" tone="warning">{errorMessage}</Text> : null}
+            {errorMessage ? <Notice tone="danger" title={errorMessage} /> : null}
             <View style={{ gap: layout.gapTight }}>
               <Button label={isTeam || !isSignUp ? t("auth.signIn") : t("auth.createAccount")} full size="lg" disabled={isInvalid} loading={isMutating} onPress={handleSubmit} />
               {!isTeam ? <Button
@@ -125,6 +132,7 @@ export default function SignInScreen() {
               /> : null}
             </View>
           </Card>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

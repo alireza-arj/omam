@@ -3,14 +3,19 @@ import { View, useWindowDimensions } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Building2, Laptop, Play, Square } from "lucide-react-native";
-import { formatDayMonth, formatWeekday } from "@omam/calendar";
+import { dayKey, formatDayMonth, formatWeekday } from "@omam/calendar";
 import { translateError } from "@omam/i18n";
 import type { WorkSessionCategory } from "@omam/contracts";
 import { SessionDial } from "../../src/components/session-dial";
-import { formatDurationHms, joinMeta } from "../../src/lib/format";
+import { formatClock, formatDurationHms, formatShortMinutes, joinMeta, sessionMinutes } from "../../src/lib/format";
 import { useAttendance } from "../../src/providers/attendance-provider";
+import { useAuth } from "../../src/providers/auth-provider";
 import {
+  Avatar,
+  Badge,
   Button,
+  Card,
+  Divider,
   Icon,
   MotionReveal,
   Screen,
@@ -35,7 +40,8 @@ function formatWallClock(date: Date) {
 }
 
 export default function TodayScreen() {
-  const { summary, calendar, clockIn, clockOut, isMutating } = useAttendance();
+  const { summary, sessions, calendar, clockIn, clockOut, isMutating } = useAttendance();
+  const { user } = useAuth();
   const { showToast } = useToast();
   const { language, t } = useLanguage();
   const { width, height } = useWindowDimensions();
@@ -47,8 +53,7 @@ export default function TodayScreen() {
   const [optimisticStartAt, setOptimisticStartAt] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<WorkSessionCategory>("ONSITE");
 
-  // Only tick while this screen is actually on top. It used to run for the
-  // life of the app, re-rendering Today once a second behind the other tabs.
+  // Only tick while this screen is actually on top.
   useFocusEffect(
     useCallback(() => {
       setNow(new Date());
@@ -59,7 +64,6 @@ export default function TodayScreen() {
     }, []),
   );
 
-  // Plain arithmetic and a name lookup — cheap enough to run every tick.
   const displayDate = joinMeta(
     formatWeekday(now, calendar, language),
     formatDayMonth(now, calendar, language),
@@ -71,6 +75,16 @@ export default function TodayScreen() {
   const elapsedSeconds = activeStartAt
     ? Math.max(0, Math.floor((now.getTime() - new Date(activeStartAt).getTime()) / 1000))
     : 0;
+
+  const todayKey = dayKey(now, calendar);
+  const todayMinutes = useMemo(
+    () =>
+      sessions
+        .filter((session) => dayKey(new Date(session.startAt), calendar) === todayKey)
+        .reduce((total, session) => total + sessionMinutes(session), 0),
+    [calendar, sessions, todayKey],
+  );
+  const runningMinutes = Math.floor(elapsedSeconds / 60);
 
   const timecode = isRunning ? formatDurationHms(elapsedSeconds) : formatWallClock(now);
   const contentWidth = Math.min(width - layout.padPage * 2, layout.mobileContentMaxWidth);
@@ -90,14 +104,14 @@ export default function TodayScreen() {
         value: "ONSITE",
         label: t("category.ONSITE"),
         icon: (active) => (
-          <Icon glyph={Building2} size={space[7]} color={active ? colors.textTitle : colors.textMuted} />
+          <Icon glyph={Building2} size={layout.iconSm} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
       {
         value: "REMOTE",
         label: t("category.REMOTE"),
         icon: (active) => (
-          <Icon glyph={Laptop} size={space[7]} color={active ? colors.textTitle : colors.textMuted} />
+          <Icon glyph={Laptop} size={layout.iconSm} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
     ],
@@ -128,53 +142,51 @@ export default function TodayScreen() {
     }
   }
 
+  const name = user?.nickname?.trim() || user?.username || "";
+
   return (
-    <Screen
-      scroll
-      center
-      bottomInset={tabBarHeight}
-      gap={layout.gapLoose}
-      contentStyle={{ paddingTop: layout.padSection, justifyContent: "space-between" }}
-    >
-      <View style={{ alignItems: "center", gap: layout.gapTight }}>
-        <Text role="overline" tone="muted">
-          {displayDate}
-        </Text>
+    <Screen scroll bottomInset={tabBarHeight} gap={layout.gapLoose}>
+      <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapDefault }}>
+        <Avatar uri={user?.avatarUrl} name={name} size={layout.tapMin} />
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text role="caption" tone="muted" numberOfLines={1}>
+            {displayDate}
+          </Text>
+          <Text role="title3" numberOfLines={1}>
+            {t("desktop.greeting", { name })}
+          </Text>
+        </View>
+        <Badge label={isRunning ? t("today.running") : t("today.idle")} tone={isRunning ? "accent" : "neutral"} />
       </View>
 
-      <View style={{ alignItems: "center", justifyContent: "center", flexGrow: 1, gap: layout.gapLoose, paddingVertical: layout.gapTight }}>
-        <SessionDial
-          size={dialSize}
-          isRunning={isRunning}
-          elapsedSeconds={elapsedSeconds}
-          currentDate={now}
-        />
+      <View style={{ alignItems: "center", gap: layout.gapLoose, paddingVertical: layout.gapDefault }}>
+        <SessionDial size={dialSize} isRunning={isRunning} elapsedSeconds={elapsedSeconds} currentDate={now} />
         <View style={{ alignItems: "center", gap: layout.gapTight }}>
           <Text role="monoDisplay" tone="title" style={{ textAlign: "center" }}>
             {timecode}
           </Text>
           <MotionReveal key={isRunning ? "running" : "idle"}>
             <Text role="bodySm" tone={isRunning ? "accent" : "muted"} style={{ textAlign: "center" }}>
-              {isRunning ? t("today.running") : t("today.idle")}
+              {isRunning && activeStartAt
+                ? t("today.startedAt", { time: formatClock(activeStartAt) })
+                : t("desktop.ready")}
             </Text>
           </MotionReveal>
         </View>
       </View>
 
-      <View style={{ alignItems: "center", width: "100%", maxWidth: layout.mobileContentMaxWidth, gap: layout.gapDefault }}>
+      <Card style={{ gap: layout.gapDefault }}>
         <SegmentedControl
           options={categoryOptions}
           value={activeCategory}
           onChange={setSelectedCategory}
           disabled={isRunning || isMutating}
-          size="lg"
           full
         />
 
         <Button
-          label={isMutating ? t("common.saving") : isRunning ? t("today.stop") : t("today.start")}
+          label={isRunning ? t("today.stop") : t("today.start")}
           size="lg"
-          pill
           full
           loading={isMutating}
           variant={isRunning ? "secondary" : "primary"}
@@ -182,14 +194,35 @@ export default function TodayScreen() {
           icon={
             <Icon
               glyph={isRunning ? Square : Play}
-              size={space[8]}
+              size={layout.iconSm}
               color={isRunning ? colors.textTitle : colors.textOnAccent}
               filled
             />
           }
           style={{ minHeight: layout.todayActionHeight }}
         />
-      </View>
+
+        <Divider />
+
+        <View style={{ flexDirection: "row" }}>
+          <TotalCell label={t("today.todayTotal")} value={formatShortMinutes(todayMinutes + runningMinutes, language)} />
+          <Divider vertical style={{ marginHorizontal: space[4] }} />
+          <TotalCell label={t("today.monthTotal")} value={formatShortMinutes(summary.totalMinutes, language)} />
+        </View>
+      </Card>
     </Screen>
+  );
+}
+
+function TotalCell({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ flex: 1, gap: 2, alignItems: "center" }}>
+      <Text role="caption" tone="muted" style={{ textAlign: "center" }}>
+        {label}
+      </Text>
+      <Text role="title3" tone="title" style={{ textAlign: "center" }}>
+        {value}
+      </Text>
+    </View>
   );
 }

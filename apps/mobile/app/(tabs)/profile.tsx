@@ -5,11 +5,12 @@ import {
   CalendarDays,
   Camera,
   Coins,
+  Languages,
   LockKeyhole,
   Moon,
+  Palette,
   Smartphone,
   Sun,
-  Target,
   UserRoundCog,
   Wallet,
 } from "lucide-react-native";
@@ -27,12 +28,15 @@ import {
   Button,
   Card,
   ConfirmDialog,
-  Divider,
   Icon,
+  IconButton,
+  IconTile,
   Input,
   PageHeader,
   Screen,
   SegmentedControl,
+  Notice,
+  SectionHeader,
   Text,
   layout,
   useColors,
@@ -71,21 +75,21 @@ export default function ProfileScreen() {
         value: "system",
         label: t("profile.themeSystem"),
         icon: (active) => (
-          <Icon glyph={Smartphone} size={16} color={active ? colors.textTitle : colors.textMuted} />
+          <Icon glyph={Smartphone} size={layout.iconSm} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
       {
         value: "light",
         label: t("profile.themeLight"),
         icon: (active) => (
-          <Icon glyph={Sun} size={16} color={active ? colors.textTitle : colors.textMuted} />
+          <Icon glyph={Sun} size={layout.iconSm} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
       {
         value: "dark",
         label: t("profile.themeDark"),
         icon: (active) => (
-          <Icon glyph={Moon} size={16} color={active ? colors.textTitle : colors.textMuted} />
+          <Icon glyph={Moon} size={layout.iconSm} color={active ? colors.textTitle : colors.textMuted} />
         ),
       },
     ],
@@ -227,8 +231,6 @@ export default function ProfileScreen() {
       });
       showToast({ title: t("profile.settingsSaved"), tone: "success" });
     } catch (error) {
-      const known = error instanceof Error && error.message !== "ATTENDANCE_SAVE_FAILED";
-
       showToast({
         title: t("profile.settingsFailed"),
         description: translateError(error, t),
@@ -239,24 +241,24 @@ export default function ProfileScreen() {
 
   return (
     <Screen scroll bottomInset={tabBarHeight} gap={layout.gapDefault}>
-      <PageHeader title={t("profile.title")} overline={user?.username} />
+      <PageHeader title={t("profile.title")} />
 
       <Card style={{ gap: layout.gapLoose }}>
-        <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapLoose }}>
-          <Avatar uri={avatarUrl} name={nickname || user?.username} size={64} />
+        <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapDefault + 4 }}>
+          <Avatar uri={avatarUrl} name={nickname || user?.username} size={layout.avatarLg} />
 
-          <View style={{ flex: 1, gap: layout.gapTight }}>
+          <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
             <Text role="title3" numberOfLines={1}>
               {nickname.trim() || t("profile.yourAccount")}
             </Text>
-            <Button
-              label={t("auth.uploadPhoto")}
-              variant="quiet"
-              size="sm"
-              onPress={pickAvatar}
-              icon={<Icon glyph={Camera} size={16} color={colors.textTitle} />}
-            />
+            <Text role="mono" tone="muted" numberOfLines={1}>
+              @{user?.username}
+            </Text>
           </View>
+
+          <IconButton label={t("auth.uploadPhoto")} variant="quiet" round onPress={pickAvatar}>
+            <Icon glyph={Camera} size={layout.iconMd} color={colors.textTitle} />
+          </IconButton>
         </View>
 
         <Input
@@ -272,76 +274,40 @@ export default function ProfileScreen() {
         <Button
           label={t("auth.saveProfile")}
           full
-          size="lg"
+          variant="secondary"
           loading={isSavingProfile}
           disabled={isProfileIncomplete}
           onPress={handleSaveProfile}
         />
       </Card>
 
-      <Card style={{ gap: layout.gapDefault }}>
-        <View style={{ gap: 1 }}>
-          <Text role="title3">{t("language.label")}</Text>
-          <Text role="caption" tone="muted">
-            {t("language.hint")}
-          </Text>
-        </View>
+      <Card style={{ gap: layout.gapLoose }}>
+        <SectionHeader glyph={Wallet} title={t("profile.calculation")} />
 
-        <SegmentedControl
-          options={languageOptions}
-          value={language}
-          onChange={handleChangeLanguage}
-          size="lg"
-          full
-        />
-      </Card>
-
-      <WebNotificationCard />
-
-      <Card style={{ gap: layout.gapTight }}>
-        <Text role="title3">{t("profile.calculation")}</Text>
-
-        <View style={{ gap: layout.gapTight, paddingVertical: layout.padControlY }}>
-          <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapDefault }}>
-            <Icon glyph={CalendarDays} size={20} color={colors.textMuted} />
-            <View style={{ flex: 1, gap: 1 }}>
-              <Text role="body" tone="title">
-                {t("profile.calendar")}
-              </Text>
-              <Text role="caption" tone="muted">
-                {calendarPreview}
-              </Text>
-            </View>
+        <View style={{ gap: layout.gapTight }}>
+          <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapTight }}>
+            <Icon glyph={CalendarDays} size={layout.iconSm} color={colors.textMuted} />
+            <Text role="label" tone="body" style={{ flex: 1 }}>
+              {t("profile.calendar")}
+            </Text>
           </View>
-
           <SegmentedControl options={calendarOptions} value={calendar} onChange={setCalendar} full />
-
           <Text role="caption" tone="muted">
-            {t("profile.calendarHint")}
+            {joinCaption(calendarPreview, t("profile.calendarHint"))}
           </Text>
         </View>
 
-        <Divider inset={30} />
-
-        <View
-          style={{
-            alignItems: "center",
-            flexDirection: "row",
-            gap: layout.gapDefault,
-            paddingVertical: layout.padControlY,
-          }}
-        >
-          <Icon glyph={Wallet} size={20} color={colors.textMuted} />
-          <Text role="body" tone="title" style={{ flex: 1 }}>
-            {t("profile.currency")}
-          </Text>
-          <SegmentedControl options={currencyOptions} value={currency} onChange={setCurrency} />
+        <View style={{ gap: layout.gapTight }}>
+          <View style={{ alignItems: "center", flexDirection: "row", gap: layout.gapTight }}>
+            <Icon glyph={Coins} size={layout.iconSm} color={colors.textMuted} />
+            <Text role="label" tone="body" style={{ flex: 1 }}>
+              {t("profile.currency")}
+            </Text>
+          </View>
+          <SegmentedControl options={currencyOptions} value={currency} onChange={setCurrency} full />
         </View>
 
-        <Divider inset={30} />
-
-        <View style={{ flexDirection: "row", gap: layout.gapDefault, paddingVertical: layout.padControlY }}>
-          <Icon glyph={Coins} size={20} color={colors.textMuted} />
+        <View style={{ flexDirection: "row", gap: layout.gapDefault }}>
           <Input
             label={t("profile.hourlyRate")}
             keyboardType="numeric"
@@ -355,12 +321,6 @@ export default function ProfileScreen() {
             }
             containerStyle={{ flex: 1 }}
           />
-        </View>
-
-        <Divider inset={30} />
-
-        <View style={{ flexDirection: "row", gap: layout.gapDefault, paddingVertical: layout.padControlY }}>
-          <Icon glyph={Target} size={20} color={colors.textMuted} />
           <Input
             label={t("profile.monthlyGoal")}
             keyboardType="numeric"
@@ -380,41 +340,35 @@ export default function ProfileScreen() {
           label={t("profile.saveSettings")}
           full
           size="lg"
-          variant="secondary"
           loading={isSavingSettings}
           onPress={handleSaveSettings}
-          style={{ marginTop: layout.gapTight }}
         />
       </Card>
 
       <Card style={{ gap: layout.gapDefault }}>
-        <View style={{ gap: 1 }}>
-          <Text role="title3">{t("profile.appearance")}</Text>
-          <Text role="caption" tone="muted">
-            {t("profile.appearanceHint")}
-          </Text>
-        </View>
-
-        <SegmentedControl
-          options={appearanceOptions}
-          value={mode}
-          onChange={setMode}
-          size="lg"
-          full
-        />
+        <SectionHeader glyph={Languages} title={t("language.label")} description={t("language.hint")} />
+        <SegmentedControl options={languageOptions} value={language} onChange={handleChangeLanguage} full />
       </Card>
 
-      <Card padded={false} style={{ paddingHorizontal: layout.padCard }}>
-        <Accordion title={t("profile.password")} titleRole="title3">
+      <Card style={{ gap: layout.gapDefault }}>
+        <SectionHeader glyph={Palette} title={t("profile.appearance")} description={t("profile.appearanceHint")} />
+        <SegmentedControl options={appearanceOptions} value={mode} onChange={setMode} full />
+      </Card>
+
+      <WebNotificationCard />
+
+      <Card padded={false} style={{ paddingHorizontal: layout.padCard, paddingVertical: layout.gapTight }}>
+        <Accordion
+          title={t("profile.password")}
+          titleRole="title3"
+          leading={<IconTile glyph={LockKeyhole} />}
+        >
           <View style={{ gap: layout.gapDefault, paddingBottom: layout.padCard }}>
-            <Text role="caption" tone="muted">
-              {t("profile.passwordHint")}
-            </Text>
+            <Notice tone="warning" title={t("profile.passwordHint")} />
 
             <Input
               label={t("profile.currentPassword")}
               autoComplete="password"
-              leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
               onChangeText={setCurrentPassword}
               placeholder={t("profile.currentPassword")}
               secureTextEntry
@@ -424,7 +378,6 @@ export default function ProfileScreen() {
             <Input
               label={t("profile.newPassword")}
               autoComplete="new-password"
-              leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
               onChangeText={setNextPassword}
               placeholder={t("auth.passwordPlaceholder", { count: MIN_PASSWORD_LENGTH })}
               secureTextEntry
@@ -439,7 +392,6 @@ export default function ProfileScreen() {
                   ? t("auth.passwordsDiffer")
                   : undefined
               }
-              leading={<Icon glyph={LockKeyhole} size={16} color={colors.textMuted} />}
               onChangeText={setConfirmPassword}
               placeholder={t("auth.repeatPlaceholder")}
               secureTextEntry
@@ -474,12 +426,7 @@ export default function ProfileScreen() {
       <TeamSyncCard />
 
       <Card style={{ gap: layout.gapDefault }}>
-        <View style={{ gap: 1 }}>
-          <Text role="title3">{t("profile.account")}</Text>
-          <Text role="caption" tone="muted">
-            {t("profile.accountHint")}
-          </Text>
-        </View>
+        <SectionHeader glyph={UserRoundCog} title={t("profile.account")} description={t("profile.accountHint")} />
 
         <Button
           label={t("profile.switchAccount")}
@@ -488,14 +435,13 @@ export default function ProfileScreen() {
           variant="quiet"
           disabled={isSavingProfile}
           onPress={() => setSwitchingAccount(true)}
-          icon={<Icon glyph={UserRoundCog} size={18} color={colors.textTitle} />}
         />
 
         <Button
           label={t("profile.signOut")}
           full
           size="lg"
-          variant="outline"
+          variant="dangerSoft"
           loading={isSavingProfile}
           onPress={signOut}
         />
@@ -517,4 +463,8 @@ export default function ProfileScreen() {
       <View style={{ height: layout.gapDefault }} />
     </Screen>
   );
+}
+
+function joinCaption(...parts: string[]) {
+  return parts.filter(Boolean).join(" — ");
 }

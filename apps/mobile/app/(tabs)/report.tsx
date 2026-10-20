@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
 import { router } from "expo-router";
 import { useSQLiteContext } from "../../src/lib/sqlite-context";
 import {
@@ -17,25 +10,27 @@ import {
   Clock3,
   Laptop,
   ListChecks,
-  LogIn,
-  LogOut,
+  CircleCheck,
+  Target,
   Plus,
   Wallet,
 } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 import type { SessionDto } from "@omam/contracts";
+import { ReportChart } from "../../src/components/report-chart";
 import { SessionItem } from "../../src/components/session-item";
 import { getSessions } from "../../src/lib/db/sessions";
 import {
-  formatClock,
   formatCurrency,
   formatShortMinutes,
   joinMeta,
+  sessionMinutes,
 } from "../../src/lib/format";
 import {
   formatRangeLabel,
   getPeriodGoalHours,
   getPeriodRange,
+  goalPace,
   groupSessionsByDay,
   reportPeriods,
   summarizeSessions,
@@ -50,25 +45,25 @@ import {
   EmptyState,
   Icon,
   IconButton,
+  IconTile,
   ListRow,
   PageHeader,
+  SectionHeader,
   ProgressBar,
   Screen,
   SegmentedControl,
   Stat,
   Text,
   layout,
-  motion,
   radius,
+  space,
   useColors,
   useLanguage,
   useTabBarHeight,
   type SegmentOption,
 } from "../../src/design/taraz";
-import { Accordion as HerouiAccordion } from 'heroui-native/accordion';
 
 const locale = "en-US";
-const CHART_HEIGHT = 96;
 
 const PERIOD_LABEL = {
   DAY: "report.periodDay",
@@ -156,7 +151,6 @@ export default function ReportScreen() {
     () => groupSessionsByDay(sortedSessions, calendar, language, t),
     [calendar, language, sortedSessions, t],
   );
-  const latestSession = sortedSessions[0];
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), []);
 
   const goalHours = getPeriodGoalHours(period, settings.monthlyGoalHours);
@@ -164,24 +158,18 @@ export default function ReportScreen() {
     goalHours > 0 ? Math.min(1, totals.totalMinutes / (goalHours * 60)) : 0;
   const trackedHours = Math.round(totals.totalMinutes / 60);
 
-  const peakBucketMinutes = Math.max(
-    1,
-    ...totals.buckets.map((bucket) => bucket.minutes),
-  );
-  const labelEveryBucket = period !== "MONTH";
-  const axisLabels = useMemo(() => {
+  const axisKeys = useMemo(() => {
     const { buckets } = totals;
 
-    if (!buckets.length) {
-      return [];
-    }
+    if (period !== "MONTH" || !buckets.length) return undefined;
 
-    return [
-      buckets[0],
-      buckets[Math.floor(buckets.length / 2)],
-      buckets[buckets.length - 1],
-    ];
-  }, [totals]);
+    return [0, 7, 14, 21, buckets.length - 1].map((index) => buckets[Math.min(index, buckets.length - 1)].key);
+  }, [period, totals]);
+
+  const pace = useMemo(
+    () => goalPace(monthSessions.reduce((total, session) => total + sessionMinutes(session), 0), settings.monthlyGoalHours, calendar),
+    [calendar, monthSessions, settings.monthlyGoalHours],
+  );
 
   const categoryTotal =
     totals.categoryMinutes.onsite + totals.categoryMinutes.remote;
@@ -201,7 +189,6 @@ export default function ReportScreen() {
     <Screen scroll bottomInset={tabBarHeight} gap={layout.gapDefault}>
       <PageHeader
         title={t("report.title")}
-        subtitle={rangeLabel}
         trailing={
           <IconButton
             label={t("report.addSession")}
@@ -233,7 +220,7 @@ export default function ReportScreen() {
           round
           onPress={() => setOffset((current) => current - 1)}
         >
-          <Icon glyph={ChevronLeft} size={20} color={colors.textTitle} />
+          <Icon glyph={ChevronLeft} size={layout.iconMd} color={colors.textTitle} directional />
         </IconButton>
 
         <Text
@@ -251,7 +238,7 @@ export default function ReportScreen() {
           disabled={offset >= 0}
           onPress={() => setOffset((current) => Math.min(0, current + 1))}
         >
-          <Icon glyph={ChevronRight} size={20} color={colors.textTitle} />
+          <Icon glyph={ChevronRight} size={layout.iconMd} color={colors.textTitle} directional />
         </IconButton>
       </View>
 
@@ -264,7 +251,8 @@ export default function ReportScreen() {
             t("report.sessionCount", { count: totals.sessionCount }),
             rangeLabel,
           )}
-          icon={<Icon glyph={Clock3} size={16} color={colors.textMuted} />}
+          glyph={Clock3}
+          tone="accent"
         />
         <Stat
           mono
@@ -273,57 +261,22 @@ export default function ReportScreen() {
           hint={t("report.billed", {
             value: numberFormatter.format(trackedHours),
           })}
-          icon={<Icon glyph={Wallet} size={16} color={colors.textMuted} />}
+          glyph={Wallet}
+          tone="success"
         />
       </View>
 
       <Card style={{ gap: layout.gapDefault }}>
-        <Text role="title3">
-          {period === "DAY" ? t("report.byHour") : t("report.byDay")}
-        </Text>
-
-        <View
-          style={{
-            alignItems: "flex-end",
-            flexDirection: "row",
-            gap: 2,
-            height: CHART_HEIGHT,
-          }}
-        >
-          {totals.buckets.map((bucket, index) => (
-            <ReportBar
-              key={index}
-              value={bucket.minutes / peakBucketMinutes}
-              color={bucket.minutes ? colors.fillAccent : colors.fillQuiet}
-            />
-          ))}
-        </View>
-
-        {labelEveryBucket ? (
-          <View style={{ flexDirection: "row", gap: 2 }}>
-            {totals.buckets.map((bucket) => (
-              <Text
-                key={bucket.key}
-                role="caption"
-                tone="faint"
-                numberOfLines={1}
-                style={{ flex: 1, textAlign: "center" }}
-              >
-                {bucket.label}
-              </Text>
-            ))}
-          </View>
-        ) : (
-          <View
-            style={{ flexDirection: "row", justifyContent: "space-between" }}
-          >
-            {axisLabels.map((bucket, index) => (
-              <Text key={`${bucket.key}-${index}`} role="caption" tone="faint">
-                {bucket.label}
-              </Text>
-            ))}
-          </View>
-        )}
+        <SectionHeader
+          title={period === "DAY" ? t("report.byHour") : t("report.byDay")}
+          description={joinMeta(rangeLabel, formatShortMinutes(totals.totalMinutes, language))}
+        />
+        <ReportChart
+          buckets={totals.buckets}
+          axisKeys={axisKeys}
+          targetMinutes={period === "DAY" || !settings.monthlyGoalHours ? undefined : (settings.monthlyGoalHours * 60) / 30}
+          formatValue={(minutes) => formatShortMinutes(minutes, language)}
+        />
       </Card>
 
       <Card style={{ gap: layout.gapDefault }}>
@@ -365,7 +318,7 @@ export default function ReportScreen() {
             backgroundColor: colors.fillQuiet,
             borderRadius: radius.pill,
             flexDirection: "row",
-            height: 6,
+            height: space[4],
             overflow: "hidden",
           }}
         >
@@ -396,53 +349,41 @@ export default function ReportScreen() {
       <Card padded={false} style={{ paddingHorizontal: layout.padCard }}>
         <ListRow
           label={t("report.workedDays")}
-          leading={
-            <Icon glyph={CalendarDays} size={20} color={colors.textMuted} />
-          }
+          leading={<IconTile glyph={CalendarDays} size={layout.controlMd} />}
           trailing={
             <Text role="mono" tone="body">
               {numberFormatter.format(totals.workedDays)}
             </Text>
           }
         />
-        <Divider inset={30} />
+        <Divider />
         <ListRow
           label={t("report.averagePerDay")}
           hint={t("report.workedDaysOnly")}
-          leading={
-            <Icon glyph={ListChecks} size={20} color={colors.textMuted} />
-          }
+          leading={<IconTile glyph={ListChecks} size={layout.controlMd} />}
           trailing={
             <Text role="mono" tone="body">
               {formatShortMinutes(averageMinutes, language)}
             </Text>
           }
         />
-        <Divider inset={30} />
+        <Divider />
         <ListRow
-          label={t("report.lastCheckIn")}
-          leading={<Icon glyph={LogIn} size={20} color={colors.textMuted} />}
-          trailing={
-            <Text role="mono" tone="body">
-              {latestSession ? formatClock(latestSession.startAt) : "--:--"}
-            </Text>
+          label={pace.state === "reached" ? t("report.goalReached") : t("report.neededPerDay")}
+          hint={
+            pace.state === "behind"
+              ? t("report.neededHint", { count: pace.daysLeft })
+              : pace.state === "reached"
+                ? t("report.goalReachedHint")
+                : t("report.noGoal")
           }
-        />
-        <Divider inset={30} />
-        <ListRow
-          label={t("report.lastCheckOut")}
-          leading={<Icon glyph={LogOut} size={20} color={colors.textMuted} />}
+          leading={<IconTile glyph={pace.state === "reached" ? CircleCheck : Target} size={layout.controlMd} tone={pace.state === "reached" ? "success" : "accent"} />}
           trailing={
-            <Text
-              role="mono"
-              tone={latestSession && !latestSession.endAt ? "accent" : "body"}
-            >
-              {latestSession?.endAt
-                ? formatClock(latestSession.endAt)
-                : latestSession
-                  ? t("status.OPEN")
-                  : "--:--"}
-            </Text>
+            pace.state === "behind" ? (
+              <Text role="label" tone="title">
+                {formatShortMinutes(pace.minutesPerDay, language)}
+              </Text>
+            ) : null
           }
         />
       </Card>
@@ -451,16 +392,9 @@ export default function ReportScreen() {
         <Text role="title3">{t("common.records")}</Text>
         {sessionDays.length ? (
           sessionDays.map((day) => (
-            <Card key={day.key} style={{ paddingVertical: layout.gapTight }}>
+            <Card key={day.key} style={{ paddingVertical: layout.gapTight / 2 }}>
               <Accordion
                 title={day.label}
-                leading={
-                  <Icon
-                    glyph={CalendarDays}
-                    size={18}
-                    color={colors.textMuted}
-                  />
-                }
                 meta={joinMeta(
                   t("report.sessionCount", { count: day.sessions.length }),
                   formatShortMinutes(day.totalMinutes, language),
@@ -489,7 +423,7 @@ export default function ReportScreen() {
             <EmptyState
               title={t("report.emptyTitle")}
               description={t("report.emptyHint")}
-              icon={<Icon glyph={Clock3} size={20} color={colors.textMuted} />}
+              glyph={Clock3}
             />
           </Card>
         )}
@@ -497,45 +431,6 @@ export default function ReportScreen() {
 
       <View style={{ height: layout.gapDefault }} />
     </Screen>
-  );
-}
-
-function ReportBar({ value, color }: { value: number; color: string }) {
-  const reduceMotion = useReducedMotion();
-  const progress = useSharedValue(Math.max(0.03, value));
-
-  useEffect(() => {
-    progress.value = reduceMotion
-      ? Math.max(0.03, value)
-      : withTiming(Math.max(0.03, value), {
-          duration: motion.durNormal,
-          easing: Easing.bezier(
-            motion.easeInOut.x1,
-            motion.easeInOut.y1,
-            motion.easeInOut.x2,
-            motion.easeInOut.y2,
-          ),
-        });
-  }, [progress, reduceMotion, value]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scaleY: progress.value }],
-  }));
-
-  return (
-    <View style={{ flex: 1, height: CHART_HEIGHT, justifyContent: "flex-end" }}>
-      <Animated.View
-        style={[
-          {
-            backgroundColor: color,
-            borderRadius: radius.xs,
-            height: CHART_HEIGHT,
-            transformOrigin: "bottom",
-          },
-          animatedStyle,
-        ]}
-      />
-    </View>
   );
 }
 
@@ -561,11 +456,11 @@ function SplitRow({ glyph, label, value, swatch }: SplitRowProps) {
         style={{
           backgroundColor: swatch,
           borderRadius: radius.full,
-          height: 8,
-          width: 8,
+          height: space[4],
+          width: space[4],
         }}
       />
-      <Icon glyph={glyph} size={16} color={colors.textMuted} />
+      <Icon glyph={glyph} size={layout.iconSm} color={colors.textMuted} />
       <Text role="body" tone="title" style={{ flex: 1 }}>
         {label}
       </Text>

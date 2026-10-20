@@ -51,7 +51,7 @@ const NEW_MEMBER_FIELD_ERROR: Record<NewMemberField, TranslationKey> = {
 
 export function MembersPage() {
   const navigate = useNavigate();
-  const { can, membership, isSwitching } = useSession();
+  const { can, membership, isSwitching, user } = useSession();
   const toast = useToast();
   const queryClient = useQueryClient();
   const { t } = useLanguage();
@@ -59,6 +59,7 @@ export function MembersPage() {
   const [editing, setEditing] = useState<MemberDto | null>(null);
   const [draft, setDraft] = useState<Draft>({});
   const [resetting, setResetting] = useState<MemberDto | null>(null);
+  const [deleting, setDeleting] = useState<MemberDto | null>(null);
   const [nextPassword, setNextPassword] = useState("");
   const [creating, setCreating] = useState<CreatingTarget | null>(null);
   const [newMember, setNewMember] = useState<NewMemberDraft>(EMPTY_NEW_MEMBER);
@@ -115,6 +116,18 @@ export function MembersPage() {
       toast(t("admin.members.resetDone"), "success");
       setResetting(null);
       setNextPassword("");
+    },
+    onError: (error) => toast(translateError(error, t), "error"),
+  });
+
+  const deleteMember = useMutation({
+    mutationFn: (membershipId: string) => api.deleteMember(membershipId),
+    onSuccess: (result) => {
+      toast(t(result.accountDeleted ? "admin.members.deleted" : "admin.members.removed"), "success");
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+      queryClient.invalidateQueries({ queryKey: ["report"] });
+      queryClient.invalidateQueries({ queryKey: ["member-report"] });
+      setDeleting(null);
     },
     onError: (error) => toast(translateError(error, t), "error"),
   });
@@ -275,6 +288,7 @@ export function MembersPage() {
                                   setNextPassword("");
                                 },
                               },
+                              ...(member.userId !== user?.id && (can("OWNER") || member.role === "MEMBER") ? [{ label: t("admin.members.deleteUser"), onAction: () => setDeleting(member) }] : []),
                             ]}
                           />
                         </Table.Cell>
@@ -396,6 +410,29 @@ export function MembersPage() {
               autoComplete="off"
             />
           </Field>
+        </Modal>
+      ) : null}
+
+      {deleting ? (
+        <Modal
+          title={t("admin.members.deleteTitle", { name: displayName(deleting) })}
+          onClose={() => !deleteMember.isPending && setDeleting(null)}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setDeleting(null)} disabled={deleteMember.isPending}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="danger"
+                loading={deleteMember.isPending}
+                onClick={() => deleteMember.mutate(deleting.membershipId)}
+              >
+                {t("admin.members.deleteAction")}
+              </Button>
+            </>
+          }
+        >
+          <p className="t-body-sm muted">{t("admin.members.deleteIntro", { name: displayName(deleting) })}</p>
         </Modal>
       ) : null}
 

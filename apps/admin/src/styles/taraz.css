@@ -540,15 +540,15 @@ a {
  * and the typeface, since none of the Latin families have Persian glyphs.
  */
 [dir="rtl"] {
-  --font-display: "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
-  --font-text: "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Estedad", ui-sans-serif, system-ui, sans-serif;
+  --font-text: "Estedad", ui-sans-serif, system-ui, sans-serif;
   /*
    * Digits stay in IBM Plex Mono. It has no Persian glyphs, so a word like
-   * «تومان» falls through to Vazirmatn on its own — which keeps the tabular
+   * «تومان» falls through to Estedad on its own — which keeps the tabular
    * figures this product is built around instead of trading them for a
    * proportional face.
    */
-  --font-mono: "IBM Plex Mono", "Vazirmatn", ui-monospace, monospace;
+  --font-mono: "IBM Plex Mono", "Estedad", ui-monospace, monospace;
 
 
 }
@@ -996,3 +996,13 @@ a {
   .workspace-sidebar { grid-template-columns: minmax(0, 1fr) auto; }
   .workspace-sidebar .brand-mark { display: none; }
 }
+
+/*
+ * Metric cards: icon and label share one row, the figure sits under them.
+ * Estedad's tabular digits are drawn on a wide em, so a lone headline figure
+ * uses its proportional set instead.
+ */
+.metric-card { min-height: 0; justify-content: flex-start; gap: var(--space-6); position: relative; }
+.metric-top { position: absolute; inset-block-start: var(--card-padding); inset-inline-end: var(--card-padding); }
+.metric-card .stat-label { padding-inline-end: calc(var(--control-md) + var(--space-4)); min-height: var(--control-md); display: flex; align-items: center; }
+[dir="rtl"] :is(.metric-card .stat-value, .stat .stat-value) { font-variant-numeric: proportional-nums; letter-spacing: 0; }

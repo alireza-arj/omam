@@ -31,9 +31,13 @@ export type SegmentedControlProps<T extends string> = {
 export function SegmentedControl<T extends string>({
   options, value, onChange, size = "md", disabled = false, full = false, style,
 }: SegmentedControlProps<T>) {
-  const { language } = useLanguage();
+  const { language, direction } = useLanguage();
   return (
     <Tabs
+      // Triggers report their position through onLayout, which react-native-web
+      // only fires on a size change. A direction flip moves them without
+      // resizing, so the indicator would keep the old side; remount instead.
+      key={direction}
       value={value}
       onValueChange={(next) => {
         const option = options.find((entry) => entry.value === next);
@@ -48,10 +52,10 @@ export function SegmentedControl<T extends string>({
             key={option.value}
             value={option.value}
             isDisabled={disabled}
-            style={{ flex: full ? 1 : undefined, minHeight: layout.tapMin, paddingHorizontal: layout.padControlX, gap: layout.gapTight }}
+            style={{ flex: full ? 1 : undefined, minHeight: size === "sm" ? layout.controlMd : layout.tapMin, paddingHorizontal: layout.padControlX, gap: layout.gapTight }}
           >
             {option.icon?.(option.value === value)}
-            <Tabs.Label style={typeRolesByLanguage[language][size === "lg" ? "body" : "label"]}>{option.label}</Tabs.Label>
+            <Tabs.Label style={typeRolesByLanguage[language][size === "lg" ? "button" : "label"]}>{option.label}</Tabs.Label>
           </Tabs.Trigger>
         ))}
       </Tabs.List>

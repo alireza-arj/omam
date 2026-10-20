@@ -3,10 +3,10 @@
   "private": true,
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/estedad": "^0.4.0",
     "@expo-google-fonts/figtree": "^0.4.1",
     "@expo-google-fonts/ibm-plex-mono": "^0.4.1",
     "@expo-google-fonts/public-sans": "^0.4.2",
-    "@expo-google-fonts/vazirmatn": "^0.4.1",
     "@expo/metro-runtime": "~57.0.16",
     "@gorhom/bottom-sheet": "^5.2.9",
     "@omam/calendar": "workspace:*",

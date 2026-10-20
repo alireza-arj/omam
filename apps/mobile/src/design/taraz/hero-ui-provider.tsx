@@ -15,7 +15,7 @@ function themeVariables(colors: ColorScheme) {
     "--surface-secondary": colors.surfaceSunken,
     "--surface-secondary-foreground": colors.textBody,
     "--surface-tertiary": colors.fillQuiet,
-    "--surface-tertiary-foreground": colors.textBody,
+        "--surface-tertiary-foreground": colors.textBody,
     "--overlay": colors.surfaceCard,
     "--overlay-foreground": colors.textTitle,
     "--backdrop": colors.surfaceScrim,
@@ -41,11 +41,13 @@ function themeVariables(colors: ColorScheme) {
     "--warning-foreground": palette.gray950,
     "--danger": palette.accent600,
     "--danger-foreground": palette.gray0,
-    "--field-background": colors.surfaceCard,
+    "--field-background": colors.surfaceSunken,
     "--field-foreground": colors.textTitle,
-    "--field-placeholder": colors.textMuted,
-    "--field-border": colors.lineStrong,
-    "--field-radius": radius.control,
+    "--field-placeholder": colors.textFaint,
+    "--field-border": colors.lineHairline,
+    "--field-border-width": `${layout.hairline}px`,
+    "--field-radius": radius.lg,
+    "--field-shadow": "none",
   };
 }
 

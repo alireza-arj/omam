@@ -190,7 +190,7 @@ export const layout = {
   padControlY: 7,
   padCard: 18,
   padSection: 20,
-  padPage: 24,
+  padPage: 20,
   gapTight: 6,
   gapDefault: 12,
   gapLoose: 20,
@@ -198,6 +198,12 @@ export const layout = {
   controlSm: 28,
   controlMd: 34,
   controlLg: 44,
+  controlField: 48,
+  iconSm: 16,
+  iconMd: 20,
+  iconTile: 36,
+  avatarLg: 64,
+  avatarXl: 88,
   tapMin: 44,
   dialogMaxWidth: 420,
   startupMaxWidth: 520,
@@ -208,6 +214,8 @@ export const layout = {
   todayDialHeightRatio: 0.36,
   todayActionHeight: 56,
   tabBarContentHeight: 52,
+  chartHeight: 112,
+  formMaxWidth: 460,
   hairline: StyleSheet.hairlineWidth,
 } as const;
 
@@ -258,7 +266,7 @@ export const desktopTokens = {
   "--dt-blur": "24px", "--dt-panel-width": "420px", "--dt-panel-height": "640px",
   "--dt-font": "system-ui, -apple-system, sans-serif",
   "--dt-mono": "IBMPlexMono_400Regular, ui-monospace, monospace",
-  "--dt-persian": "Vazirmatn_400Regular, sans-serif",
+  "--dt-persian": "Estedad_400Regular, sans-serif",
   "--dt-fast": `${motion.durFast}ms`, "--dt-normal": `${motion.durNormal}ms`,
   "--dt-press": String(motion.pressScale),
   "--dt-ease": `cubic-bezier(${Object.values(motion.easePopover).join(",")})`,
@@ -383,6 +391,7 @@ export type TypeRole =
   | "body"
   | "bodySm"
   | "label"
+  | "button"
   | "caption"
   | "overline"
   | "mono"
@@ -411,6 +420,7 @@ export const typeRoles: Record<TypeRole, TextStyle> = {
   body: role(fontFamily.text[400], fontSize.base, leading.normal, -0.006),
   bodySm: role(fontFamily.text[400], fontSize.sm, leading.normal, -0.006),
   label: role(fontFamily.display[500], fontSize.sm, 1.25, -0.006),
+  button: role(fontFamily.display[600], fontSize.base, 1.25, -0.01),
   caption: role(fontFamily.text[400], fontSize.xs, 1.35, 0),
   overline: role(fontFamily.display[600], fontSize["2xs"], 1.2, 0.09, {
     textTransform: "uppercase",
@@ -423,7 +433,7 @@ export const typeRoles: Record<TypeRole, TextStyle> = {
 /* ── Persian faces ───────────────────────────────────────────────────────── */
 
 /**
- * Vazirmatn stands in for all three Latin families when the app is read in
+ * Estedad stands in for all three Latin families when the app is read in
  * Persian, which none of them have glyphs for.
  *
  * `monoDisplay` is the exception and keeps IBM Plex Mono: it only ever renders
@@ -431,20 +441,30 @@ export const typeRoles: Record<TypeRole, TextStyle> = {
  * second on a proportional face.
  */
 const PERSIAN_FACE: Record<string, string> = {
-  [fontFamily.display[400]]: "Vazirmatn_400Regular",
-  [fontFamily.display[500]]: "Vazirmatn_500Medium",
-  [fontFamily.display[600]]: "Vazirmatn_600SemiBold",
-  [fontFamily.display[700]]: "Vazirmatn_700Bold",
-  [fontFamily.display[800]]: "Vazirmatn_800ExtraBold",
-  [fontFamily.text[400]]: "Vazirmatn_400Regular",
-  [fontFamily.text[500]]: "Vazirmatn_500Medium",
-  [fontFamily.text[600]]: "Vazirmatn_600SemiBold",
-  [fontFamily.mono[400]]: "Vazirmatn_400Regular",
-  [fontFamily.mono[500]]: "Vazirmatn_500Medium",
+  [fontFamily.display[400]]: "Estedad_400Regular",
+  [fontFamily.display[500]]: "Estedad_500Medium",
+  [fontFamily.display[600]]: "Estedad_600SemiBold",
+  [fontFamily.display[700]]: "Estedad_700Bold",
+  [fontFamily.display[800]]: "Estedad_800ExtraBold",
+  [fontFamily.text[400]]: "Estedad_400Regular",
+  [fontFamily.text[500]]: "Estedad_500Medium",
+  [fontFamily.text[600]]: "Estedad_600SemiBold",
+  [fontFamily.mono[400]]: "Estedad_400Regular",
+  [fontFamily.mono[500]]: "Estedad_500Medium",
 };
 
 /** Persian ascenders and descenders are taller; the Latin leading crowds them. */
-const PERSIAN_LEADING = 1.14;
+const PERSIAN_LEADING = 1.18;
+
+/**
+ * Persian has no capitals, so the uppercase overline and the 600-weight labels
+ * read smaller than their Latin pair. One step up keeps the two languages at
+ * the same optical size.
+ */
+const PERSIAN_SIZE_STEP: Partial<Record<TypeRole, number>> = {
+  overline: fontSize.xs,
+  caption: fontSize.xs,
+};
 
 const persianTypeRoles = Object.fromEntries(
   (Object.entries(typeRoles) as [TypeRole, TextStyle][]).map(([role, style]) => {
@@ -453,14 +473,17 @@ const persianTypeRoles = Object.fromEntries(
     }
 
     const family = typeof style.fontFamily === "string" ? style.fontFamily : undefined;
+    const size = PERSIAN_SIZE_STEP[role] ?? style.fontSize;
 
     return [
       role,
       {
         ...style,
+        fontSize: size,
+        ...(role === "overline" ? { textTransform: "none" } : null),
         ...(family && PERSIAN_FACE[family] ? { fontFamily: PERSIAN_FACE[family] } : null),
-        ...(typeof style.lineHeight === "number"
-          ? { lineHeight: Math.round(style.lineHeight * PERSIAN_LEADING) }
+        ...(typeof style.lineHeight === "number" && typeof size === "number"
+          ? { lineHeight: Math.round((style.lineHeight / (style.fontSize ?? size)) * size * PERSIAN_LEADING) }
           : null),
         // Latin tracking is authored for Latin letterforms and pulls Persian
         // joins apart.
@@ -471,6 +494,11 @@ const persianTypeRoles = Object.fromEntries(
     ];
   }),
 ) as Record<TypeRole, TextStyle>;
+
+/** The face a Latin family is set in for `language`, for the rare text outside a type role. */
+export function localizedFace(family: string, language: "en" | "fa") {
+  return language === "fa" ? PERSIAN_FACE[family] ?? family : family;
+}
 
 export const typeRolesByLanguage = {
   en: typeRoles,

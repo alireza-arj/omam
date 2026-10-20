@@ -37,7 +37,7 @@ Screen, PageHeader, EmptyState, Stat and the session dial remain app-specific co
 - Import components and tokens from this folder. Add missing colors, spacing, type roles, radii and durations to `tokens.ts`.
 - Crimson marks actions and active states; success, warning and info communicate status.
 - Every visible string comes from `@omam/i18n`. Use sentence case and verb labels.
-- Persian uses Vazirmatn, no Latin tracking, and an explicit RTL layout scope. Numeric inputs and time ranges retain LTR direction. Input decorators share the input's direction so suffixes cannot overlap values.
+- Persian uses Estedad, no Latin tracking, and an explicit RTL layout scope. Numeric inputs and time ranges retain LTR direction. Input decorators share the input's direction so suffixes cannot overlap values.
 - Respect system text scaling and reduced motion; interactive controls have a minimum 44-point target.
 - On web, ConfirmDialog mounts HeroUI content inside React Native Modal to contain keyboard focus and support Escape. Native platforms use HeroUI's Portal.
 - Web CSS hides HeroUI's invisible toast measurement copy from keyboard navigation and screen readers while preserving its layout measurements.

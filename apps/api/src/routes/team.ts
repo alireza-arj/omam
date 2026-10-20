@@ -408,6 +408,68 @@ export const teamRoutes = new Elysia({ prefix: "/team" })
     return { ok: true };
   })
 
+  .delete("/members/:membershipId", async ({ principal, params }) => {
+    requireRole(principal, "MANAGER");
+
+    const organization = requireOrganization(principal);
+    const membership = await loadMembership(organization.id, params.membershipId);
+    const isOwner = principal.user.isSuperAdmin || principal.membership?.role === "OWNER";
+
+    if (membership.userId === principal.user.id) {
+      throw conflict("You cannot delete your own account.", "CANNOT_DELETE_SELF");
+    }
+
+    if (membership.role !== "MEMBER" && !isOwner) {
+      throw forbidden("Only an owner can delete a manager or an owner.");
+    }
+
+    if (membership.user.isSuperAdmin) {
+      throw forbidden("This account cannot be deleted.");
+    }
+
+    if (membership.status === "ACTIVE") {
+      await assertNotLastOwner(organization.id, membership);
+    }
+
+    // Sessions and payroll lines cascade with the user, so an account that has
+    // any is only removed from the team; a locked month must not change.
+    const accountDeleted = await withSyncChange({ organizationId: organization.id, userId: membership.userId }, async (tx) => {
+      await tx.membership.delete({ where: { id: membership.id } });
+      await tx.invite.updateMany({
+        where: { organizationId: organization.id, userId: membership.userId, acceptedAt: null, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await tx.authSession.updateMany({
+        where: { userId: membership.userId, organizationId: organization.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+
+      const [otherTeams, sessions, payrollLines] = await Promise.all([
+        tx.membership.count({ where: { userId: membership.userId } }),
+        tx.workSession.count({ where: { userId: membership.userId } }),
+        tx.payrollLine.count({ where: { userId: membership.userId } }),
+      ]);
+
+      if (otherTeams || sessions || payrollLines) {
+        return false;
+      }
+
+      await tx.user.delete({ where: { id: membership.userId } });
+      return true;
+    });
+
+    await recordAudit({
+      organizationId: organization.id,
+      actorId: principal.user.id,
+      action: "member.deleted",
+      targetType: "membership",
+      targetId: membership.id,
+      metadata: { username: membership.user.username, role: membership.role, accountDeleted },
+    });
+
+    return { ok: true, accountDeleted };
+  })
+
   .get("/invites", async ({ principal }) => {
     requireRole(principal, "MANAGER");
 

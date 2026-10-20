@@ -9,7 +9,7 @@ export async function buildDesktopFonts(root: string, app: string) {
   await mkdir(directory, { recursive: true });
   const source = await readFile(resolve(root, "apps/mobile/src/design/taraz/fonts.desktop.ts"), "utf8");
   const imports = new Bun.Transpiler({ loader: "ts" }).scanImports(source).filter((entry) => entry.path.endsWith(".woff2"));
-  const families: Record<string, string> = { Figtree: "figtree", PublicSans: "public-sans", IBMPlexMono: "ibm-plex-mono", Vazirmatn: "vazirmatn" };
+  const families: Record<string, string> = { Figtree: "figtree", PublicSans: "public-sans", IBMPlexMono: "ibm-plex-mono", Estedad: "estedad" };
   const require = createRequire(import.meta.url);
   const licenses = new Map<string, string>();
   let originalBytes = 0;

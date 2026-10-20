@@ -1,5 +1,5 @@
 import { Text as RNText, type StyleProp, type TextStyle } from "react-native";
-import { fontFamily, useColors } from "../design/taraz";
+import { fontFamily, localizedFace, useColors, useLanguage } from "../design/taraz";
 
 type Props = {
   size?: number;
@@ -9,10 +9,11 @@ type Props = {
 
 /**
  * No mark was drawn for this system. Wherever a logo would go, the product
- * name is set in Figtree 800 at −4.5% tracking.
+ * name is set in the display face at 800, tracked tight in Latin only.
  */
 export function Wordmark({ size = 30, color, style }: Props) {
   const colors = useColors();
+  const { language, isRtl, t } = useLanguage();
 
   return (
     <RNText
@@ -20,15 +21,16 @@ export function Wordmark({ size = 30, color, style }: Props) {
       style={[
         {
           color: color ?? colors.textTitle,
-          fontFamily: fontFamily.display[800],
+          fontFamily: localizedFace(fontFamily.display[800], language),
           fontSize: size,
-          letterSpacing: -0.045 * size,
-          lineHeight: Math.round(size * 1.06),
+          letterSpacing: isRtl ? 0 : -0.045 * size,
+          lineHeight: Math.round(size * (isRtl ? 1.4 : 1.1)),
+          writingDirection: isRtl ? "rtl" : "ltr",
         },
         style,
       ]}
     >
-      Tarazkar
+      {t("admin.brand")}
     </RNText>
   );
 }

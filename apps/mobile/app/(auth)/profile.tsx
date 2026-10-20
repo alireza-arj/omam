@@ -98,29 +98,26 @@ export default function ProfileSetupScreen() {
             style={{
               alignSelf: "center",
               gap: layout.gapLoose,
-              maxWidth: 460,
+              maxWidth: layout.formMaxWidth,
               padding: layout.padSection,
               width: "100%",
             }}
           >
-            <View style={{ gap: 2 }}>
-              <Text role="overline" tone="muted">
-                {t("auth.setupOverline")}
-              </Text>
-              <Text role="title1">{t("auth.setupTitle")}</Text>
+            <View style={{ gap: layout.gapTight }}>
+              <Text role="title2">{t("auth.setupTitle")}</Text>
               <Text role="bodySm" tone="muted">
                 {t("auth.setupSubtitle")}
               </Text>
             </View>
 
             <View style={{ alignItems: "center", gap: layout.gapDefault }}>
-              <Avatar uri={avatarUrl} name={nickname || user?.username} size={88} />
+              <Avatar uri={avatarUrl} name={nickname || user?.username} size={layout.avatarXl} />
               <Button
                 label={t("auth.uploadPhoto")}
                 variant="quiet"
                 size="sm"
                 onPress={pickAvatar}
-                icon={<Icon glyph={Camera} size={16} color={colors.textTitle} />}
+                icon={<Icon glyph={Camera} size={layout.iconSm} color={colors.textTitle} />}
                 style={{ alignSelf: "center" }}
               />
             </View>

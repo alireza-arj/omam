@@ -181,6 +181,9 @@ export const api = {
       body: { nextPassword },
     }),
 
+  deleteMember: (membershipId: string) =>
+    request<{ ok: boolean; accountDeleted: boolean }>(`/team/members/${membershipId}`, { method: "DELETE" }),
+
   invites: () => request<InvitesResponseDto>("/team/invites"),
   createInvite: (body: CreateInviteInputDto) =>
     request<InviteDto>("/team/invites", { method: "POST", body }),

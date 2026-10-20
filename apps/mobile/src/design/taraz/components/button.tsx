@@ -6,7 +6,7 @@ import { useLanguage } from "../i18n";
 import { useColors } from "../theme";
 import { layout, radius, typeRolesByLanguage } from "../tokens";
 
-export type ButtonVariant = "primary" | "secondary" | "quiet" | "ghost" | "outline";
+export type ButtonVariant = "primary" | "secondary" | "quiet" | "ghost" | "outline" | "danger" | "dangerSoft";
 export type ButtonSize = "sm" | "md" | "lg";
 export type ButtonProps = Omit<PressableProps, "style" | "children"> & {
   label: string;
@@ -22,6 +22,7 @@ export type ButtonProps = Omit<PressableProps, "style" | "children"> & {
 
 export const buttonVariants: Record<ButtonVariant, HeroButtonVariant> = {
   primary: "primary", secondary: "secondary", quiet: "tertiary", ghost: "ghost", outline: "outline",
+  danger: "danger", dangerSoft: "danger-soft",
 };
 
 export function Button({
@@ -39,13 +40,18 @@ export function Button({
       isDisabled={disabled === true || loading}
       accessibilityState={{ ...rest.accessibilityState, disabled: disabled === true || loading, busy: loading }}
       style={[
-        { alignSelf: full ? "stretch" : "flex-start", minHeight: layout.tapMin, height: "auto" },
+        {
+          alignSelf: full ? "stretch" : "flex-start",
+          minHeight: size === "lg" ? layout.controlField : size === "md" ? layout.tapMin : layout.controlMd,
+          height: "auto",
+          borderRadius: radius.lg,
+        },
         pill ? { borderRadius: radius.pill } : null,
         style,
       ]}
     >
-      {loading ? <Spinner size="sm" color={variant === "primary" ? colors.textOnAccent : colors.textTitle} /> : icon}
-      <HeroButton.Label style={typeRolesByLanguage[language][size === "lg" ? "body" : "label"]}>
+      {loading ? <Spinner size="sm" color={variant === "primary" || variant === "danger" ? colors.textOnAccent : colors.textTitle} /> : icon}
+      <HeroButton.Label style={typeRolesByLanguage[language][size === "sm" ? "label" : "button"]}>
         {label}
       </HeroButton.Label>
       {iconEnd}

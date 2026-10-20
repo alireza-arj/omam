@@ -5,6 +5,7 @@ import {
   formatDayLabel,
   formatMonthLabel,
   formatShortDayMonth,
+  monthLength,
   shortWeekdayNames,
   startOfDay,
   startOfWeek,
@@ -252,4 +253,32 @@ export function groupSessionsByDay(
       sessions: daySessions,
       totalMinutes: daySessions.reduce((total, session) => total + sessionMinutes(session), 0),
     }));
+}
+
+export type GoalPace =
+  | { state: "noGoal" }
+  | { state: "reached" }
+  | { state: "behind"; minutesPerDay: number; daysLeft: number; remainingMinutes: number };
+
+/**
+ * What it takes to close the month on the goal: the minutes still missing,
+ * spread over the days left in the calendar month — today included, since the
+ * reader can still work it.
+ */
+export function goalPace(
+  monthMinutes: number,
+  monthlyGoalHours: number,
+  calendar: CalendarSystem,
+  now = new Date(),
+): GoalPace {
+  if (monthlyGoalHours <= 0) return { state: "noGoal" };
+
+  const remainingMinutes = Math.max(0, Math.round(monthlyGoalHours * 60 - monthMinutes));
+
+  if (remainingMinutes === 0) return { state: "reached" };
+
+  const { year, month, day } = toParts(now, calendar);
+  const daysLeft = Math.max(1, monthLength(year, month, calendar) - day + 1);
+
+  return { state: "behind", minutesPerDay: Math.ceil(remainingMinutes / daysLeft), daysLeft, remainingMinutes };
 }

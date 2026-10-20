@@ -8,7 +8,7 @@ import {
   sessionMinutes,
 } from "../lib/format";
 import { useAttendance } from "../providers/attendance-provider";
-import { Badge, Icon, Text, PressableFeedback, layout, useColors, useLanguage } from "../design/taraz";
+import { Badge, Icon, IconTile, Text, PressableFeedback, layout, useColors, useLanguage } from "../design/taraz";
 
 type Props = {
   session: SessionDto;
@@ -27,7 +27,7 @@ export function SessionItem({ session, showDate = true, onPress }: Props) {
 
   const content = (
     <>
-      <Icon glyph={isRemote ? Laptop : Building2} size={20} color={colors.textMuted} />
+      <IconTile glyph={isRemote ? Laptop : Building2} size={layout.controlMd} tone={isOpen ? "accent" : "neutral"} />
 
       <View style={{ flex: 1, gap: 1, minWidth: 0 }}>
         {showDate ? (
@@ -61,7 +61,7 @@ export function SessionItem({ session, showDate = true, onPress }: Props) {
         </Text>
       )}
 
-      {onPress ? <Icon glyph={ChevronRight} size={16} color={colors.textFaint} /> : null}
+      {onPress ? <Icon glyph={ChevronRight} size={layout.iconSm} color={colors.textFaint} directional /> : null}
     </>
   );
 
@@ -82,7 +82,7 @@ export function SessionItem({ session, showDate = true, onPress }: Props) {
         alignItems: "center",
         flexDirection: "row",
         gap: layout.gapDefault,
-        minHeight: layout.tapMin,
+        minHeight: layout.controlField,
       }}
     >
       {content}

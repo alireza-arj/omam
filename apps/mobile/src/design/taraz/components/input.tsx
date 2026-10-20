@@ -13,6 +13,7 @@ import { Icon } from "./icon";
 import { IconButton } from "./icon-button";
 import { LayoutDirection } from "uniwind";
 import { useLanguage } from "../i18n";
+import { useColors } from "../theme";
 import { fontSize, layout, typeRolesByLanguage } from "../tokens";
 
 export type InputProps = Omit<TextInputProps, "style"> & {
@@ -31,7 +32,10 @@ export function Input({
 }: InputProps) {
   const id = useId();
   const { isRtl, language, t } = useLanguage();
+  const colors = useColors();
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [prefixWidth, setPrefixWidth] = useState(0);
+  const [suffixWidth, setSuffixWidth] = useState(0);
   const isPassword = rest.secureTextEntry === true;
   const suffix = isPassword ? (
     <>
@@ -43,20 +47,36 @@ export function Input({
         accessibilityState={{ selected: passwordVisible }}
         onPress={() => setPasswordVisible((visible) => !visible)}
       >
-        <Icon glyph={passwordVisible ? EyeOff : Eye} />
+        <Icon glyph={passwordVisible ? EyeOff : Eye} size={layout.iconMd} color={colors.textMuted} />
       </IconButton>
     </>
   ) : trailing;
   const roles = typeRolesByLanguage[language];
-  const rtlText = freeText && isRtl;
+  // Under Persian every field reads from the right. Codes, numbers and
+  // passwords keep an LTR run so `09:00` and `hassan_dev` are not reordered,
+  // while an empty field takes the paragraph's direction for its placeholder.
+  const rtlRun = isRtl && (freeText || !rest.value);
   const inputStyle: TextStyle = {
     ...roles[size === "sm" ? "bodySm" : "body"],
     ...(Platform.OS === "web" ? { fontSize: fontSize.inputWebMin } : null),
-    minHeight: layout.tapMin,
+    lineHeight: undefined,
+    minHeight: size === "sm" ? layout.controlLg : layout.controlField,
     height: "auto",
-    writingDirection: rtlText ? "rtl" : "ltr",
-    textAlign: rtlText ? "right" : "left",
-    ...(rest.multiline ? { minHeight: layout.controlLg * 2, textAlignVertical: "top" } : null),
+    writingDirection: rtlRun ? "rtl" : "ltr",
+    textAlign: isRtl ? "right" : "left",
+    ...(rest.multiline ? { minHeight: layout.controlField * 2, textAlignVertical: "top", paddingVertical: layout.padControlX } : null),
+  };
+  // HeroUI pads the field with logical start/end, which react-native-web
+  // resolves against its own (LTR) direction rather than the document's, so
+  // under Persian the room for the eye button lands on the text's side.
+  // Physical sides keyed to the language are right on every platform.
+  const startPad = prefixWidth || layout.padControlX;
+  const endPad = suffixWidth || layout.padControlX;
+  const affixPadding: TextStyle = {
+    paddingStart: undefined,
+    paddingEnd: undefined,
+    paddingLeft: isRtl ? endPad : startPad,
+    paddingRight: isRtl ? startPad : endPad,
   };
   const inputProps = {
     ...rest,
@@ -70,20 +90,20 @@ export function Input({
 
   return (
     <TextField isInvalid={Boolean(error)} isDisabled={rest.editable === false} style={[{ width: "100%", gap: layout.gapTight }, containerStyle]}>
-      {label ? <Label nativeID={id + "-label"}><Label.Text style={roles.label}>{label}</Label.Text></Label> : null}
+      {label ? <Label nativeID={id + "-label"}><Label.Text style={[roles.label, { color: colors.textBody }]}>{label}</Label.Text></Label> : null}
       {rest.multiline ? (
         <TextArea {...inputProps} />
       ) : leading || suffix ? (
-        <LayoutDirection rtl={rtlText}>
+        <LayoutDirection rtl={isRtl}>
           <InputGroup>
-            {leading ? <InputGroup.Prefix>{leading}</InputGroup.Prefix> : null}
-            <InputGroup.Input {...inputProps} />
-            {suffix ? <InputGroup.Suffix>{suffix}</InputGroup.Suffix> : null}
+            {leading ? <InputGroup.Prefix onLayout={(event) => setPrefixWidth(event.nativeEvent.layout.width)}>{leading}</InputGroup.Prefix> : null}
+            <InputGroup.Input {...inputProps} style={[inputStyle, affixPadding]} />
+            {suffix ? <InputGroup.Suffix onLayout={(event) => setSuffixWidth(event.nativeEvent.layout.width)}>{suffix}</InputGroup.Suffix> : null}
           </InputGroup>
         </LayoutDirection>
       ) : <HeroInput {...inputProps} />}
       {error ? <FieldError nativeID={id + "-description"}><Text role="caption" tone="accent">{error}</Text></FieldError> : null}
-      {!error && hint ? <Description nativeID={id + "-description"} style={roles.caption}>{hint}</Description> : null}
+      {!error && hint ? <Description nativeID={id + "-description"} style={[roles.caption, { color: colors.textMuted }]}>{hint}</Description> : null}
     </TextField>
   );
 }

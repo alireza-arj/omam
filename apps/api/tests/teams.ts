@@ -5,7 +5,7 @@ import {
   sessionSchema, monthlyReportSchema, memberDetailReportSchema, syncResponseSchema,
   sessionsResponseSchema,
 } from "@omam/contracts";
-import type { z } from "zod";
+import { z } from "zod";
 
 const base = process.env.SMOKE_API_URL ?? "http://localhost:3001";
 const run = Date.now().toString(36);
@@ -135,6 +135,21 @@ const managerLogin = await request(authResponseSchema, "POST", "/auth/login", un
 const managerMade = await request(memberSchema, "POST", "/team/members", managerLogin.token, { organizationId: a.organizationId, username: `mgr_made_${run}`, password: "memberpass123", role: "MEMBER" });
 check("a manager can add a member", managerMade.role === "MEMBER");
 check("a manager cannot add another manager", (await response("POST", "/team/members", managerLogin.token, { organizationId: a.organizationId, username: `mgr_two_${run}`, password: "managerpass123", role: "MANAGER" })).status === 403);
+
+// Deleting: a manager only deletes members, nobody deletes themselves, and recorded time keeps the account.
+const deletedResponse = z.object({ ok: z.literal(true), accountDeleted: z.boolean() });
+check("a member cannot delete accounts", (await response("DELETE", `/team/members/${managerMade.membershipId}`, member.token)).status === 403);
+check("a manager cannot delete another manager", (await response("DELETE", `/team/members/${managerUser.membershipId}`, managerLogin.token)).status === 403);
+const ownerMembership = (await request(membersResponseSchema, "GET", "/team/members", owner.token)).members.find((row) => row.userId === owner.user.id)!;
+check("an owner cannot delete themselves", (await errorCode("DELETE", `/team/members/${ownerMembership.membershipId}`, owner.token)).code === "CANNOT_DELETE_SELF");
+const dropped = await request(deletedResponse, "DELETE", `/team/members/${managerMade.membershipId}`, managerLogin.token);
+check("an unused account is deleted outright", dropped.accountDeleted);
+check("a deleted account can no longer sign in", (await response("POST", "/auth/login", undefined, { username: `mgr_made_${run}`, password: "memberpass123" })).status === 401);
+const memberRow = (await request(membersResponseSchema, "GET", "/team/members", owner.token)).members.find((row) => row.userId === member.user.id)!;
+const kept = await request(deletedResponse, "DELETE", `/team/members/${memberRow.membershipId}`, owner.token);
+check("an account with recorded time is only removed from the team", !kept.accountDeleted);
+check("the removed member's devices are signed out", (await response("GET", "/auth/me", member.token)).status === 401 || (await request(authResponseSchema.omit({ token: true }), "GET", "/auth/me", member.token)).membership === null);
+check("the removed member is no longer listed", !(await request(membersResponseSchema, "GET", "/team/members", owner.token)).members.some((row) => row.userId === member.user.id));
 
 // The team is captured by the client; a switch under the form must be refused.
 const switchedUsername = `switched_${run}`;
