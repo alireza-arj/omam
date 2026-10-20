@@ -148,7 +148,7 @@ check("a deleted account can no longer sign in", (await response("POST", "/auth/
 const memberRow = (await request(membersResponseSchema, "GET", "/team/members", owner.token)).members.find((row) => row.userId === member.user.id)!;
 const kept = await request(deletedResponse, "DELETE", `/team/members/${memberRow.membershipId}`, owner.token);
 check("an account with recorded time is only removed from the team", !kept.accountDeleted);
-check("the removed member's devices are signed out", (await response("GET", "/auth/me", member.token)).status === 401 || (await request(authResponseSchema.omit({ token: true }), "GET", "/auth/me", member.token)).membership === null);
+check("the removed member's devices are signed out", (await response("GET", "/auth/me", member.token)).status === 401);
 check("the removed member is no longer listed", !(await request(membersResponseSchema, "GET", "/team/members", owner.token)).members.some((row) => row.userId === member.user.id));
 
 // The team is captured by the client; a switch under the form must be refused.
