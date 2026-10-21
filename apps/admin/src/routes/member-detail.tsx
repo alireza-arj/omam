@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { translateError } from "@omam/i18n";
 import { Avatar, Badge, Button, ButtonLink, Card, CardHeader, EmptyState, ErrorState, Loading, Progress, RoleBadge, StatusBadge, Table, TableScroll } from "../components/ui";
 import { Icon } from "../components/icons";
 import { SessionActions } from "../components/session-actions";
+import { DeleteMemberModal, useCanDeleteMember } from "../components/delete-member";
 import { DayBars, MonthPicker } from "../components/controls";
 import { CollectionToolbar, Pagination } from "../components/collection";
 import { Metric } from "./dashboard";
@@ -24,6 +25,9 @@ export function MemberDetailPage() {
   const toast = useToast();
   const [month, setMonth] = useReportMonth(calendar);
   const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const navigate = useNavigate();
+  const canDelete = useCanDeleteMember();
   const report = useQuery({ queryKey: ["member-report", userId, month, calendar], queryFn: () => api.memberReport(userId, { month, calendar }), refetchInterval: 30_000 });
   const data = report.data;
   const collection = useCollection(data?.sessions ?? [], (session) => [formatDate(session.startAt, calendar, language), session.note, t(`category.${session.category}`), t(`status.${session.status}`)].join(" "), `${userId}:${month}`);
@@ -50,7 +54,7 @@ export function MemberDetailPage() {
               [t("workspace.joined"), formatDateTime(data.profile.joinedAt, calendar, language)],
               [t("workspace.lastLogin"), data.profile.lastLoginAt ? formatDateTime(data.profile.lastLoginAt, calendar, language) : t("workspace.noLogin")],
             ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd><bdi>{value}</bdi></dd></div>)}</dl>
-            <ButtonLink to="/members">{t("workspace.manageTeam")}</ButtonLink>
+            <div className="row gap-4"><ButtonLink to="/members">{t("workspace.manageTeam")}</ButtonLink>{canDelete(data.profile) ? <Button variant="danger" onClick={() => setDeleting(true)}>{t("admin.members.deleteUser")}</Button> : null}</div>
           </Card>
           <div className="profile-activity stack gap-9"><div className="metric-grid report-metrics"><Metric icon="sessions" label={t("workspace.trackedHours")} value={formatDuration(data.member.completedMinutes, language)} /><Metric icon="report" label={t("workspace.completedSessions")} value={data.member.sessionCount} /><Metric icon="overview" label={t("admin.report.days")} value={data.member.workedDays} /></div>
             <Card flush><CardHeader title={t("admin.memberDetail.perDay")} subtitle={t("workspace.periodHint")} /><div className="card-body"><DayBars days={data.days} /></div></Card>
@@ -63,5 +67,6 @@ export function MemberDetailPage() {
         </Card>
       </> : null}
     </div>
+    {deleting && data ? <DeleteMemberModal member={data.profile} onClose={() => setDeleting(false)} onDeleted={() => navigate("/members", { replace: true })} /> : null}
   </>;
 }
