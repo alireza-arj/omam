@@ -14,8 +14,8 @@ html {
 
 html, body { overscroll-behavior: none; background: var(--app-background); }
 
-/* iOS standalone PWAs report a short 100vh/100dvh and leave a blank strip under the app; pinning to the layout viewport always reaches the screen's bottom edge. */
-body, #root { position: fixed; inset: 0; height: auto; width: auto; }
+/* iOS standalone PWAs report a viewport one status bar short; --app-height is the real screen height, set in index.html. */
+body, #root { position: fixed; top: 0; inset-inline: 0; height: var(--app-height, 100dvh); width: auto; }
 
 @media (pointer: coarse) {
   input, textarea, select { font-size: 16px !important; }
