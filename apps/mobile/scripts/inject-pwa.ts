@@ -10,8 +10,11 @@ const indexPath = join(distDir, "index.html");
 const manifest = JSON.parse(readFileSync(join(publicDir, "manifest.webmanifest"), "utf8")) as { background_color: string };
 const appConfig = JSON.parse(readFileSync(join(projectRoot, "app.json"), "utf8")) as { expo: { android: { adaptiveIcon: { backgroundColor: string } } } };
 
-/** A home-screen app always fills the screen, so its height is the screen's, not the short viewport iOS reports. */
-const appHeightScript = `(function(){if(navigator.standalone!==true)return;var r=document.documentElement;function f(){var p=matchMedia("(orientation: portrait)").matches;r.style.setProperty("--app-height",Math.max(innerHeight,p?Math.max(screen.width,screen.height):Math.min(screen.width,screen.height))+"px")}f();addEventListener("resize",f);addEventListener("orientationchange",f)})();`;
+/**
+ * A home-screen app on iOS can draw under the status bar while reporting a viewport one status bar short.
+ * When it draws under the status bar (a top safe-area inset), the screen height is the real height; otherwise the viewport is.
+ */
+const appHeightScript = `(function(){if(navigator.standalone!==true)return;var r=document.documentElement,p=document.createElement("div");p.style.cssText="position:fixed;top:0;visibility:hidden;pointer-events:none;height:env(safe-area-inset-top)";r.appendChild(p);function f(){var t=p.getBoundingClientRect().height,s=matchMedia("(orientation: portrait)").matches?Math.max(screen.width,screen.height):Math.min(screen.width,screen.height);r.style.setProperty("--app-height",(t>0?Math.max(innerHeight,s):innerHeight)+"px")}f();addEventListener("resize",f);addEventListener("orientationchange",function(){setTimeout(f,300)});addEventListener("pageshow",f)})();`;
 
 const publicFiles = ["manifest.webmanifest", "register-sw.js", "icon-512.png"];
 

@@ -14,7 +14,7 @@ html {
 
 html, body { overscroll-behavior: none; background: var(--app-background); }
 
-/* iOS standalone PWAs report a viewport one status bar short; --app-height is the real screen height, set in index.html. */
+/* --app-height is the real height of an iOS home-screen app, set in index.html; iOS can report its viewport one status bar short. */
 body, #root { position: fixed; top: 0; inset-inline: 0; height: var(--app-height, 100dvh); width: auto; }
 
 @media (pointer: coarse) {
