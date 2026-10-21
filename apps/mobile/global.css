@@ -14,9 +14,6 @@ html {
 
 html, body { overscroll-behavior: none; background: var(--app-background); }
 
-/* --app-height is the real height of an iOS home-screen app, set in index.html; iOS can report its viewport one status bar short. */
-body, #root { position: fixed; top: 0; inset-inline: 0; height: var(--app-height, 100dvh); width: auto; }
-
 @media (pointer: coarse) {
   input, textarea, select { font-size: 16px !important; }
 }

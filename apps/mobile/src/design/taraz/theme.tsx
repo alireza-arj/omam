@@ -72,10 +72,6 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     if (Platform.OS !== "web") return;
 
     const surface = isDark ? darkColors.surfaceApp : lightColors.surfaceApp;
-    const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-    if (viewport && !viewport.content.includes("viewport-fit=cover")) {
-      viewport.content = "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content";
-    }
     document.documentElement.style.setProperty("--app-background", surface);
     const themeTags = document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]');
     if (themeTags.length === 0) {
@@ -87,8 +83,6 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     themeTags.forEach((tag) => {
       tag.content = surface;
     });
-    const statusBar = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]');
-    if (statusBar) statusBar.content = isDark ? "black-translucent" : "default";
   }, [isDark]);
 
   const value = useMemo<Theme>(() => {
