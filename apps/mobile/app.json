@@ -60,7 +60,7 @@
     },
     "android": {
       "package": "com.omam.app",
-      "versionCode": 13,
+      "versionCode": 15,
       "blockedPermissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",

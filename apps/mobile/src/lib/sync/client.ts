@@ -6,7 +6,7 @@ import type { AuthResponseDto, AuthMembershipDto, SessionUserResponseDto, TeamsR
 export function resolveServerUrl() {
   return configuredServerUrl({
     platform: Platform.OS,
-    origin: typeof window !== "undefined" ? window.location.origin : undefined,
+    origin: Platform.OS === "web" ? window.location.origin : undefined,
     isDevelopment: __DEV__,
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
     apiPort: process.env.EXPO_PUBLIC_API_PORT,
