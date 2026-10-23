@@ -1,5 +1,16 @@
 /** The source of truth: every other dictionary is typed against this shape. */
 export const en = {
+  appUpdate: {
+    availableTitle: "An update is available",
+    availableDescription: "A new version of Tarazkar is available. Download it, then restart the app to use the new version.",
+    readyTitle: "Your update is ready",
+    readyDescription: "The update has downloaded. Restart now to use the new version, or fully close and reopen the app later. Restarting does not stop your running timer.",
+    downloading: "Downloading the update. Please wait.",
+    failed: "The update could not be completed. Try again, or fully close and reopen the app if the update has already downloaded.",
+    download: "Download update",
+    restart: "Restart app",
+    later: "Continue for now",
+  },
   desktop: {
     appName: "Tarazkar", open: "Open Tarazkar", quit: "Quit Tarazkar", timer: "Timer", history: "History", settings: "Settings",
     greeting: "Hello, {name}", ready: "Make time for good work", running: "Your time is being recorded", started: "Started at {time}",

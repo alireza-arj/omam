@@ -15,6 +15,7 @@ import { NotificationProvider } from "../src/providers/notification-provider";
 import { DatabaseProvider } from "../src/providers/database-provider";
 import { SessionConflicts } from "../src/components/session-conflicts";
 import { SessionNotificationCoordinator } from "../src/components/session-notification-coordinator";
+import { AppUpdateDialog } from "../src/components/app-update-dialog";
 import {
   Card,
   LanguageProvider,
@@ -109,6 +110,7 @@ function RootNavigation() {
             <SyncProvider>
               <NotificationProvider>
                 <SessionConflicts />
+                <AppUpdateDialog />
                 <StatusBar style={isDark ? "light" : "dark"} />
                 <Stack
                   screenOptions={{

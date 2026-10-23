@@ -63,6 +63,13 @@ with its embedded or previously downloaded bundle; a new download is normally
 used on the next launch. It does not force a reload during a running work
 session. The embedded bundle remains available for offline startup.
 
+Native release apps show an update dialog when EAS reports an available or
+downloaded update. Users can download it, then explicitly restart the app to
+apply it, or continue and fully close and reopen later. No restart is forced.
+The dialog is translated into English and Persian and is disabled on web,
+Expo Go, and builds without Expo Updates enabled. Existing installations only
+gain this dialog after first applying the release that contains it.
+
 The `fingerprint` runtime policy only delivers updates to compatible native
 builds. Adding or changing native libraries, Expo SDK, permissions, or native
 configuration requires another APK release. Compare the runtime fingerprint
