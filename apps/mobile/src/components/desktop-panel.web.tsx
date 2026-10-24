@@ -89,7 +89,8 @@ export default function DesktopPanel() {
   const { colors, isDark } = useTheme();
   const [page, setPage] = useState<Page>("timer");
   const [now, setNow] = useState(Date.now());
-  const [category, setCategory] = useState<WorkSessionCategory>("ONSITE");
+  const [pickedCategory, setCategory] = useState<WorkSessionCategory | null>(null);
+  const category = pickedCategory ?? sessions[0]?.category ?? "ONSITE";
   const [editor, setEditor] = useState<SessionDto | null | undefined>();
   const [history, setHistory] = useState<SessionDto[]>([]);
   const [error, setError] = useState<string>();
@@ -142,7 +143,7 @@ export default function DesktopPanel() {
   } as CSSProperties;
   async function toggleTimer() {
     setError(undefined);
-    try { if (active) await clockOut(); else await clockIn(category); } catch (cause) { setError(translateError(cause, t)); }
+    try { if (active) await clockOut(); else { await clockIn(category); setCategory(null); } } catch (cause) { setError(translateError(cause, t)); }
   }
   async function updates() {
     try {

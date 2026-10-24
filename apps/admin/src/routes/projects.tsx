@@ -20,13 +20,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { translateError } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
 import { PageHeader } from "./layout";
 
 const DEFAULT_COLOR = createProjectInputSchema.shape.color.parse(undefined);
 
 export function ProjectsPage() {
-  const toast = useToast();
   const queryClient = useQueryClient();
   const { t } = useLanguage();
 
@@ -46,23 +44,19 @@ export function ProjectsPage() {
   const create = useMutation({
     mutationFn: () => api.createProject({ name: name.trim(), color }),
     onSuccess: () => {
-      toast(t("admin.projects.created"), "success");
       setCreating(false);
       setName("");
       setColor(DEFAULT_COLOR);
       refresh();
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const archive = useMutation({
     mutationFn: (input: { id: string; archived: boolean }) =>
       api.updateProject(input.id, { archived: input.archived }),
     onSuccess: () => {
-      toast(t("admin.projects.updated"), "success");
       refresh();
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const collection = useCollection(projects.data?.projects ?? [], (row) => row.name);

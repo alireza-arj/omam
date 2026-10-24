@@ -14,7 +14,6 @@ import { useReportMonth } from "../lib/report-month";
 import { api, downloadCsv } from "../lib/api";
 import { useSession } from "../lib/session";
 import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
 import { displayName, formatDate, formatDateTime, formatDuration, formatTime } from "../lib/format";
 import { PageHeader } from "./layout";
 
@@ -22,7 +21,6 @@ export function MemberDetailPage() {
   const { userId = "" } = useParams();
   const { calendar, membership } = useSession();
   const { language, t } = useLanguage();
-  const toast = useToast();
   const [month, setMonth] = useReportMonth(calendar);
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -35,8 +33,7 @@ export function MemberDetailPage() {
     setExporting(true);
     try {
       await downloadCsv(detail ? `/reports/members/${userId}/export.csv` : "/reports/monthly.csv", { month, calendar, language, userId }, `omam-${membership?.organizationSlug}-${data?.profile.username}-${month}${detail ? "-sessions" : ""}.csv`);
-      toast(t("admin.report.exported"), "success");
-    } catch (cause) { toast(translateError(cause, t), "error"); }
+    } catch { return; }
     finally { setExporting(false); }
   }
   return <>

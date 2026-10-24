@@ -5,7 +5,6 @@ import { Redirect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Camera } from "lucide-react-native";
-import { translateError } from "@omam/i18n";
 import { persistPickedAvatar, supportsAvatarFiles } from "../../src/lib/avatar";
 import { useAuth } from "../../src/providers/auth-provider";
 import {
@@ -17,7 +16,6 @@ import {
   Text,
   layout,
   useColors,
-  useToast,
   useTranslation,
 } from "../../src/design/taraz";
 
@@ -25,7 +23,6 @@ export default function ProfileSetupScreen() {
   const { isReady, isAuthenticated, needsProfileSetup, completeProfile, isMutating, user } =
     useAuth();
   const colors = useColors();
-  const { showToast } = useToast();
   const t = useTranslation();
   const [nickname, setNickname] = useState(user?.nickname ?? "");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
@@ -63,23 +60,15 @@ export default function ProfileSetupScreen() {
     try {
       setAvatarUrl(persistPickedAvatar(asset));
     } catch {
-      showToast({
-        title: t("profile.imageFailed"),
-        description: t("profile.imageDescription"),
-        tone: "error",
-      });
+      return;
     }
   }
 
   async function handleSave() {
     try {
       await completeProfile({ nickname: nickname.trim(), avatarUrl });
-    } catch (error) {
-      showToast({
-        title: t("profile.profileFailed"),
-        description: translateError(error, t),
-        tone: "error",
-      });
+    } catch {
+      return;
     }
   }
 

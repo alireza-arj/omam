@@ -28,7 +28,6 @@ import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { translateError, type TranslationKey } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
 import { displayName } from "../lib/format";
 import { PageHeader } from "./layout";
 
@@ -54,7 +53,6 @@ export function MembersPage() {
   const navigate = useNavigate();
   const { can, membership, isSwitching } = useSession();
   const canDelete = useCanDeleteMember();
-  const toast = useToast();
   const queryClient = useQueryClient();
   const { t } = useLanguage();
 
@@ -80,19 +78,16 @@ export function MembersPage() {
     mutationFn: (input: { membershipId: string; body: Draft }) =>
       api.updateMember(input.membershipId, input.body),
     onSuccess: () => {
-      toast(t("admin.members.updated"), "success");
       queryClient.invalidateQueries({ queryKey: ["members"] });
       queryClient.invalidateQueries({ queryKey: ["report"] });
       queryClient.invalidateQueries({ queryKey: ["member-report"] });
       setEditing(null);
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const createMember = useMutation({
     mutationFn: (input: CreateMemberInputDto) => api.createMember(input),
     onSuccess: () => {
-      toast(t("admin.members.created"), "success");
       queryClient.invalidateQueries({ queryKey: ["members"] });
       queryClient.invalidateQueries({ queryKey: ["report"] });
       queryClient.invalidateQueries({ queryKey: ["member-report"] });
@@ -115,11 +110,9 @@ export function MembersPage() {
     mutationFn: (input: { membershipId: string; password: string }) =>
       api.resetMemberPassword(input.membershipId, input.password),
     onSuccess: () => {
-      toast(t("admin.members.resetDone"), "success");
       setResetting(null);
       setNextPassword("");
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   function startEdit(member: MemberDto) {

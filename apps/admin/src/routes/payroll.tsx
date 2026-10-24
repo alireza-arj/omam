@@ -24,7 +24,6 @@ import { api, downloadCsv } from "../lib/api";
 import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
 import { currencyLabel, displayName, formatDuration, formatMoney, monthLabel } from "../lib/format";
 import { PageHeader } from "./layout";
 import { MonthPicker } from "../components/controls";
@@ -33,7 +32,6 @@ const STATUS_TONE = { DRAFT: "warning", LOCKED: "info", PAID: "success" } as con
 
 export function PayrollPage() {
   const { calendar, can } = useSession();
-  const toast = useToast();
   const queryClient = useQueryClient();
   const { language, t } = useLanguage();
 
@@ -63,39 +61,24 @@ export function PayrollPage() {
   const build = useMutation({
     mutationFn: () => api.buildPayroll(month, calendar),
     onSuccess: () => {
-      toast(t("admin.payroll.ready", { month: monthLabel(month, calendar, language) }), "success");
       refresh();
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const setStatus = useMutation({
     mutationFn: (status: "DRAFT" | "LOCKED" | "PAID") => api.updatePayrollPeriod(selectedId!, { status }),
-    onSuccess: (_result, status) => {
-      toast(
-        t(
-          status === "LOCKED"
-            ? "admin.payroll.locked"
-            : status === "PAID"
-              ? "admin.payroll.markedPaid"
-              : "admin.payroll.reopened",
-        ),
-        "success",
-      );
+    onSuccess: () => {
       refresh();
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const adjust = useMutation({
     mutationFn: (input: { id: string; adjustment: number; note: string | null }) =>
       api.updatePayrollLine(input.id, { adjustment: input.adjustment, adjustmentNote: input.note }),
     onSuccess: () => {
-      toast(t("admin.payroll.adjustmentSaved"), "success");
       setAdjusting(null);
       refresh();
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const [exporting, setExporting] = useState(false);
@@ -103,8 +86,8 @@ export function PayrollPage() {
     setExporting(true);
     try {
       await downloadCsv(path, query, filename);
-    } catch (error) {
-      toast(translateError(error, t), "error");
+    } catch {
+      return;
     } finally {
       setExporting(false);
     }

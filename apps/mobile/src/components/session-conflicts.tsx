@@ -1,16 +1,14 @@
 import { useState } from "react";
 import { Modal, Platform, View } from "react-native";
 import { Dialog } from "heroui-native/dialog";
-import { translateError } from "@omam/i18n";
 import { useSync } from "../providers/sync-provider";
 import { isDesktop } from "../lib/desktop";
 import { formatClock } from "../lib/format";
-import { Button, Card, Text, layout, typeRolesByLanguage, useLanguage, useToast } from "../design/taraz";
+import { Button, Card, Text, layout, typeRolesByLanguage, useLanguage } from "../design/taraz";
 
 export function SessionConflicts() {
   const { conflicts, resolveConflict, isResolvingConflict } = useSync();
   const { t, language, direction } = useLanguage();
-  const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   if (isDesktop() || !conflicts.length) return null;
   const conflict = conflicts[0];
@@ -23,7 +21,7 @@ export function SessionConflicts() {
       {conflict.sessions.map((session) => <Card key={session.id} style={{ gap: layout.gapTight }}>
         <Text role="bodySm">{session.deviceName || t("desktop.unknownDevice")}</Text>
         <Text role="mono">{formatClock(session.startAt)}{session.endAt ? ` – ${formatClock(session.endAt)}` : ""}</Text>
-        <Button label={t("desktop.keep")} disabled={isResolvingConflict} onPress={() => { void resolveConflict(conflict, session.id).then(() => setOpen(false)).catch((cause: unknown) => showToast({ title: t("session.saveFailed"), description: translateError(cause, t), tone: "warning" })); }} />
+        <Button label={t("desktop.keep")} disabled={isResolvingConflict} onPress={() => { void resolveConflict(conflict, session.id).then(() => setOpen(false)).catch(() => {}); }} />
       </Card>)}
       <Button label={t("desktop.later")} variant="ghost" disabled={isResolvingConflict} onPress={close} />
     </Dialog.Content>

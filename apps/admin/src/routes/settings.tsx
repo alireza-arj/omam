@@ -6,13 +6,11 @@ import { api, writeToken } from "../lib/api";
 import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
 import { PageHeader } from "./layout";
 import { Button, Card, CardHeader, ErrorState, Field, Input, Loading, Select } from "../components/ui";
 
 export function SettingsPage() {
   const { can, refresh } = useSession();
-  const toast = useToast();
   const queryClient = useQueryClient();
   const { language, setLanguage, t } = useLanguage();
 
@@ -38,11 +36,9 @@ export function SettingsPage() {
   const save = useMutation({
     mutationFn: () => api.updateOrganization(draft),
     onSuccess: async () => {
-      toast(t("admin.settings.saved"), "success");
       queryClient.invalidateQueries({ queryKey: ["organization"] });
       await refresh();
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const changePassword = useMutation({
@@ -50,11 +46,9 @@ export function SettingsPage() {
     onSuccess: (result) => {
       // Changing a password revokes every other token, including this one.
       writeToken(result.token);
-      toast(t("admin.settings.changed"), "success");
       setCurrentPassword("");
       setNextPassword("");
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   return (

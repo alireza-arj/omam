@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useState, type PropsWithChildren } from "react";
-import { AccessibilityInfo, View } from "react-native";
+import { AccessibilityInfo } from "react-native";
 import { HeroUINativeProvider } from "heroui-native/provider";
 import { LayoutDirection, Uniwind } from "uniwind";
 import { useLanguage } from "./i18n";
@@ -53,7 +53,7 @@ function themeVariables(colors: ColorScheme) {
 
 export function HeroUIProvider({ children }: PropsWithChildren) {
   const { isDark } = useTheme();
-  const { language, isRtl, direction } = useLanguage();
+  const { language, isRtl } = useLanguage();
   const [reduceMotion, setReduceMotion] = useState(false);
 
   useLayoutEffect(() => {
@@ -82,11 +82,6 @@ export function HeroUIProvider({ children }: PropsWithChildren) {
           isRTL: isRtl,
           animation: reduceMotion ? "disable-all" : undefined,
           textProps: { allowFontScaling: true },
-          toast: {
-            insets: { top: layout.gapTight, left: layout.padPage, right: layout.padPage },
-            maxVisibleToasts: 3,
-            contentWrapper: (content) => <View style={{ flex: 1, direction }}>{content}</View>,
-          },
         }}
       >
         {children}

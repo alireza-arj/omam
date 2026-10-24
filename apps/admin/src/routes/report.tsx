@@ -11,14 +11,12 @@ import { useReportMonth } from "../lib/report-month";
 import { api, downloadCsv } from "../lib/api";
 import { useSession } from "../lib/session";
 import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
 import { displayName, formatDuration } from "../lib/format";
 import { PageHeader } from "./layout";
 import { MonthPicker } from "../components/controls";
 
 export function ReportPage() {
   const { calendar, membership } = useSession();
-  const toast = useToast();
   const { language, t } = useLanguage();
   const [month, setMonth] = useReportMonth(calendar);
   const report = useQuery({ queryKey: ["report", month, calendar], queryFn: () => api.monthlyReport({ month, calendar }), refetchInterval: 30_000 });
@@ -28,8 +26,8 @@ export function ReportPage() {
   const collection = useCollection(sortedRows, (row) => [displayName(row), row.username, row.employeeCode].join(" "), `${month}:${sort}`);
   async function exportCsv() {
     setExporting(true);
-    try { await downloadCsv("/reports/monthly.csv", { month, calendar, language }, `omam-${membership?.organizationSlug}-${month}.csv`); toast(t("admin.report.exported"), "success"); }
-    catch (error) { toast(translateError(error, t), "error"); }
+    try { await downloadCsv("/reports/monthly.csv", { month, calendar, language }, `omam-${membership?.organizationSlug}-${month}.csv`); }
+    catch { return; }
     finally { setExporting(false); }
   }
   return <>

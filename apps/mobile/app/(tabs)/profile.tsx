@@ -15,7 +15,7 @@ import {
   Wallet,
 } from "lucide-react-native";
 import { formatFullDate, type CalendarSystem } from "@omam/calendar";
-import { LANGUAGES, LANGUAGE_LABEL, translateError, type Language } from "@omam/i18n";
+import { LANGUAGES, LANGUAGE_LABEL, type Language } from "@omam/i18n";
 import type { Currency } from "@omam/contracts";
 import { persistPickedAvatar, supportsAvatarFiles } from "../../src/lib/avatar";
 import { TeamSyncCard } from "../../src/components/team-sync-card";
@@ -43,7 +43,6 @@ import {
   useTabBarHeight,
   useLanguage,
   useThemeMode,
-  useToast,
   type SegmentOption,
   type ThemeMode,
 } from "../../src/design/taraz";
@@ -66,7 +65,6 @@ export default function ProfileScreen() {
   const colors = useColors();
   const tabBarHeight = useTabBarHeight();
   const { mode, setMode } = useThemeMode();
-  const { showToast } = useToast();
   const { language, setLanguage, t } = useLanguage();
 
   const appearanceOptions = useMemo<SegmentOption<ThemeMode>[]>(
@@ -168,24 +166,15 @@ export default function ProfileScreen() {
     try {
       setAvatarUrl(persistPickedAvatar(asset));
     } catch {
-      showToast({
-        title: t("profile.imageFailed"),
-        description: t("profile.imageDescription"),
-        tone: "error",
-      });
+      return;
     }
   }
 
   async function handleSaveProfile() {
     try {
       await completeProfile({ nickname: nickname.trim(), avatarUrl });
-      showToast({ title: t("profile.profileSaved"), tone: "success" });
-    } catch (error) {
-      showToast({
-        title: t("profile.profileFailed"),
-        description: translateError(error, t),
-        tone: "error",
-      });
+    } catch {
+      return;
     }
   }
 
@@ -199,13 +188,8 @@ export default function ProfileScreen() {
       setCurrentPassword("");
       setNextPassword("");
       setConfirmPassword("");
-      showToast({ title: t("profile.passwordChanged"), tone: "success" });
-    } catch (error) {
-      showToast({
-        title: t("profile.passwordFailed"),
-        description: error instanceof Error ? error.message : t("common.retry"),
-        tone: "error",
-      });
+    } catch {
+      return;
     }
   }
 
@@ -229,13 +213,8 @@ export default function ProfileScreen() {
         currency,
         calendar,
       });
-      showToast({ title: t("profile.settingsSaved"), tone: "success" });
-    } catch (error) {
-      showToast({
-        title: t("profile.settingsFailed"),
-        description: translateError(error, t),
-        tone: "error",
-      });
+    } catch {
+      return;
     }
   }
 

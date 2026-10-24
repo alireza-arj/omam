@@ -5,7 +5,7 @@ import { BrowserRouter, useNavigate, useHref } from "react-router-dom";
 import { App } from "./App";
 import { SessionProvider } from "./lib/session";
 import { LanguageProvider } from "./lib/i18n";
-import { ThemeProvider, ToastProvider } from "./lib/ui";
+import { ThemeProvider } from "./lib/ui";
 import { ApiError } from "./lib/api";
 import { RouterProvider } from "@heroui/react";
 import "./styles/taraz.css";
@@ -32,11 +32,9 @@ createRoot(document.getElementById("root")!).render(
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
           <SessionProvider>
-            <ToastProvider>
-              <BrowserRouter basename={import.meta.env.BASE_URL}>
-                <HeroRouting />
-              </BrowserRouter>
-            </ToastProvider>
+            <BrowserRouter basename={import.meta.env.BASE_URL}>
+              <HeroRouting />
+            </BrowserRouter>
           </SessionProvider>
         </QueryClientProvider>
       </ThemeProvider>

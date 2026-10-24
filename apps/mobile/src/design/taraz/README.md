@@ -15,7 +15,6 @@ Screens keep importing from `src/design/taraz`; the shared adapters render the r
 | SegmentedControl, TabBar | Tabs |
 | Accordion | Accordion |
 | ConfirmDialog | Dialog, Portal, Overlay |
-| Toast | Toast and the provider's toast queue |
 | Divider, Skeleton | Separator, Skeleton |
 | ListRow | ListGroup |
 | Text | HeroUI Text with localized type roles |
@@ -40,10 +39,9 @@ Screen, PageHeader, EmptyState, Stat and the session dial remain app-specific co
 - Persian uses Estedad, no Latin tracking, and an explicit RTL layout scope. Numeric inputs and time ranges retain LTR direction. Input decorators share the input's direction so suffixes cannot overlap values.
 - Respect system text scaling and reduced motion; interactive controls have a minimum 44-point target.
 - On web, ConfirmDialog mounts HeroUI content inside React Native Modal to contain keyboard focus and support Escape. Native platforms use HeroUI's Portal.
-- Web CSS hides HeroUI's invisible toast measurement copy from keyboard navigation and screen readers while preserving its layout measurements.
 - Use HeroUI granular exports inside the adapters to keep unused components out of the bundle.
 - Keep session data, payroll rules, calendar arithmetic and offline synchronization in their existing providers.
 
 ## Verification
 
-Run `bun run typecheck`, `bun run test`, `bun run test:smoke` against a development API, and `bun run build:mobile`. Verify forms, tabs, dialogs, toasts, both languages and both themes in Expo. HeroUI documents its Native package primarily for iOS/Android; exercise the Expo web output separately after upgrades. The admin panel uses `@heroui/react` and `@heroui/styles` instead.
+Run `bun run typecheck`, `bun run test`, `bun run test:smoke` against a development API, and `bun run build:mobile`. Verify forms, tabs, dialogs, both languages and both themes in Expo. HeroUI documents its Native package primarily for iOS/Android; exercise the Expo web output separately after upgrades. The admin panel uses `@heroui/react` and `@heroui/styles` instead.

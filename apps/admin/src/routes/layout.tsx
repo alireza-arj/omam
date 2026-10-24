@@ -2,10 +2,9 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { LANGUAGE_LABEL, type TranslationKey } from "@omam/i18n";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useIsMutating } from "@tanstack/react-query";
-import { translateError } from "@omam/i18n";
 import { useSession } from "../lib/session";
 import { useLanguage } from "../lib/i18n";
-import { useTheme, useToast } from "../lib/ui";
+import { useTheme } from "../lib/ui";
 import { displayName } from "../lib/format";
 import { ActionMenu, Button, Select } from "../components/ui";
 import { Icon, type IconName } from "../components/icons";
@@ -23,7 +22,6 @@ export function Shell() {
   const { theme, toggle } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const location = useLocation();
-  const toast = useToast();
   const mutating = useIsMutating();
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [clip, setClip] = useState("inset(0 0 100% 0)");
@@ -75,7 +73,7 @@ export function Shell() {
       <div className="workspace-topbar">
         <div className="breadcrumb"><span className="t-label">{t("admin.brand")}</span><span className="faint">/</span><span className="muted">{t(NAV[activeIndex].key)}</span></div>
         <div className="row gap-6 topbar-tools">
-          <Select aria-label={t("workspace.selectTeam")} value={membership?.organizationId} disabled={isSwitching || mutating > 0} onValueChange={(id) => { void selectTeam(id).catch((error) => toast(translateError(error, t), "error")); }}>
+          <Select aria-label={t("workspace.selectTeam")} value={membership?.organizationId} disabled={isSwitching || mutating > 0} onValueChange={(id) => { void selectTeam(id).catch(() => {}); }}>
             {teams.map((team) => <option key={team.organizationId} value={team.organizationId}>{team.organizationName}</option>)}
           </Select>
           <span className="account-name t-caption muted">{user ? displayName(user) : ""}</span>

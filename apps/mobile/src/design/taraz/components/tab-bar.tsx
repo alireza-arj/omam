@@ -1,6 +1,7 @@
-import { StyleSheet, View } from "react-native";
-import type { ComponentProps } from "react";
+import { Easing as SceneEasing, InteractionManager, StyleSheet, View } from "react-native";
+import { useEffect, type ComponentProps } from "react";
 import { Tabs as RouterTabs } from "expo-router";
+import type { BottomTabNavigationOptions } from "expo-router/tabs";
 import { Tabs } from "heroui-native/tabs";
 import { Easing } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,11 +21,42 @@ const indicatorTiming = {
 };
 
 export type TabItem = { label: string; glyph: LucideIcon };
+
+/** The next tab enters from the side it sits on in the bar, so the direction flips under RTL. Opacity and translate only, so it stays on the compositor. */
+export function tabSceneTransition(isRtl: boolean, reduceMotion: boolean): Pick<BottomTabNavigationOptions, "sceneStyleInterpolator" | "transitionSpec" | "freezeOnBlur"> {
+  const shift = space[7] * (isRtl ? -1 : 1);
+  return {
+    freezeOnBlur: true,
+    transitionSpec: {
+      animation: "timing",
+      config: {
+        duration: reduceMotion ? 0 : motion.durNormal,
+        easing: SceneEasing.bezier(motion.easeOut.x1, motion.easeOut.y1, motion.easeOut.x2, motion.easeOut.y2),
+      },
+    },
+    sceneStyleInterpolator: ({ current }) => ({
+      sceneStyle: {
+        opacity: current.progress.interpolate({ inputRange: [-1, -0.6, 0, 0.6, 1], outputRange: [0, 0, 1, 0, 0] }),
+        transform: reduceMotion ? [] : [
+          { translateX: current.progress.interpolate({ inputRange: [-1, 0, 1], outputRange: [-shift, 0, shift] }) },
+        ],
+      },
+    }),
+  };
+}
 type BottomTabBarProps = Parameters<NonNullable<ComponentProps<typeof RouterTabs>["tabBar"]>>[0];
 export type TabBarProps = BottomTabBarProps & { items: Record<string, TabItem> };
 
 export function TabBar({ state, descriptors, navigation, items }: TabBarProps) {
   const colors = useColors();
+
+  useEffect(() => {
+    const handle = InteractionManager.runAfterInteractions(() => {
+      for (const route of state.routes) if (route.key !== state.routes[state.index].key) navigation.preload(route.name, route.params);
+    });
+    return () => handle.cancel();
+    // Once per mount: preloading again would remount screens the user already left.
+  }, []);
   const { language, direction } = useLanguage();
   const insets = useSafeAreaInsets();
 

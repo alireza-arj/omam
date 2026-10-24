@@ -20,7 +20,6 @@ import {
   layout,
   useColors,
   useLanguage,
-  useToast,
 } from "../design/taraz";
 
 export function TeamSyncCard() {
@@ -28,16 +27,13 @@ export function TeamSyncCard() {
   const router = useRouter();
   const { signOut, isMutating } = useAuth();
   const { calendar } = useAttendance();
-  const { showToast } = useToast();
   const { language, t } = useLanguage();
   const colors = useColors();
 
-  const errorText = (cause: unknown) => translateError(cause, t, "team.unreachable");
   const [unlinking, setUnlinking] = useState(false);
 
   async function handleSync() {
-    try { await sync.syncNow(); showToast({ title: t("team.upToDate"), tone: "success" }); }
-    catch (cause) { showToast({ title: errorText(cause), tone: "error" }); }
+    await sync.syncNow().catch(() => {});
   }
 
   if (!sync.isLinked) {
@@ -46,7 +42,7 @@ export function TeamSyncCard() {
         <SectionHeader glyph={Users} title={t("team.title")} description={t("team.personalAccountHint")} />
 
         <Button label={t("workspace.teamLogin")} full size="lg" variant="quiet" loading={isMutating} onPress={() => {
-          void signOut().then(() => router.replace({ pathname: "/(auth)", params: { mode: "team" } })).catch((cause) => showToast({ title: errorText(cause), tone: "error" }));
+          void signOut().then(() => router.replace({ pathname: "/(auth)", params: { mode: "team" } })).catch(() => {});
         }} />
       </Card>
     );
@@ -68,7 +64,7 @@ export function TeamSyncCard() {
 
       {sync.teams.length > 1 ? <View style={{ gap: layout.gapTight }}>
         <Text role="caption" tone="muted">{t("workspace.switchTeam")}</Text>
-        {sync.teams.map((team) => <Button key={team.organizationId} label={team.organizationName} variant={team.organizationId === sync.organizationId ? "quiet" : "outline"} full disabled={sync.isSyncing || sync.isLinking || team.organizationId === sync.organizationId} onPress={() => { void sync.selectTeam(team.organizationId).catch((cause) => showToast({ title: errorText(cause), tone: "error" })); }} />)}
+        {sync.teams.map((team) => <Button key={team.organizationId} label={team.organizationName} variant={team.organizationId === sync.organizationId ? "quiet" : "outline"} full disabled={sync.isSyncing || sync.isLinking || team.organizationId === sync.organizationId} onPress={() => { void sync.selectTeam(team.organizationId).catch(() => {}); }} />)}
       </View> : null}
       <Divider />
       <View style={{ gap: layout.gapTight }}>

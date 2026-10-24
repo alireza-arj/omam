@@ -24,14 +24,12 @@ import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { translateError } from "@omam/i18n";
 import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
 import { formatDate } from "../lib/format";
 import { PageHeader } from "./layout";
 
 export function InvitesPage() {
   const { calendar, can, membership } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
-  const toast = useToast();
   const queryClient = useQueryClient();
   const { language, t } = useLanguage();
 
@@ -52,31 +50,25 @@ export function InvitesPage() {
   const create = useMutation({
     mutationFn: () => api.createInvite(createInviteInputSchema.parse({ userId, expiresInDays })),
     onSuccess: (invite) => {
-      toast(t("admin.invites.created", { code: invite.code }), "success");
       setCreating(false);
       setCreatedCode(invite.code);
       setSearchParams({});
       setUserId("");
       queryClient.invalidateQueries({ queryKey: ["invites"] });
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   const revoke = useMutation({
     mutationFn: (id: string) => api.revokeInvite(id),
     onSuccess: () => {
-      toast(t("admin.invites.revokedToast"), "success");
       queryClient.invalidateQueries({ queryKey: ["invites"] });
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   async function copy(code: string) {
     try {
       await navigator.clipboard.writeText(code);
-      toast(t("admin.invites.copied"), "success");
     } catch {
-      toast(t("admin.invites.copyManually"), "error");
     }
   }
 

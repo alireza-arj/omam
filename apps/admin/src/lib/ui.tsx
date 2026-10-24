@@ -7,9 +7,6 @@ import {
   type PropsWithChildren,
 } from "react";
 
-import { Toast, toast } from "@heroui/react";
-import { useT } from "./i18n";
-
 /* ── theme ───────────────────────────────────────────────────────────────── */
 
 type Theme = "light" | "dark";
@@ -67,28 +64,3 @@ export function useTheme() {
   return context;
 }
 
-/* ── toast ───────────────────────────────────────────────────────────────── */
-
-export function ToastProvider({ children }: PropsWithChildren) {
-  const t = useT();
-  return (
-    <>
-      {children}
-      <Toast.Provider placement="bottom end">
-        {({ toast: notification }) => (
-          <Toast toast={notification} variant={notification.content.variant}>
-            <Toast.Indicator />
-            <Toast.Content><Toast.Title>{notification.content.title}</Toast.Title></Toast.Content>
-            <Toast.CloseButton aria-label={t("common.close")} />
-          </Toast>
-        )}
-      </Toast.Provider>
-    </>
-  );
-}
-
-export function useToast() {
-  return (message: string, tone: "neutral" | "success" | "error" = "neutral") => {
-    toast(message, { variant: tone === "error" ? "danger" : tone === "success" ? "success" : "default", timeout: 4200 });
-  };
-}

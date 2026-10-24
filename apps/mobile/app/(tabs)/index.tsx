@@ -4,7 +4,6 @@ import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Building2, Laptop, Play, Square } from "lucide-react-native";
 import { dayKey, formatDayMonth, formatWeekday } from "@omam/calendar";
-import { translateError } from "@omam/i18n";
 import type { WorkSessionCategory } from "@omam/contracts";
 import { SessionDial } from "../../src/components/session-dial";
 import { formatClock, formatDurationHms, formatShortMinutes, joinMeta, sessionMinutes } from "../../src/lib/format";
@@ -26,23 +25,12 @@ import {
   useColors,
   useTabBarHeight,
   useLanguage,
-  useToast,
   type SegmentOption,
 } from "../../src/design/taraz";
-
-const locale = "en-US";
-
-/* Module scope — the clock re-renders every second and must not rebuild this. */
-const twoDigits = new Intl.NumberFormat(locale, { minimumIntegerDigits: 2, useGrouping: false });
-
-function formatWallClock(date: Date) {
-  return `${twoDigits.format(date.getHours())}:${twoDigits.format(date.getMinutes())}:${twoDigits.format(date.getSeconds())}`;
-}
 
 export default function TodayScreen() {
   const { summary, sessions, calendar, clockIn, clockOut, isMutating } = useAttendance();
   const { user } = useAuth();
-  const { showToast } = useToast();
   const { language, t } = useLanguage();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -51,7 +39,7 @@ export default function TodayScreen() {
 
   const [now, setNow] = useState(() => new Date());
   const [optimisticStartAt, setOptimisticStartAt] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<WorkSessionCategory>("ONSITE");
+  const [pickedCategory, setPickedCategory] = useState<WorkSessionCategory | null>(null);
 
   // Only tick while this screen is actually on top.
   useFocusEffect(
@@ -70,6 +58,8 @@ export default function TodayScreen() {
   );
 
   const activeStartAt = summary.activeSession?.startAt ?? optimisticStartAt;
+  // The last session's mode carries over until the user picks another one.
+  const selectedCategory = pickedCategory ?? sessions[0]?.category ?? "ONSITE";
   const activeCategory = summary.activeSession?.category ?? selectedCategory;
   const isRunning = Boolean(activeStartAt);
   const elapsedSeconds = activeStartAt
@@ -86,7 +76,7 @@ export default function TodayScreen() {
   );
   const runningMinutes = Math.floor(elapsedSeconds / 60);
 
-  const timecode = isRunning ? formatDurationHms(elapsedSeconds) : formatWallClock(now);
+  const timecode = formatDurationHms(elapsedSeconds);
   const contentWidth = Math.min(width - layout.padPage * 2, layout.mobileContentMaxWidth);
   const availableHeight = height - insets.top - tabBarHeight;
   const dialSize = Math.min(
@@ -129,16 +119,11 @@ export default function TodayScreen() {
 
       setOptimisticStartAt(new Date().toISOString());
       await clockIn(selectedCategory);
-    } catch (error) {
+      setPickedCategory(null);
+    } catch {
       if (!summary.activeSession) {
         setOptimisticStartAt(null);
       }
-
-      showToast({
-        title: t("today.failedTitle"),
-        description: translateError(error, t),
-        tone: "error",
-      });
     }
   }
 
@@ -179,7 +164,7 @@ export default function TodayScreen() {
         <SegmentedControl
           options={categoryOptions}
           value={activeCategory}
-          onChange={setSelectedCategory}
+          onChange={setPickedCategory}
           disabled={isRunning || isMutating}
           full
         />

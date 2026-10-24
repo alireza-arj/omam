@@ -6,7 +6,6 @@ import { LANGUAGE_LABEL, translateError } from "@omam/i18n";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
 import { Badge, Button, ButtonLink, Card, CardHeader, Field, Input, Modal, RoleBadge, Select } from "../components/ui";
 import { Icon } from "../components/icons";
 import { PageHeader } from "./layout";
@@ -14,7 +13,6 @@ import { PageHeader } from "./layout";
 export function TeamsPage() {
   const { teams, membership, selectTeam, can, refresh, isSwitching } = useSession();
   const { t, language } = useLanguage();
-  const toast = useToast();
   const [mode, setMode] = useState<"create" | "edit" | null>(null);
   const [name, setName] = useState("");
   const [calendar, setCalendar] = useState<CalendarSystem>("JALALI");
@@ -31,7 +29,7 @@ export function TeamsPage() {
         await refresh();
       }
     },
-    onSuccess: () => { toast(t(mode === "create" ? "workspace.teamCreated" : "workspace.teamUpdated"), "success"); setMode(null); },
+    onSuccess: () => { setMode(null); },
     onError: (cause) => setError(translateError(cause, t)),
   });
   function open(next: "create" | "edit") {
@@ -44,7 +42,7 @@ export function TeamsPage() {
     <PageHeader title={t("workspace.teams")} subtitle={t("workspace.teamHint")} actions={<Button variant="primary" onClick={() => open("create")}><Icon name="plus" />{t("workspace.createTeam")}</Button>} />
     <div className="page-body">
       <Card className="team-banner"><div className="row gap-7"><span className="team-logo"><Icon name="teams" /></span><div className="stack gap-3"><span className="page-eyebrow">{t("workspace.currentTeam")}</span><h2 className="t-title2">{membership?.organizationName}</h2><span className="t-body-sm muted">{t("workspace.memberCount", { count: members.data?.members.filter((member) => member.status === "ACTIVE").length ?? 0 })} · {t(`calendarName.${membership?.calendar ?? "JALALI"}`)}</span></div></div><div className="row gap-5 wrap"><ButtonLink primary to="/teams/invites"><Icon name="plus" />{t("workspace.inviteMembers")}</ButtonLink><ButtonLink to="/members">{t("workspace.manageTeam")}</ButtonLink>{can("OWNER") ? <Button variant="outline" onClick={() => open("edit")}>{t("workspace.editTeam")}</Button> : null}</div></Card>
-      <div className="teams-grid">{teams.map((team) => <Card key={team.organizationId} className="team-card" ><div className="row between"><span className="team-logo small"><Icon name="teams" /></span>{team.organizationId === membership?.organizationId ? <Badge>{t("workspace.currentTeam")}</Badge> : <RoleBadge role={team.role} />}</div><div className="stack gap-3"><h2 className="t-title3">{team.organizationName}</h2><span className="t-caption muted">{t(`calendarName.${team.calendar}`)} · {t(`role.${team.role}`)}</span></div><Button variant={team.organizationId === membership?.organizationId ? "quiet" : "outline"} disabled={team.organizationId === membership?.organizationId || isSwitching} onClick={() => { void selectTeam(team.organizationId).catch((cause) => toast(translateError(cause, t), "error")); }}>{t(team.organizationId === membership?.organizationId ? "workspace.currentTeam" : "workspace.switchTeam")}</Button></Card>)}</div>
+      <div className="teams-grid">{teams.map((team) => <Card key={team.organizationId} className="team-card" ><div className="row between"><span className="team-logo small"><Icon name="teams" /></span>{team.organizationId === membership?.organizationId ? <Badge>{t("workspace.currentTeam")}</Badge> : <RoleBadge role={team.role} />}</div><div className="stack gap-3"><h2 className="t-title3">{team.organizationName}</h2><span className="t-caption muted">{t(`calendarName.${team.calendar}`)} · {t(`role.${team.role}`)}</span></div><Button variant={team.organizationId === membership?.organizationId ? "quiet" : "outline"} disabled={team.organizationId === membership?.organizationId || isSwitching} onClick={() => { void selectTeam(team.organizationId).catch(() => {}); }}>{t(team.organizationId === membership?.organizationId ? "workspace.currentTeam" : "workspace.switchTeam")}</Button></Card>)}</div>
       <Card flush><CardHeader title={t("workspace.inviteMembers")} subtitle={t("workspace.inviteHint")} actions={<ButtonLink to="/teams/invites">{t("admin.nav.invites")}<Icon name="arrow" /></ButtonLink>} /></Card>
     </div>
     {mode ? <Modal title={t(mode === "create" ? "workspace.createTeam" : "workspace.editTeam")} onClose={() => setMode(null)} footer={<><Button variant="ghost" onClick={() => setMode(null)}>{t("common.cancel")}</Button><Button variant="primary" loading={save.isPending} disabled={name.trim().length < 2} onClick={() => save.mutate()}>{t(mode === "create" ? "workspace.createTeam" : "workspace.rename")}</Button></>}>

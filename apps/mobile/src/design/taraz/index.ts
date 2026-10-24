@@ -37,11 +37,10 @@ export { SectionHeader } from "./components/section-header";
 export { SegmentedControl } from "./components/segmented-control";
 export { Skeleton } from "./components/skeleton";
 export { Stat } from "./components/stat";
-export { TabBar, useTabBarHeight } from "./components/tab-bar";
+export { TabBar, tabSceneTransition, useTabBarHeight } from "./components/tab-bar";
 export { Tag } from "./components/tag";
 export { Text } from "./components/text";
 export { TimePicker, TimePickerPanel } from "./components/time-picker";
-export { useToast } from "./components/toast";
 
 export type { AccordionProps } from "./components/accordion";
 export type { AvatarProps } from "./components/avatar";
@@ -65,7 +64,6 @@ export type { StatProps } from "./components/stat";
 export type { TabBarProps, TabItem } from "./components/tab-bar";
 export type { TagProps } from "./components/tag";
 export type { TextProps } from "./components/text";
-export type { ToastOptions, ToastTone } from "./components/toast";
 
 export { HeroUIProvider } from "./hero-ui-provider";
 export { Spinner } from "heroui-native/spinner";

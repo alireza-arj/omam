@@ -6,7 +6,6 @@ import { translateError } from "@omam/i18n";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
 import { ActionMenu, Button, Field, Input, Modal, Select, Textarea } from "./ui";
 
 type DateFields = { day: string; time: string };
@@ -26,7 +25,6 @@ function SessionEditor({ session, onClose }: { session: SessionDto; onClose: () 
   const { calendar } = useSession();
   const { t } = useLanguage();
   const queryClient = useQueryClient();
-  const toast = useToast();
   const [start, setStart] = useState(() => fields(session.startAt, calendar));
   const [end, setEnd] = useState(() => fields(session.endAt, calendar));
   const [category, setCategory] = useState<WorkSessionCategory>(session.category);
@@ -34,7 +32,7 @@ function SessionEditor({ session, onClose }: { session: SessionDto; onClose: () 
   const [error, setError] = useState<string | null>(null);
   const save = useMutation({
     mutationFn: (body: Parameters<typeof api.editTimesheet>[1]) => api.editTimesheet(session.id, body),
-    onSuccess: () => { void queryClient.invalidateQueries(); toast(t("workspace.sessionSaved"), "success"); onClose(); },
+    onSuccess: () => { void queryClient.invalidateQueries(); onClose(); },
     onError: (cause) => setError(translateError(cause, t)),
   });
   function submit(event: FormEvent) {
@@ -59,13 +57,11 @@ function SessionEditor({ session, onClose }: { session: SessionDto; onClose: () 
 
 export function SessionActions({ session }: { session: SessionDto }) {
   const { t } = useLanguage();
-  const toast = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const remove = useMutation({
     mutationFn: () => api.deleteTimesheet(session.id),
-    onSuccess: () => { void queryClient.invalidateQueries(); toast(t("admin.timesheets.deleted"), "success"); },
-    onError: (cause) => toast(translateError(cause, t), "error"),
+    onSuccess: () => { void queryClient.invalidateQueries(); },
   });
   return <><ActionMenu label={t("admin.table.actions")} disabled={remove.isPending} items={[
     { label: t("common.edit"), onAction: () => setEditing(true) },

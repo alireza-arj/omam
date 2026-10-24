@@ -1,11 +1,14 @@
+import { useMemo } from "react";
 import { Redirect, Tabs } from "expo-router";
 import { BarChart3, Timer, UserRound } from "lucide-react-native";
 import { useAuth } from "../../src/providers/auth-provider";
-import { TabBar, useColors, useTranslation, type TabItem } from "../../src/design/taraz";
+import { useReducedMotion } from "react-native-reanimated";
+import { TabBar, tabSceneTransition, useColors, useLanguage, type TabItem } from "../../src/design/taraz";
 
 function TabsNavigation() {
   const colors = useColors();
-  const t = useTranslation();
+  const { t, isRtl } = useLanguage();
+  const reduceMotion = useReducedMotion();
 
   const items: Record<string, TabItem> = {
     index: { label: t("tabs.today"), glyph: Timer },
@@ -13,12 +16,15 @@ function TabsNavigation() {
     profile: { label: t("tabs.profile"), glyph: UserRound },
   };
 
+  const screenOptions = useMemo(() => ({
+    headerShown: false,
+    sceneStyle: { backgroundColor: colors.surfaceApp },
+    ...tabSceneTransition(isRtl, reduceMotion),
+  }), [colors.surfaceApp, isRtl, reduceMotion]);
+
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        sceneStyle: { backgroundColor: colors.surfaceApp },
-      }}
+      screenOptions={screenOptions}
       tabBar={(props) => <TabBar {...props} items={items} />}
     >
       <Tabs.Screen name="index" options={{ title: items.index.label }} />

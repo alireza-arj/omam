@@ -1,11 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { MemberDto } from "@omam/contracts";
-import { translateError } from "@omam/i18n";
 import { Button, Modal } from "./ui";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { useLanguage } from "../lib/i18n";
-import { useToast } from "../lib/ui";
 import { displayName } from "../lib/format";
 
 export function useCanDeleteMember() {
@@ -16,19 +14,16 @@ export function useCanDeleteMember() {
 
 export function DeleteMemberModal({ member, onClose, onDeleted }: { member: MemberDto; onClose: () => void; onDeleted?: () => void }) {
   const { t } = useLanguage();
-  const toast = useToast();
   const queryClient = useQueryClient();
   const deleteMember = useMutation({
     mutationFn: (membershipId: string) => api.deleteMember(membershipId),
-    onSuccess: (result) => {
-      toast(t(result.accountDeleted ? "admin.members.deleted" : "admin.members.removed"), "success");
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["members"] });
       queryClient.invalidateQueries({ queryKey: ["report"] });
       queryClient.removeQueries({ queryKey: ["member-report", member.userId] });
       onClose();
       onDeleted?.();
     },
-    onError: (error) => toast(translateError(error, t), "error"),
   });
 
   return (

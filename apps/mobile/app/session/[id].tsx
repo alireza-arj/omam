@@ -35,7 +35,6 @@ import {
   layout,
   useColors,
   useLanguage,
-  useToast,
   type SegmentOption,
 } from "../../src/design/taraz";
 
@@ -47,7 +46,6 @@ export default function SessionEditorScreen() {
   const db = useSQLiteContext();
   const { user } = useAuth();
   const { calendar, createSession, updateSession, deleteSession, isMutating } = useAttendance();
-  const { showToast } = useToast();
   const { language, t } = useLanguage();
   const colors = useColors();
 
@@ -198,16 +196,11 @@ export default function SessionEditorScreen() {
         await updateSession(id, draft.input);
       }
 
-      showToast({
-        title: isNew ? t("session.added") : t("session.updated"),
-        tone: "success",
-      });
       goBack();
     } catch (caught) {
       const message = translateError(caught, t);
 
       setError(message);
-      showToast({ title: t("session.saveFailed"), description: message, tone: "error" });
     }
   }
 
@@ -215,15 +208,10 @@ export default function SessionEditorScreen() {
     try {
       await deleteSession(id);
       setConfirmingDelete(false);
-      showToast({ title: t("session.deleted"), tone: "success" });
       goBack();
     } catch (caught) {
       setConfirmingDelete(false);
-      showToast({
-        title: t("session.deleteFailed"),
-        description: translateError(caught, t),
-        tone: "error",
-      });
+      setError(translateError(caught, t));
     }
   }
 
