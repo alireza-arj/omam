@@ -2,7 +2,7 @@ import "../global.css";
 import { isDesktop } from "../src/lib/desktop";
 import { desktopTokens } from "../src/design/taraz/tokens";
 import { Component, Suspense, type PropsWithChildren, type ReactNode } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -134,13 +134,40 @@ function RootNavigation() {
   );
 }
 
+function WebFrame({ children }: PropsWithChildren) {
+  const { colors } = useTheme();
+
+  if (Platform.OS !== "web" || isDesktop()) return children;
+
+  return (
+    <View style={{ alignItems: "center", backgroundColor: colors.surfaceSunken, flex: 1 }}>
+      <View
+        style={{
+          backgroundColor: colors.surfaceApp,
+          borderColor: colors.lineHairline,
+          borderStartWidth: layout.hairline,
+          borderEndWidth: layout.hairline,
+          flex: 1,
+          maxWidth: layout.webFrameMaxWidth,
+          overflow: "hidden",
+          width: "100%",
+        }}
+      >
+        {children}
+      </View>
+    </View>
+  );
+}
+
 function AppProviders({ children }: PropsWithChildren) {
   const { direction } = useLanguage();
   return (
     <GestureHandlerRootView style={{ flex: 1, direction }}>
-      <SafeAreaProvider>
-        <HeroUIProvider>{children}</HeroUIProvider>
-      </SafeAreaProvider>
+      <WebFrame>
+        <SafeAreaProvider>
+          <HeroUIProvider>{children}</HeroUIProvider>
+        </SafeAreaProvider>
+      </WebFrame>
     </GestureHandlerRootView>
   );
 }

@@ -208,6 +208,7 @@ export const layout = {
   dialogMaxWidth: 420,
   startupMaxWidth: 520,
   mobileContentMaxWidth: 420,
+  webFrameMaxWidth: 430,
   todayDialMin: 180,
   todayDialMax: 264,
   todayDialWidthRatio: 0.62,
