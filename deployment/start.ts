@@ -1,7 +1,7 @@
 export {};
 
 const cwd = "/app/apps/api";
-for (const command of [["bunx", "prisma", "migrate", "deploy"], ["bun", "run", "prisma/seed.ts"]]) {
+for (const command of [["bun", "/app/node_modules/prisma/build/index.js", "migrate", "deploy"], ["bun", "dist/seed.js"]]) {
   const child = Bun.spawn(command, { cwd, stdout: "inherit", stderr: "inherit" });
   const code = await child.exited;
   if (code !== 0) process.exit(code);
