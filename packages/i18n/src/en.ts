@@ -1,5 +1,16 @@
 /** The source of truth: every other dictionary is typed against this shape. */
 export const en = {
+  users: {
+    title: "All users",
+    hint: "Every account on this server, including users without a team. Search by name, username, email or team.",
+    scope: "System",
+    name: "User",
+    noTeam: "No team",
+    createdAt: "Account created",
+    superAdmin: "System administrator",
+    empty: "No users have been created",
+    refresh: "Refresh users",
+  },
   appUpdate: {
     availableTitle: "An update is available",
     availableDescription: "A new version of Tarazkar is available. Download it, then restart the app to use the new version.",

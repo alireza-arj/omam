@@ -53,8 +53,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const result = await api.me();
 
       const available = (await api.teams()).memberships.filter((team) => roleAtLeast(team.role, "MANAGER"));
-      if (!available.length) throw new Error("MANAGERS_ONLY");
-      const selected = result.membership && roleAtLeast(result.membership.role, "MANAGER") ? result.membership : await api.selectTeam(available[0].organizationId);
+      if (!available.length && !result.user.isSuperAdmin) throw new Error("MANAGERS_ONLY");
+      const selected = result.membership && roleAtLeast(result.membership.role, "MANAGER") ? result.membership : available.length ? await api.selectTeam(available[0].organizationId) : null;
       setTeams(available);
       setUser(result.user);
       setMembership(selected);
@@ -86,13 +86,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
       // The panel is for running the team, not for logging your own hours.
       writeToken(result.token);
       const available = (await api.teams()).memberships.filter((team) => roleAtLeast(team.role, "MANAGER"));
-      if (!available.length) { writeToken(null); throw new Error("MANAGERS_ONLY"); }
-      const selected = result.membership && roleAtLeast(result.membership.role, "MANAGER") ? result.membership : await api.selectTeam(available[0].organizationId);
+      if (!available.length && !result.user.isSuperAdmin) { writeToken(null); throw new Error("MANAGERS_ONLY"); }
+      const selected = result.membership && roleAtLeast(result.membership.role, "MANAGER") ? result.membership : available.length ? await api.selectTeam(available[0].organizationId) : null;
       queryClient.clear();
       setTeams(available);
       setUser(result.user);
       setMembership(selected);
-      adoptLanguage(selected.language);
+      if (selected) adoptLanguage(selected.language);
     } finally {
       setIsSigningIn(false);
     }

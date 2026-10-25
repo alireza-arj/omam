@@ -9,6 +9,17 @@ import type { Translations } from "./index";
  * digits stay Latin so the tabular columns keep lining up.
  */
 export const fa: Translations = {
+  users: {
+    title: "همهٔ کاربران",
+    hint: "تمام حساب‌های ثبت‌شده در سرور، از جمله کاربران بدون تیم. با نام، نام کاربری، ایمیل یا نام تیم جست‌وجو کنید.",
+    scope: "سامانه",
+    name: "کاربر",
+    noTeam: "بدون تیم",
+    createdAt: "تاریخ ساخت حساب",
+    superAdmin: "مدیر کل سامانه",
+    empty: "هنوز کاربری ساخته نشده است",
+    refresh: "به‌روزرسانی فهرست",
+  },
   appUpdate: {
     availableTitle: "به‌روزرسانی جدید موجود است",
     availableDescription: "نسخهٔ جدید ترازکار منتشر شده است. آن را دریافت کنید و سپس برای استفاده از نسخهٔ جدید، برنامه را دوباره راه‌اندازی کنید.",

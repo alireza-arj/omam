@@ -30,6 +30,8 @@ import type {
   UpdatePayrollLineInputDto,
   UpdatePayrollPeriodInputDto,
   UpdateProjectInputDto,
+  UsersQueryDto,
+  UsersResponseDto,
 } from "@omam/contracts";
 
 export const API_URL = ((import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3001").replace(/\/+$/, "");
@@ -171,6 +173,7 @@ export const api = {
     request<OrganizationDto>("/team/organization", { method: "PATCH", body }),
 
   members: () => request<MembersResponseDto>("/team/members"),
+  users: (query: UsersQueryDto) => request<UsersResponseDto>("/users", { query }),
   createMember: (body: CreateMemberInputDto) =>
     request<MemberDto>("/team/members", { method: "POST", body }),
   updateMember: (membershipId: string, body: UpdateMemberInputDto) =>

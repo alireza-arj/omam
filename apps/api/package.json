@@ -34,7 +34,7 @@
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
     "db:deploy": "prisma migrate deploy",
-    "test:smoke": "bun run tests/smoke.ts && bun run tests/teams.ts && bun run tests/desktop.ts && bun run tests/invite-login.ts",
+    "test:smoke": "bun run tests/smoke.ts && bun run tests/teams.ts && bun run tests/desktop.ts && bun run tests/invite-login.ts && bun run tests/users.ts",
     "test:desktop:isolated": "bun run tests/run-desktop-smoke.ts"
   }
 }

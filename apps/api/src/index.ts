@@ -8,6 +8,7 @@ import { authRoutes } from "./routes/auth";
 import { settingsRoutes } from "./routes/settings";
 import { sessionRoutes } from "./routes/sessions";
 import { teamRoutes } from "./routes/team";
+import { userRoutes } from "./routes/users";
 import { projectRoutes } from "./routes/projects";
 import { timesheetRoutes } from "./routes/timesheets";
 import { reportRoutes } from "./routes/reports";
@@ -67,6 +68,7 @@ const app = new Elysia()
   .use(settingsRoutes)
   .use(sessionRoutes)
   .use(teamRoutes)
+  .use(userRoutes)
   .use(projectRoutes)
   .use(timesheetRoutes)
   .use(reportRoutes)

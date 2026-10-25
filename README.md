@@ -54,6 +54,16 @@ Sign in to the panel with the owner from the seed
 3. Set each person's rate under **Members**. Payroll uses the rate set there,
    never the one a member sets for themselves.
 
+### All users
+
+The deployment operator can open **All users** (`/users`) to search all server
+accounts, including accounts without a team, and see their team memberships.
+This page requires `User.isSuperAdmin = true`; team owners and managers only
+see their selected team's **Members**. The seed does not grant system access.
+An operator can set this flag on the intended account using
+`bun run --cwd apps/api db:studio`, then sign in again. Accounts that exist
+only on an offline device appear after they are linked to this server.
+
 ### Timezone
 
 Month boundaries are computed in the API's own timezone, so run it with `TZ`

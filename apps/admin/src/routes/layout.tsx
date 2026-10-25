@@ -26,9 +26,13 @@ export function Shell() {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [clip, setClip] = useState("inset(0 0 100% 0)");
   const [pointerMotion, setPointerMotion] = useState(false);
+  const navItems = [
+    ...(membership ? NAV : []),
+    ...(user?.isSuperAdmin ? [{ to: "/users", key: "users.title" as const, icon: "members" as const }] : []),
+  ];
   const nav = useRef<HTMLDivElement>(null);
   const main = useRef<HTMLElement>(null);
-  const activeIndex = Math.max(0, NAV.findIndex((item) => item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to)));
+  const activeIndex = Math.max(0, navItems.findIndex((item) => item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to)));
   useLayoutEffect(() => {
     main.current?.scrollTo({ top: 0 });
   }, [location.pathname, membership?.organizationId]);
@@ -46,7 +50,7 @@ export function Shell() {
     const observer = new ResizeObserver(measure);
     observer.observe(root);
     return () => observer.disconnect();
-  }, [location.pathname, navigationOpen, language]);
+  }, [location.pathname, navigationOpen, language, membership?.organizationId, user?.isSuperAdmin]);
 
   return <div className="shell workspace-shell">
     <a className="skip-link" href="#main-content">{t("admin.table.skip")}</a>
@@ -55,10 +59,10 @@ export function Shell() {
       <Button variant="ghost" className="navigation-toggle" aria-expanded={navigationOpen} aria-controls="main-navigation" aria-label={t("admin.table.navigation")} onClick={() => setNavigationOpen(!navigationOpen)}><Icon name="menu" /></Button>
       <div className="workspace-nav" ref={nav} data-motion={pointerMotion}>
         <nav id="main-navigation" className="nav" aria-label={t("admin.table.navigation")} onPointerDown={() => setPointerMotion(true)} onKeyDown={() => setPointerMotion(false)}>
-          {NAV.map((item) => <NavLink key={item.to} to={item.to} end={item.to === "/"} className="rail-link" title={t(item.key)} aria-label={t(item.key)} onClick={() => setNavigationOpen(false)}><Icon name={item.icon} /><span className="rail-label">{t(item.key)}</span></NavLink>)}
+          {navItems.map((item) => <NavLink key={item.to} to={item.to} end={item.to === "/"} className="rail-link" title={t(item.key)} aria-label={t(item.key)} onClick={() => setNavigationOpen(false)}><Icon name={item.icon} /><span className="rail-label">{t(item.key)}</span></NavLink>)}
         </nav>
         <div className="nav-active-copy" aria-hidden="true" style={{ clipPath: clip }}>
-          {NAV.map((item) => <span key={item.to} className="rail-link"><Icon name={item.icon} /><span className="rail-label">{t(item.key)}</span></span>)}
+          {navItems.map((item) => <span key={item.to} className="rail-link"><Icon name={item.icon} /><span className="rail-label">{t(item.key)}</span></span>)}
         </div>
       </div>
       <div className="sidebar-account">
@@ -71,11 +75,11 @@ export function Shell() {
     </aside>
     <main ref={main} className="main" id="main-content" tabIndex={-1}>
       <div className="workspace-topbar">
-        <div className="breadcrumb"><span className="t-label">{t("admin.brand")}</span><span className="faint">/</span><span className="muted">{t(NAV[activeIndex].key)}</span></div>
+        <div className="breadcrumb"><span className="t-label">{t("admin.brand")}</span><span className="faint">/</span><span className="muted">{t(navItems[activeIndex].key)}</span></div>
         <div className="row gap-6 topbar-tools">
-          <Select aria-label={t("workspace.selectTeam")} value={membership?.organizationId} disabled={isSwitching || mutating > 0} onValueChange={(id) => { void selectTeam(id).catch(() => {}); }}>
+          {membership ? <Select aria-label={t("workspace.selectTeam")} value={membership?.organizationId} disabled={isSwitching || mutating > 0} onValueChange={(id) => { void selectTeam(id).catch(() => {}); }}>
             {teams.map((team) => <option key={team.organizationId} value={team.organizationId}>{team.organizationName}</option>)}
-          </Select>
+          </Select> : null}
           <span className="account-name t-caption muted">{user ? displayName(user) : ""}</span>
         </div>
       </div>
@@ -84,7 +88,7 @@ export function Shell() {
   </div>;
 }
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
+export function PageHeader({ title, subtitle, actions, eyebrow }: { title: string; subtitle?: string; actions?: ReactNode; eyebrow?: string }) {
   const { membership } = useSession();
-  return <header className="page-header"><div className="stack gap-3"><span className="page-eyebrow">{membership?.organizationName}</span><h1>{title}</h1>{subtitle ? <p className="t-body-sm muted">{subtitle}</p> : null}</div>{actions ? <div className="row gap-5 wrap">{actions}</div> : null}</header>;
+  return <header className="page-header"><div className="stack gap-3"><span className="page-eyebrow">{eyebrow ?? membership?.organizationName}</span><h1>{title}</h1>{subtitle ? <p className="t-body-sm muted">{subtitle}</p> : null}</div>{actions ? <div className="row gap-5 wrap">{actions}</div> : null}</header>;
 }

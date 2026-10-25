@@ -9,3 +9,4 @@ export * from "./sync";
 
 export * from "./desktop";
 export * from "./notifications";
+export * from "./users";
