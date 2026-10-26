@@ -45,7 +45,9 @@ const LanguageContext = createContext<LanguageValue | null>(null);
  * adopts whatever the account has saved.
  */
 export function LanguageProvider({ children }: PropsWithChildren) {
-  const [language, setLanguageState] = useState<Language>(DEFAULT_LANGUAGE);
+  const [language, setLanguageState] = useState<Language>(() =>
+    typeof document === "undefined" ? DEFAULT_LANGUAGE : asLanguage(document.documentElement.lang),
+  );
 
   useEffect(() => {
     let active = true;

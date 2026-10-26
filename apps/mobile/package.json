@@ -47,6 +47,7 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@babel/plugin-transform-react-jsx": "^7.28.6",
+    "@expo/image-utils": "0.11.5",
     "@types/react": "~19.2.0",
     "babel-preset-expo": "~57.0.12",
     "typescript": "*"

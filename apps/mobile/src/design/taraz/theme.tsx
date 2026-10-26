@@ -39,7 +39,10 @@ const ThemeContext = createContext<Theme | null>(null);
 
 export function ThemeProvider({ children }: PropsWithChildren) {
   const systemScheme = useColorScheme();
-  const [mode, setModeState] = useState<ThemeMode>("system");
+  const [mode, setModeState] = useState<ThemeMode>(() => {
+    const saved = Platform.OS === "web" && typeof document !== "undefined" ? document.documentElement.dataset.startupTheme : undefined;
+    return isThemeMode(saved) ? saved : "system";
+  });
 
   useEffect(() => {
     let active = true;

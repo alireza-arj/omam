@@ -2,6 +2,8 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildServiceWorker } from "./build-service-worker";
+import { startupHead, startupMarkup } from "./startup-html";
+import { buildStartupImages } from "./build-startup-images";
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const publicDir = join(projectRoot, "public");
@@ -42,6 +44,13 @@ const headTags = [
 ].join("\n    ");
 
 let html = readFileSync(indexPath, "utf8");
+html = html.replace(/<style id="startup-style">[\s\S]*?<\/style><script>[\s\S]*?<\/script>/g, "");
+html = html.replace(/<link rel="apple-touch-startup-image"[^>]*\/>/g, "");
+html = html.replace("</head>", `${startupHead()}\n${await buildStartupImages(projectRoot, distDir)}\n</head>`);
+const root = /<div id="root">(?:<div id="startup-splash">[\s\S]*?<\/div>)?<\/div>/;
+if (!root.test(html)) throw new Error("The Expo export is missing its client-rendered root");
+const logo = readFileSync(join(projectRoot, "assets/brand/omam-logo.svg"), "utf8");
+html = html.replace(root, `<div id="root">${startupMarkup(logo)}</div>`);
 html = html.replace(
   /<meta name="viewport"[^>]*>/,
   '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />',

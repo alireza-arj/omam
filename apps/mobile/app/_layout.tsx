@@ -9,13 +9,14 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useReducedMotion } from "react-native-reanimated";
 import { AttendanceProvider } from "../src/providers/attendance-provider";
-import { AuthProvider } from "../src/providers/auth-provider";
+import { AuthProvider, useAuth } from "../src/providers/auth-provider";
 import { SyncProvider } from "../src/providers/sync-provider";
 import { NotificationProvider } from "../src/providers/notification-provider";
 import { DatabaseProvider } from "../src/providers/database-provider";
 import { PwaProvider } from "../src/providers/pwa-provider";
 import { SessionConflicts } from "../src/components/session-conflicts";
 import { SessionNotificationCoordinator } from "../src/components/session-notification-coordinator";
+import { StartupSplash } from "../src/components/startup-splash";
 import { AppUpdateDialog } from "../src/components/app-update-dialog";
 import {
   Card,
@@ -23,7 +24,6 @@ import {
   Text,
   ThemeProvider,
   HeroUIProvider,
-  Spinner,
   layout,
   motion,
   useLanguage,
@@ -31,21 +31,9 @@ import {
   useTheme,
 } from "../src/design/taraz";
 
-function Splash() {
-  const { colors } = useTheme();
-
-  return (
-    <View
-      style={{
-        alignItems: "center",
-        backgroundColor: colors.surfaceApp,
-        flex: 1,
-        justifyContent: "center",
-      }}
-    >
-      <Spinner size="lg" color={colors.fillAccent} />
-    </View>
-  );
+function AuthStartup({ children }: PropsWithChildren) {
+  const { isReady } = useAuth();
+  return isReady ? children : <StartupSplash />;
 }
 
 function StartupFailure({ message }: { message: string }) {
@@ -93,42 +81,44 @@ function RootNavigation() {
   const reduceMotion = useReducedMotion();
 
   if (!fontsLoaded && !fontError) {
-    return <Splash />;
+    return <StartupSplash />;
   }
 
   return (
-    <Suspense fallback={<Splash />}>
+    <Suspense fallback={<StartupSplash />}>
       <DatabaseProvider>
         <AuthProvider>
-          {/*
-           * Attendance lives above the navigator, not inside `(tabs)`, so the
-           * session editor at `/session/[id]` shares the same cache and its
-           * `refresh()` reaches both tabs.
-           */}
-          <AttendanceProvider>
-            <SessionNotificationCoordinator />
-            {/* Sync sits under Attendance so a pull can refresh what is on screen. */}
-            <SyncProvider>
-              <NotificationProvider>
-                <SessionConflicts />
-                <AppUpdateDialog />
-                <StatusBar style={isDark ? "light" : "dark"} />
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    animation: reduceMotion || isDesktop() ? "none" : "fade",
-                    animationTypeForReplace: "push",
-                    animationDuration: motion.durFast,
-                    contentStyle: { backgroundColor: isDesktop() ? desktopTokens["--dt-clear"] : colors.surfaceApp },
-                  }}
-                >
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="(tabs)" />
-                  <Stack.Screen name="session/[id]" options={{ animation: reduceMotion || isDesktop() ? "none" : "slide_from_right" }} />
-                </Stack>
-              </NotificationProvider>
-            </SyncProvider>
-          </AttendanceProvider>
+          <AuthStartup>
+            {/*
+             * Attendance lives above the navigator, not inside `(tabs)`, so the
+             * session editor at `/session/[id]` shares the same cache and its
+             * `refresh()` reaches both tabs.
+             */}
+            <AttendanceProvider>
+              <SessionNotificationCoordinator />
+              {/* Sync sits under Attendance so a pull can refresh what is on screen. */}
+              <SyncProvider>
+                <NotificationProvider>
+                  <SessionConflicts />
+                  <AppUpdateDialog />
+                  <StatusBar style={isDark ? "light" : "dark"} />
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      animation: reduceMotion || isDesktop() ? "none" : "fade",
+                      animationTypeForReplace: "push",
+                      animationDuration: motion.durFast,
+                      contentStyle: { backgroundColor: isDesktop() ? desktopTokens["--dt-clear"] : colors.surfaceApp },
+                    }}
+                  >
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="session/[id]" options={{ animation: reduceMotion || isDesktop() ? "none" : "slide_from_right" }} />
+                  </Stack>
+                </NotificationProvider>
+              </SyncProvider>
+            </AttendanceProvider>
+          </AuthStartup>
         </AuthProvider>
       </DatabaseProvider>
     </Suspense>

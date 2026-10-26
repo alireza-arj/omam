@@ -1,6 +1,7 @@
 import { Component, useEffect, useState, useSyncExternalStore, type PropsWithChildren } from "react";
 import { SQLiteProvider } from "expo-sqlite";
-import { Button, Card, Screen, Spinner, Text, layout, useLanguage } from "../design/taraz";
+import { Button, Card, Screen, Text, layout, useLanguage } from "../design/taraz";
+import { StartupSplash } from "../components/startup-splash";
 import { isDesktop } from "../lib/desktop";
 import { DesktopDatabaseProvider } from "./desktop-database-provider";
 import { ExpoDatabaseContext } from "./expo-database-context";
@@ -9,7 +10,7 @@ import { getBrowserDatabaseAccess, isDatabaseAccessConflict } from "../lib/brows
 
 function DatabaseNotice({ state }: { state: "loading" | "waiting" | "unavailable" | "conflict" }) {
   const { t } = useLanguage();
-  if (state === "loading") return <Screen center><Spinner /></Screen>;
+  if (state === "loading") return <StartupSplash />;
   const waiting = state === "waiting" || state === "conflict";
   return (
     <Screen scroll center>

@@ -4,6 +4,8 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
+import { startupTokens } from "../src/design/taraz/startup-tokens";
+import { getPngInfo } from "@expo/image-utils";
 
 const dist = resolve(__dirname, "../dist");
 type Deployment = { revision: string; failWasm: boolean; unavailable: boolean };
@@ -76,6 +78,76 @@ async function cacheKeys(page: Page) {
   });
 }
 
+for (const preference of [
+  { system: "light", saved: null, language: "en", background: "rgb(245, 247, 250)" },
+  { system: "dark", saved: null, language: "en", background: "rgb(11, 14, 18)" },
+  { system: "dark", saved: "light", language: "fa", background: "rgb(245, 247, 250)" },
+  { system: "light", saved: "dark", language: "fa", background: "rgb(11, 14, 18)" },
+] as const) {
+  test(`the logo paints before JavaScript: ${preference.system}, saved ${preference.saved}, ${preference.language}`, async ({ page, appUrl }, testInfo) => {
+    await page.emulateMedia({ colorScheme: preference.system });
+    await page.addInitScript(({ saved, language }) => {
+      if (saved) localStorage.setItem("taraz.theme-mode", saved);
+      localStorage.setItem("taraz.language", language);
+    }, preference);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route("**/_expo/static/js/web/*.js", async (route) => { await held; await route.continue(); });
+    try {
+      await page.goto(appUrl, { waitUntil: "commit" });
+      const splash = page.locator("#startup-splash");
+      await expect(splash).toBeVisible();
+      await expect(splash).toHaveCSS("background-color", preference.background);
+      await expect(page.locator("html")).toHaveAttribute("lang", preference.language);
+      await expect(page.getByRole("progressbar", { name: preference.language === "fa" ? "ترازکار — در حال بارگذاری" : "Tarazkar — Loading" })).toBeVisible();
+      const logo = splash.locator(`span[lang="${preference.language}"] svg`);
+      await expect(logo).toHaveCSS("width", `${startupTokens.logoSize}px`);
+      await expect(logo).toHaveCSS("height", `${startupTokens.logoSize}px`);
+      await expect(logo.locator("rect")).not.toHaveCSS("fill", preference.background);
+      await page.screenshot({ path: testInfo.outputPath("startup.png") });
+    } finally { release(); }
+    await expect(page.getByRole("button", { name: preference.language === "fa" ? "ورود" : "Sign in", exact: true })).toBeVisible();
+    await expect(page.locator("#startup-splash")).toHaveCount(0);
+    await expect(page.getByTestId("startup-splash")).toHaveCount(0);
+  });
+}
+
+test("the React startup keeps the logo visible while fonts load", async ({ page, appUrl }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/*.ttf", async (route) => { await held; await route.continue(); });
+  try {
+    await page.goto(appUrl, { waitUntil: "commit" });
+    await expect(page.getByTestId("startup-splash")).toBeVisible();
+    await expect(page.getByTestId("startup-splash").locator("svg")).toBeVisible();
+    await expect(page.getByTestId("startup-splash").locator("rect")).not.toHaveCSS("fill", "rgb(11, 14, 18)");
+    await expect(page.locator("#startup-splash")).toHaveCount(0);
+  } finally { release(); }
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByTestId("startup-splash")).toHaveCount(0);
+});
+
+test("iOS startup images have the declared pixel dimensions", async ({ page, appUrl }) => {
+  await page.goto(appUrl);
+  const links = await page.locator('link[rel="apple-touch-startup-image"]').evaluateAll((elements) =>
+    elements.map((element) => ({ href: element.getAttribute("href")!, media: element.getAttribute("media")! })),
+  );
+  expect(links.length).toBeGreaterThan(0);
+  for (const scheme of ["light", "dark"]) {
+    const link = links.find((value) => value.href.endsWith(`${scheme}-1170x2532.png`))!;
+    expect(link.media).toContain(`prefers-color-scheme: ${scheme}`);
+    const response = await page.request.get(`${appUrl}${link.href}`);
+    expect(response.ok()).toBe(true);
+    const png = await response.body();
+    expect(png.readUInt32BE(16)).toBe(1170);
+    expect(png.readUInt32BE(20)).toBe(2532);
+    const { data, width, height } = await getPngInfo(resolve(dist, `.${link.href}`));
+    const tilePixel = (Math.floor(height / 2) * width + Math.floor(width / 2 + startupTokens.logoSize * 3 * 0.4)) * 4;
+    expect(data.subarray(tilePixel, tilePixel + 3)).not.toEqual(data.subarray(0, 3));
+  }
+});
+
 test("cold offline startup preserves login, a running timer, all routes, fonts and local writes", async ({ page, context, appUrl }, testInfo) => {
   const errors: string[] = [];
   context.on("page", (opened) => opened.on("pageerror", (error) => errors.push(error.message)));
@@ -88,6 +160,7 @@ test("cold offline startup preserves login, a running timer, all routes, fonts a
   expect(assets.some((url) => url.endsWith(".wasm"))).toBe(true);
   expect(assets.filter((url) => url.endsWith(".ttf"))).toHaveLength(15);
   expect(assets.some((url) => url.includes("/worker-"))).toBe(true);
+  expect(assets.some((url) => url.endsWith("/assets/startup/light-1170x2532.png"))).toBe(true);
   await page.evaluate(async () => {
     const key = (await caches.keys()).find((key) => key.startsWith("tarazkar-pwa-v4-"))!;
     await (await caches.open(key)).delete("/icon-512.png");
