@@ -18,8 +18,6 @@ if (!existsSync(indexPath)) {
 
 mkdirSync(distDir, { recursive: true });
 
-await buildServiceWorker(distDir);
-
 for (const file of publicFiles) {
   const source = join(publicDir, file);
   const target = join(distDir, file);
@@ -46,17 +44,16 @@ const headTags = [
 let html = readFileSync(indexPath, "utf8");
 html = html.replace(
   /<meta name="viewport"[^>]*>/,
-  '<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />',
+  '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />',
 );
 
 if (!html.includes('href="/manifest.webmanifest"')) {
   html = html.replace("</head>", `  ${headTags}\n</head>`);
 }
 
-if (!html.includes('src="/register-sw.js"')) {
-  html = html.replace("</body>", '  <script src="/register-sw.js" defer></script>\n</body>');
-}
+html = html.replace(/\s*<script src="\/register-sw.js" defer><\/script>/g, "");
 
 writeFileSync(indexPath, html);
+await buildServiceWorker(distDir);
 
 console.log("PWA assets injected into dist.");

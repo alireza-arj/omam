@@ -13,6 +13,7 @@ import { AuthProvider } from "../src/providers/auth-provider";
 import { SyncProvider } from "../src/providers/sync-provider";
 import { NotificationProvider } from "../src/providers/notification-provider";
 import { DatabaseProvider } from "../src/providers/database-provider";
+import { PwaProvider } from "../src/providers/pwa-provider";
 import { SessionConflicts } from "../src/components/session-conflicts";
 import { SessionNotificationCoordinator } from "../src/components/session-notification-coordinator";
 import { AppUpdateDialog } from "../src/components/app-update-dialog";
@@ -175,13 +176,15 @@ function AppProviders({ children }: PropsWithChildren) {
 export default function RootLayout() {
   return (
     <LanguageProvider>
-      <ThemeProvider>
-        <AppProviders>
-          <RootErrorBoundary>
-            <RootNavigation />
-          </RootErrorBoundary>
-        </AppProviders>
-      </ThemeProvider>
+      <PwaProvider>
+        <ThemeProvider>
+          <AppProviders>
+            <RootErrorBoundary>
+              <RootNavigation />
+            </RootErrorBoundary>
+          </AppProviders>
+        </ThemeProvider>
+      </PwaProvider>
     </LanguageProvider>
   );
 }

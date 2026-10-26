@@ -47,6 +47,8 @@ The macOS installer is intentionally not published yet. `deployment/electron/` i
 
 The PWA service worker bypasses the API, panel and Electron paths. Nginx sends the cross-origin isolation headers required by browser SQLite, preserves deep links, and serves the API without caching.
 
+Offline startup, versioned precaching, update activation and verification are documented in [pwa-offline.md](pwa-offline.md). After the first complete online setup, the PWA can reopen and record time without internet. Setup and updates run automatically in the background.
+
 Mobile, PWA and Electron sync after local changes, on startup/resume and after reconnecting. An authenticated WebSocket at `/api/sync/events` sends change hints; devices fetch the actual rows through `/api/sync`. Idle devices send only a lightweight heartbeat every 25 seconds, with no periodic session polling. Failed syncs and notification connections retry with backoff up to one minute. Native apps reconnect when brought back to the foreground; Electron stays connected while its panel is hidden.
 
 Keep WebSocket upgrades enabled on any proxy in front of Nginx. Across API replicas, PostgreSQL `LISTEN`/`NOTIFY` distributes hints for sessions, panel edits and payroll locks. The API needs a direct PostgreSQL connection (or session pooling) for its notification listener; transaction-mode pooling is unsuitable for `LISTEN`. A reconnect always triggers a catch-up sync, so missed hints do not discard offline changes.
