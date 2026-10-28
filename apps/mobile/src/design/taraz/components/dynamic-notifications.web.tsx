@@ -1,3 +1,4 @@
+import "./dynamic-notifications.web.css";
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { Easing } from "react-native";
