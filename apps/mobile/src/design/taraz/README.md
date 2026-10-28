@@ -18,7 +18,6 @@ Screens keep importing from `src/design/taraz`; the shared adapters render the r
 | Divider, Skeleton | Separator, Skeleton |
 | ListRow | ListGroup |
 | Text | HeroUI Text with localized type roles |
-| DynamicNotifications | Web SVG overlay adapted from expo-dynamic-notifications |
 | Glass | GlassView |
 | ProgressBar | Surface with a read-only progress track |
 
@@ -44,7 +43,5 @@ Screen, PageHeader, EmptyState, Stat and the session dial remain app-specific co
 - Keep session data, payroll rules, calendar arithmetic and offline synchronization in their existing providers.
 
 ## Verification
-
-The web notification overlay adapts the droplet geometry, neck profile and alpha filter from [rit3zh/expo-dynamic-notifications](https://github.com/rit3zh/expo-dynamic-notifications) to browser SVG. It uses Taraz tokens and does not require Skia. The upstream MIT notice is preserved in [licenses/expo-dynamic-notifications.md](licenses/expo-dynamic-notifications.md). Native platforms render no overlay. Preview it from Profile → Notifications without enabling system notifications.
 
 Run `bun run typecheck`, `bun run test`, `bun run test:smoke` against a development API, and `bun run build:mobile`. Verify forms, tabs, dialogs, both languages and both themes in Expo. HeroUI documents its Native package primarily for iOS/Android; exercise the Expo web output separately after upgrades. The admin panel uses `@heroui/react` and `@heroui/styles` instead.

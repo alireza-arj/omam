@@ -1,5 +1,4 @@
 import { isDesktop } from "./desktop";
-import { showDynamicNotification } from "../design/taraz/dynamic-notifications";
 
 export type WebNotificationSupport = "supported" | "install" | "unsupported";
 let enabled = false;
@@ -39,7 +38,6 @@ export async function webNotificationRegistration() {
 }
 
 export async function showWebNotification(kind: "clock-in" | "clock-out" | "test", copy: { title: string; body: string }) {
-  if (typeof window !== "undefined" && !isDesktop()) showDynamicNotification({ kind, ...copy });
   if (!enabled || webNotificationSupport() !== "supported" || webNotificationPermission() !== "granted") return;
   const registration = await webNotificationRegistration();
   if (!enabled) return;

@@ -27,7 +27,6 @@ export function WebNotificationCard() {
         : t("notifications.remindersConnecting")
     }</Text> : null}
     {notifications.error ? <Notice tone="danger" title={translateError(notifications.error, t, "notifications.failed")} /> : null}
-    <Button label={t("notifications.preview")} full variant="quiet" onPress={notifications.preview} />
     {supported && !blocked && !active ? <Button label={t("notifications.enable")} full size="lg" loading={notifications.busy} onPress={() => { void notifications.enable(); }} /> : null}
     {active ? <Button label={t("notifications.test")} full variant="quiet" loading={notifications.busy} onPress={() => { void notifications.test(); }} /> : null}
     {notifications.enabled ? <Button label={t("notifications.disable")} full variant="outline" loading={notifications.busy} onPress={() => { void notifications.disable(); }} /> : null}

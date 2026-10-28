@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from "react";
 import { Platform } from "react-native";
-import { DynamicNotifications, showDynamicNotification, useLanguage } from "../design/taraz";
+import { useLanguage } from "../design/taraz";
 import { useAuth } from "./auth-provider";
 import { useSync } from "./sync-provider";
 import { useSQLiteContext } from "../lib/sqlite-context";
@@ -17,7 +17,7 @@ type PushState = "off" | "connected" | "unlinked" | "unconfigured" | "unavailabl
 type NotificationContextValue = {
   visible: boolean; support: WebNotificationSupport; permission: NotificationPermission; enabled: boolean;
   busy: boolean; pushState: PushState; error: unknown;
-  enable: () => Promise<void>; disable: () => Promise<void>; test: () => Promise<void>; preview: () => void;
+  enable: () => Promise<void>; disable: () => Promise<void>; test: () => Promise<void>;
 };
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 const preferenceKey = (userId: string) => `@omam:notifications:${userId}`;
@@ -190,12 +190,7 @@ export function NotificationProvider({ children }: PropsWithChildren) {
     finally { setBusy(false); }
   }
 
-  const preview = () => showDynamicNotification({ kind: "test", title: t("notifications.previewTitle"), body: t("notifications.previewBody") });
-
-  return <NotificationContext.Provider value={{ visible, support, permission, enabled, busy: busy || !ready, pushState, error, enable, disable, test, preview }}>
-    {children}
-    {visible && userId ? <DynamicNotifications key={userId} /> : null}
-  </NotificationContext.Provider>;
+  return <NotificationContext.Provider value={{ visible, support, permission, enabled, busy: busy || !ready, pushState, error, enable, disable, test }}>{children}</NotificationContext.Provider>;
 }
 
 export function useNotifications() {
