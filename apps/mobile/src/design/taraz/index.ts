@@ -66,5 +66,7 @@ export type { TagProps } from "./components/tag";
 export type { TextProps } from "./components/text";
 
 export { HeroUIProvider } from "./hero-ui-provider";
+export { DynamicNotifications } from "./components/dynamic-notifications";
+export { showDynamicNotification } from "./dynamic-notifications";
 export { Spinner } from "heroui-native/spinner";
 export { PressableFeedback } from "heroui-native/pressable-feedback";

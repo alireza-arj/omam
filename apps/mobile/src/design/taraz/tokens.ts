@@ -218,6 +218,32 @@ export const motion = {
   easeOut: { x1: 0.16, y1: 1, x2: 0.3, y2: 1 },
 } as const;
 
+export const notificationTokens = {
+  islandWidth: 126,
+  islandHeight: 37.33,
+  top: 12,
+  cardMaxWidth: 396,
+  cardMinHeight: 88,
+  cardGap: 24,
+  dropSize: 52,
+  neckWidth: 60,
+  canvasPadding: 32,
+  blur: 8,
+  gooGain: 22,
+  gooThreshold: 0.43,
+  growSpan: 0.7,
+  growPower: 1.25,
+  stretch: 0.38,
+  neckBreak: 0.82,
+  neckRise: 1.6,
+  neckFall: 1.4,
+  duration: 280,
+  lifetime: 3600,
+  swipeDistance: 18,
+  layer: 1000,
+  shadow: "rgba(0,0,0,0.18)",
+} as const;
+
 export const desktopTokens = {
   "--dt-embedded-scale": "0.875",
   "--dt-clear": "transparent",

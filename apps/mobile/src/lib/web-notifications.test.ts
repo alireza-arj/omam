@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, mock, test } from "bun:test";
+import { subscribeDynamicNotifications } from "../design/taraz/dynamic-notifications";
 import {
   applicationServerKey, disconnectWebNotifications, requestWebNotificationPermission, setWebNotificationsEnabled,
   showWebNotification, webNotificationRegistration, webNotificationSupport,
@@ -77,6 +78,23 @@ test("session notifications require both explicit opt-in and granted permission"
   await showWebNotification("clock-out", { title: "Stop", body: "Stopped" });
   expect(show).not.toHaveBeenCalled();
   expect(requestPermission).not.toHaveBeenCalled();
+});
+
+test("in-app confirmations work without system notification permission or Home Screen installation", async () => {
+  navigatorStub.userAgent = "iPhone";
+  Object.defineProperty(Notification, "permission", { value: "denied", configurable: true });
+  const receive = mock(() => {});
+  const unsubscribeInApp = subscribeDynamicNotifications(receive);
+  try {
+    await showWebNotification("clock-in", { title: "Start", body: "Started" });
+    expect(receive).toHaveBeenCalledWith({ kind: "clock-in", title: "Start", body: "Started" });
+    expect(show).not.toHaveBeenCalled();
+    expect(register).not.toHaveBeenCalled();
+    expect(requestPermission).not.toHaveBeenCalled();
+    unsubscribeInApp();
+    await showWebNotification("clock-out", { title: "Stop", body: "Stopped" });
+    expect(receive).toHaveBeenCalledTimes(1);
+  } finally { unsubscribeInApp(); }
 });
 
 test("uses service worker notifications with localized direction and opens permission only explicitly", async () => {
